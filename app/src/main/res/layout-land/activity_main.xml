@@ -83,6 +83,17 @@
 
             </LinearLayout>
 
+            <!-- Saldo actual (visible solo en caso de saldo insuficiente con cantidad personalizada) -->
+            <TextView
+                android:id="@+id/tvActualBalance"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="28sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:layout_marginBottom="8dp"
+                android:visibility="gone" />
+
             <!-- Status message -->
             <TextView
                 android:id="@+id/tvStatus"
