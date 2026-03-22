@@ -291,6 +291,7 @@ class MainActivity : AppCompatActivity() {
     // -------------------------------------------------------------------------
 
     private fun flashBackground(@ColorRes colorRes: Int) {
+        if (!AdvancedSettingsActivity.isFlashEnabled(this)) return
         handler.removeCallbacksAndMessages(FLASH_TOKEN)
         rootLayout.setBackgroundColor(ContextCompat.getColor(this, colorRes))
         handler.postDelayed({
