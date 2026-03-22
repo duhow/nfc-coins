@@ -47,25 +47,27 @@ class MainActivity : AppCompatActivity() {
         private const val DATA_BLOCK_OFFSET = 0
         private const val KEY_LEN = 6
 
+        private fun hexKey(vararg bytes: Int): ByteArray = ByteArray(bytes.size) { bytes[it].toByte() }
+
         // Claves NFC estándar a probar al formatear (fábrica y NDEF)
         private val STANDARD_KEYS = listOf(
-            byteArrayOf(0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte()), // Fábrica (por defecto)
-            byteArrayOf(0xA0.toByte(), 0xA1.toByte(), 0xA2.toByte(), 0xA3.toByte(), 0xA4.toByte(), 0xA5.toByte()), // NDEF Key A
-            byteArrayOf(0xD3.toByte(), 0xF7.toByte(), 0xD3.toByte(), 0xF7.toByte(), 0xD3.toByte(), 0xF7.toByte()), // NDEF datos
-            byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00),                                                       // Todo ceros
-            byteArrayOf(0x4D.toByte(), 0x3A.toByte(), 0x99.toByte(), 0xC3.toByte(), 0x51.toByte(), 0xDD.toByte()), // NDEF Key B común
-            byteArrayOf(0x1A.toByte(), 0x98.toByte(), 0x2C.toByte(), 0x7E.toByte(), 0x45.toByte(), 0x9A.toByte()), // MAD key
-            byteArrayOf(0xB0.toByte(), 0xB1.toByte(), 0xB2.toByte(), 0xB3.toByte(), 0xB4.toByte(), 0xB5.toByte())  // Key B común
+            hexKey(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF), // Fábrica (por defecto)
+            hexKey(0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5), // NDEF Key A
+            hexKey(0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7), // NDEF datos
+            hexKey(0x00, 0x00, 0x00, 0x00, 0x00, 0x00), // Todo ceros
+            hexKey(0x4D, 0x3A, 0x99, 0xC3, 0x51, 0xDD), // NDEF Key B común
+            hexKey(0x1A, 0x98, 0x2C, 0x7E, 0x45, 0x9A), // MAD key
+            hexKey(0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5), // Key B común
         )
 
         // Máximo valor de saldo (uint16: 2 bytes big-endian)
         private const val MAX_BALANCE = 0xFFFF
 
         // Bits de acceso estándar: lectura y escritura con Key A en todos los bloques de datos
-        private val ACCESS_BITS = byteArrayOf(0xFF.toByte(), 0x07.toByte(), 0x80.toByte(), 0x69.toByte())
+        private val ACCESS_BITS = hexKey(0xFF, 0x07, 0x80, 0x69)
 
         // Clave de fábrica Mifare Classic (todos los bytes a 0xFF)
-        private val FACTORY_KEY = byteArrayOf(0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte())
+        private val FACTORY_KEY = hexKey(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF)
 
         private const val AUTO_RESET_DELAY_MS = 7000L
         private val FLASH_TOKEN = Any()
