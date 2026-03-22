@@ -50,6 +50,8 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val DATA_BLOCK_OFFSET = 0
+        private const val TX_BLOCK_1_OFFSET = 1
+        private const val TX_BLOCK_2_OFFSET = 2
         private const val KEY_LEN = 6
 
         private fun hexKey(vararg bytes: Int): ByteArray = ByteArray(bytes.size) { bytes[it].toByte() }
@@ -92,6 +94,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var layoutBeforeAfter: LinearLayout
     private lateinit var toggleGroup: MaterialButtonToggleGroup
     private lateinit var etHiddenInput: EditText
+    private lateinit var layoutTransactionHistory: LinearLayout
+    private lateinit var tvTx: Array<TextView>
 
     private var nfcAdapter: NfcAdapter? = null
     private var toneGenerator: ToneGenerator? = null
@@ -102,6 +106,21 @@ class MainActivity : AppCompatActivity() {
     private var pendingAddAmount: Int = 0
     private var customDeductAmount: Int = 0
     private var isCustomAmountMode = false
+
+    /**
+     * Holds the full intended card state (counter + 2 transaction blocks) that was computed
+     * just before a write operation. If the write is interrupted (e.g. card removed mid-write),
+     * the data here lets us retry on the next tap instead of flagging the card as tampered.
+     */
+    private data class PendingWrite(
+        val uid: ByteArray,
+        val counterBlock: ByteArray,
+        val txBlock1: ByteArray,
+        val txBlock2: ByteArray
+    ) {
+        fun matchesUid(other: ByteArray) = uid.contentEquals(other)
+    }
+    private var pendingWrite: PendingWrite? = null
 
     private val handler = Handler(Looper.getMainLooper())
     private val autoResetRunnable = Runnable { resetToWaiting() }
@@ -120,6 +139,13 @@ class MainActivity : AppCompatActivity() {
         layoutBeforeAfter = findViewById(R.id.layoutBeforeAfter)
         toggleGroup       = findViewById(R.id.toggleGroup)
         etHiddenInput     = findViewById(R.id.etHiddenInput)
+        layoutTransactionHistory = findViewById(R.id.layoutTransactionHistory)
+        tvTx = arrayOf(
+            findViewById(R.id.tvTx0),
+            findViewById(R.id.tvTx1),
+            findViewById(R.id.tvTx2),
+            findViewById(R.id.tvTx3)
+        )
 
         setupBalanceEditText()
 
@@ -268,13 +294,17 @@ class MainActivity : AppCompatActivity() {
                 scheduleAutoReset()
                 return
             }
-            val blockIndex = mifare.sectorToBlock(sector) + DATA_BLOCK_OFFSET
-            val data = mifare.readBlock(blockIndex)
-            currentBalance = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
+            val sectorStart = mifare.sectorToBlock(sector)
+            val counterData = mifare.readBlock(sectorStart + DATA_BLOCK_OFFSET)
+            val txBlock1    = mifare.readBlock(sectorStart + TX_BLOCK_1_OFFSET)
+            val txBlock2    = mifare.readBlock(sectorStart + TX_BLOCK_2_OFFSET)
+            currentBalance = ((counterData[0].toInt() and 0xFF) shl 8) or (counterData[1].toInt() and 0xFF)
             setBalanceText(currentBalance.toString())
             layoutBeforeAfter.visibility = View.GONE
             tvActualBalance.visibility = View.GONE
             tvStatus.text = getString(R.string.card_read_ok)
+            val txBlock = TransactionBlock.fromBytes(txBlock1, txBlock2)
+            showTransactionHistory(txBlock)
             playSuccessBeep()
             scheduleAutoReset()
         } catch (e: Exception) {
@@ -290,6 +320,8 @@ class MainActivity : AppCompatActivity() {
     /** Modo con botón activo: descuenta monedas y muestra saldo inicial → final en grande. */
     private fun readAndDeduct(tag: Tag, cardKey: ByteArray, amount: Int, isCustomAmount: Boolean = false) {
         val sector = AdvancedSettingsActivity.getTargetSector(this)
+        val uid = tag.id
+        val psk = AdvancedSettingsActivity.getStaticKey(this)
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
@@ -306,9 +338,34 @@ class MainActivity : AppCompatActivity() {
                 scheduleAutoReset()
                 return
             }
-            val blockIndex = mifare.sectorToBlock(sector) + DATA_BLOCK_OFFSET
-            val data = mifare.readBlock(blockIndex)
-            val balance = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
+            val sectorStart = mifare.sectorToBlock(sector)
+            val counterData = mifare.readBlock(sectorStart + DATA_BLOCK_OFFSET)
+            val txBlock1    = mifare.readBlock(sectorStart + TX_BLOCK_1_OFFSET)
+            val txBlock2    = mifare.readBlock(sectorStart + TX_BLOCK_2_OFFSET)
+            val txBlock     = TransactionBlock.fromBytes(txBlock1, txBlock2)
+
+            // Anti-tampering: verify checksum before performing any operation.
+            if (!txBlock.isValid(counterData, txBlock1, txBlock2, uid, psk)) {
+                val pw = pendingWrite
+                if (pw != null && pw.matchesUid(uid)) {
+                    // Interrupted write detected – retry the previous write and continue.
+                    mifare.writeBlock(sectorStart + DATA_BLOCK_OFFSET, pw.counterBlock)
+                    mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, pw.txBlock1)
+                    mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, pw.txBlock2)
+                    pendingWrite = null
+                    tvStatus.text = getString(R.string.write_retried)
+                    scheduleAutoReset()
+                    return
+                }
+                tvStatus.text = getString(R.string.card_tampered)
+                flashRedBackground()
+                playNfcErrorBeep()
+                scheduleAutoReset()
+                return
+            }
+            pendingWrite = null  // Previous write (if any) was successful.
+
+            val balance = ((counterData[0].toInt() and 0xFF) shl 8) or (counterData[1].toInt() and 0xFF)
 
             if (balance < amount) {
                 currentBalance = balance
@@ -329,10 +386,21 @@ class MainActivity : AppCompatActivity() {
             }
 
             val newBalance = balance - amount
-            val block = ByteArray(MifareClassic.BLOCK_SIZE)
-            block[0] = ((newBalance shr 8) and 0xFF).toByte()
-            block[1] = (newBalance and 0xFF).toByte()
-            mifare.writeBlock(blockIndex, block)
+            val newCounterBlock = ByteArray(MifareClassic.BLOCK_SIZE)
+            newCounterBlock[0] = ((newBalance shr 8) and 0xFF).toByte()
+            newCounterBlock[1] = (newBalance and 0xFF).toByte()
+
+            val nowSecs = System.currentTimeMillis() / 1000L
+            val updatedTxBlock = txBlock.addTransaction(nowSecs, TxOperation.SUBTRACT, amount)
+            val (newTxBlock1, newTxBlock2) = updatedTxBlock.toBytes(newCounterBlock, uid, psk)
+
+            // Retain the intended state in memory so an interrupted write can be retried.
+            pendingWrite = PendingWrite(uid, newCounterBlock, newTxBlock1, newTxBlock2)
+
+            mifare.writeBlock(sectorStart + DATA_BLOCK_OFFSET, newCounterBlock)
+            mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, newTxBlock1)
+            mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, newTxBlock2)
+            pendingWrite = null
 
             currentBalance = newBalance
             setBalanceText(newBalance.toString())
@@ -341,6 +409,7 @@ class MainActivity : AppCompatActivity() {
             layoutBeforeAfter.visibility = View.VISIBLE
             tvActualBalance.visibility = View.GONE
             tvStatus.text = getString(R.string.deduct_ok, amount)
+            showTransactionHistory(updatedTxBlock)
             playSuccessBeep()
             scheduleAutoReset()
 
@@ -479,6 +548,8 @@ class MainActivity : AppCompatActivity() {
         resetBalanceToInitial()
         layoutBeforeAfter.visibility = View.GONE
         tvActualBalance.visibility = View.GONE
+        layoutTransactionHistory.visibility = View.GONE
+        tvTx.forEach { it.visibility = View.GONE }
         tvStatus.text = getString(R.string.waiting_card)
         pendingAction = PendingAction.NONE
         pendingAddAmount = 0
@@ -624,6 +695,7 @@ class MainActivity : AppCompatActivity() {
         val sector = AdvancedSettingsActivity.getTargetSector(this)
         val uid = tag.id
         val cardKey = deriveCardKey(uid)
+        val psk = AdvancedSettingsActivity.getStaticKey(this)
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
@@ -640,9 +712,34 @@ class MainActivity : AppCompatActivity() {
                 scheduleAutoReset()
                 return
             }
-            val blockIndex = mifare.sectorToBlock(sector) + DATA_BLOCK_OFFSET
-            val data = mifare.readBlock(blockIndex)
-            val oldBalance = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
+            val sectorStart = mifare.sectorToBlock(sector)
+            val counterData = mifare.readBlock(sectorStart + DATA_BLOCK_OFFSET)
+            val txBlock1    = mifare.readBlock(sectorStart + TX_BLOCK_1_OFFSET)
+            val txBlock2    = mifare.readBlock(sectorStart + TX_BLOCK_2_OFFSET)
+            val txBlock     = TransactionBlock.fromBytes(txBlock1, txBlock2)
+
+            // Anti-tampering: verify checksum before performing any operation.
+            if (!txBlock.isValid(counterData, txBlock1, txBlock2, uid, psk)) {
+                val pw = pendingWrite
+                if (pw != null && pw.matchesUid(uid)) {
+                    // Interrupted write detected – retry the previous write and continue.
+                    mifare.writeBlock(sectorStart + DATA_BLOCK_OFFSET, pw.counterBlock)
+                    mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, pw.txBlock1)
+                    mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, pw.txBlock2)
+                    pendingWrite = null
+                    tvStatus.text = getString(R.string.write_retried)
+                    scheduleAutoReset()
+                    return
+                }
+                tvStatus.text = getString(R.string.card_tampered)
+                flashRedBackground()
+                playNfcErrorBeep()
+                scheduleAutoReset()
+                return
+            }
+            pendingWrite = null
+
+            val oldBalance = ((counterData[0].toInt() and 0xFF) shl 8) or (counterData[1].toInt() and 0xFF)
             val newBalance = oldBalance + pendingAddAmount
             if (newBalance > MAX_BALANCE) {
                 Toast.makeText(this, getString(R.string.balance_too_high), Toast.LENGTH_SHORT).show()
@@ -650,10 +747,22 @@ class MainActivity : AppCompatActivity() {
                 scheduleAutoReset()
                 return
             }
-            val block = ByteArray(MifareClassic.BLOCK_SIZE)
-            block[0] = ((newBalance shr 8) and 0xFF).toByte()
-            block[1] = (newBalance and 0xFF).toByte()
-            mifare.writeBlock(blockIndex, block)
+
+            val newCounterBlock = ByteArray(MifareClassic.BLOCK_SIZE)
+            newCounterBlock[0] = ((newBalance shr 8) and 0xFF).toByte()
+            newCounterBlock[1] = (newBalance and 0xFF).toByte()
+
+            val nowSecs = System.currentTimeMillis() / 1000L
+            val updatedTxBlock = txBlock.addTransaction(nowSecs, TxOperation.ADD, pendingAddAmount)
+            val (newTxBlock1, newTxBlock2) = updatedTxBlock.toBytes(newCounterBlock, uid, psk)
+
+            // Retain the intended state in memory so an interrupted write can be retried.
+            pendingWrite = PendingWrite(uid, newCounterBlock, newTxBlock1, newTxBlock2)
+
+            mifare.writeBlock(sectorStart + DATA_BLOCK_OFFSET, newCounterBlock)
+            mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, newTxBlock1)
+            mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, newTxBlock2)
+            pendingWrite = null
 
             currentBalance = newBalance
             setBalanceText(newBalance.toString())
@@ -661,6 +770,7 @@ class MainActivity : AppCompatActivity() {
             tvBalanceAfter.text = newBalance.toString()
             layoutBeforeAfter.visibility = View.VISIBLE
             tvStatus.text = getString(R.string.balance_added_ok, pendingAddAmount)
+            showTransactionHistory(updatedTxBlock)
             flashBackground(R.color.success_green)
             playSuccessBeep()
             scheduleAutoReset()
@@ -683,6 +793,7 @@ class MainActivity : AppCompatActivity() {
         val sector = AdvancedSettingsActivity.getTargetSector(this)
         val uid = tag.id
         val derivedKey = deriveCardKey(uid)
+        val psk = AdvancedSettingsActivity.getStaticKey(this)
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
@@ -694,18 +805,27 @@ class MainActivity : AppCompatActivity() {
         try {
             mifare.connect()
 
-            // Si ya está formateada con la clave derivada, solo reinicia el saldo a 0
+            // Si ya está formateada con la clave derivada, reinicia el saldo a 0 y el historial
             if (mifare.authenticateSectorWithKeyA(sector, derivedKey)) {
-                val blockIndex = mifare.sectorToBlock(sector) + DATA_BLOCK_OFFSET
-                val data = mifare.readBlock(blockIndex)
-                val oldBalance = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
-                mifare.writeBlock(blockIndex, ByteArray(MifareClassic.BLOCK_SIZE))
+                val sectorStart = mifare.sectorToBlock(sector)
+                val counterData = mifare.readBlock(sectorStart + DATA_BLOCK_OFFSET)
+                val oldBalance = ((counterData[0].toInt() and 0xFF) shl 8) or (counterData[1].toInt() and 0xFF)
+
+                val emptyCounter = ByteArray(MifareClassic.BLOCK_SIZE)
+                val nowSecs = System.currentTimeMillis() / 1000L
+                val freshTxBlock = TransactionBlock(nowSecs)
+                val (txB1, txB2) = freshTxBlock.toBytes(emptyCounter, uid, psk)
+
+                mifare.writeBlock(sectorStart + DATA_BLOCK_OFFSET, emptyCounter)
+                mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, txB1)
+                mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, txB2)
 
                 currentBalance = 0
                 setBalanceText("0")
                 tvBalanceBefore.text = oldBalance.toString()
                 tvBalanceAfter.text = "0"
                 layoutBeforeAfter.visibility = View.VISIBLE
+                showTransactionHistory(freshTxBlock)
                 tvStatus.text = getString(R.string.format_reset_success)
                 flashBackground(R.color.success_purple_dark)
                 playSuccessBeep()
@@ -752,13 +872,17 @@ class MainActivity : AppCompatActivity() {
                 return
             }
 
-            // Limpiar bloques de datos del sector
+            // Inicializar contador a 0 y bloques de transacción con timestamp actual
             val sectorStart = mifare.sectorToBlock(sector)
             val blocksInSector = mifare.getBlockCountInSector(sector)
-            val emptyBlock = ByteArray(MifareClassic.BLOCK_SIZE)
-            for (i in 0 until blocksInSector - 1) {
-                mifare.writeBlock(sectorStart + i, emptyBlock)
-            }
+            val emptyCounter = ByteArray(MifareClassic.BLOCK_SIZE)
+            val nowSecs = System.currentTimeMillis() / 1000L
+            val freshTxBlock = TransactionBlock(nowSecs)
+            val (txB1, txB2) = freshTxBlock.toBytes(emptyCounter, uid, psk)
+
+            mifare.writeBlock(sectorStart + DATA_BLOCK_OFFSET, emptyCounter)
+            mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, txB1)
+            mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, txB2)
 
             // Escribir trailer del sector con la clave derivada
             // [Key A (6 bytes)] [Access bits (4 bytes)] [Key B (6 bytes)]
@@ -775,6 +899,7 @@ class MainActivity : AppCompatActivity() {
             currentBalance = 0
             setBalanceText("0")
             layoutBeforeAfter.visibility = View.GONE
+            showTransactionHistory(freshTxBlock)
             tvStatus.text = getString(R.string.format_success)
             flashBackground(R.color.success_purple_dark)
             playSuccessBeep()
@@ -1063,6 +1188,34 @@ class MainActivity : AppCompatActivity() {
     private fun hideKeyboardFrom(view: View) {
         val imm = getSystemService(InputMethodManager::class.java)
         imm.hideSoftInputFromWindow(view.windowToken, 0)
+    }
+
+    /**
+     * Renders up to [TransactionBlock.MAX_TRANSACTIONS] transaction entries in the
+     * history section at the bottom of the screen.
+     */
+    private fun showTransactionHistory(txBlock: TransactionBlock) {
+        if (txBlock.initTimestamp <= 0L && txBlock.transactions.isEmpty()) {
+            layoutTransactionHistory.visibility = View.GONE
+            return
+        }
+        layoutTransactionHistory.visibility = View.VISIBLE
+        val entries = txBlock.transactions
+        for (i in tvTx.indices) {
+            val tv = tvTx[i]
+            val entry = entries.getOrNull(i)
+            if (entry == null) {
+                tv.visibility = View.GONE
+            } else {
+                val timeLabel = getString(R.string.tx_time_format, entry.secondsOffset)
+                val amtLabel = when (entry.operation) {
+                    TxOperation.ADD      -> getString(R.string.tx_add, entry.amount)
+                    TxOperation.SUBTRACT -> getString(R.string.tx_subtract, entry.amount)
+                }
+                tv.text = getString(R.string.tx_entry_format, timeLabel, amtLabel)
+                tv.visibility = View.VISIBLE
+            }
+        }
     }
 
     private fun ByteArray.toHex(): String =

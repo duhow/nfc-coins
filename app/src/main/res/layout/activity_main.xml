@@ -136,6 +136,58 @@
 
         </com.google.android.material.button.MaterialButtonToggleGroup>
 
+        <!-- Transaction history (shown after reading a card) -->
+        <LinearLayout
+            android:id="@+id/layoutTransactionHistory"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="24dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/tx_history_label"
+                android:textSize="12sp"
+                android:textAllCaps="true"
+                android:alpha="0.6"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvTx0"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:fontFamily="monospace"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tvTx1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:fontFamily="monospace"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tvTx2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:fontFamily="monospace"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tvTx3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:fontFamily="monospace"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
     </LinearLayout>
 
 </FrameLayout>

@@ -75,4 +75,13 @@
     <string name="key_too_short">La clave debe tener al menos 8 caracteres</string>
     <string name="btn_save_settings">Guardar</string>
     <string name="settings_saved">Ajustes guardados</string>
+
+    <!-- Transaction history -->
+    <string name="tx_history_label">Últimas transacciones</string>
+    <string name="tx_add">+%d monedas</string>
+    <string name="tx_subtract">-%d monedas</string>
+    <string name="tx_time_format">+%ds</string>
+    <string name="tx_entry_format">%1$s  %2$s</string>
+    <string name="card_tampered">Tarjeta adulterada. Operación cancelada.</string>
+    <string name="write_retried">Escritura reiniciada tras interrupción anterior</string>
 </resources>
