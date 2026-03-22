@@ -133,6 +133,10 @@ class MainActivity : AppCompatActivity() {
         if (intent?.action == NfcAdapter.ACTION_TECH_DISCOVERED) {
             handleNfcIntent(intent)
         }
+
+        // Pre-warm the audio hardware so the first startTone() call fires without the
+        // cold-start latency that collapses the first two beeps of a multi-beep sequence.
+        initToneGenerator()
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -369,17 +373,26 @@ class MainActivity : AppCompatActivity() {
     // Beep feedback: 1 beep = success, 2 beeps = NFC error, 3 beeps = no balance
     // -------------------------------------------------------------------------
 
-    // Lazily creates a single ToneGenerator and reuses it for the lifetime of the activity.
-    // Reusing avoids the audio-hardware setup latency and the brief overlap that can occur when
-    // releasing one ToneGenerator while starting another. startTone() stops any in-progress tone
-    // before playing the new one, so no explicit teardown is needed between calls.
+    // Creates the ToneGenerator eagerly (called from onCreate) so the audio hardware session is
+    // already open before the first NFC tap. A cold ToneGenerator causes the first startTone()
+    // to block briefly while the hardware initialises, making the first beep start late while
+    // subsequent handler-scheduled beeps fire on time — causing them to collapse together.
+    private fun initToneGenerator() {
+        if (toneGenerator != null) return
+        try {
+            toneGenerator = ToneGenerator(AudioManager.STREAM_DTMF, ToneGenerator.MAX_VOLUME)
+        } catch (_: Exception) {}
+    }
+
+    // Reuses the single ToneGenerator created in initToneGenerator() for the lifetime of the
+    // activity. startTone() stops any in-progress tone before playing the new one, so no explicit
+    // teardown is needed between calls.
     private fun playBeep(count: Int, toneType: Int, durationMs: Int, intervalMs: Int = 100) {
         handler.removeCallbacksAndMessages(BEEP_TOKEN)
         if (count <= 0) return
         if (!AdvancedSettingsActivity.isSoundEnabled(this)) return
-        val toneGen = toneGenerator ?: try {
-            ToneGenerator(AudioManager.STREAM_DTMF, ToneGenerator.MAX_VOLUME).also { toneGenerator = it }
-        } catch (_: Exception) { return }
+        initToneGenerator()
+        val toneGen = toneGenerator ?: return
         playBeepChain(toneGen, count, toneType, durationMs, intervalMs)
     }
 
@@ -391,8 +404,10 @@ class MainActivity : AppCompatActivity() {
     ) {
         val started = try { toneGen.startTone(toneType, durationMs) } catch (_: Exception) { false }
         if (!started) {
-            // ToneGenerator has become invalid; discard it so the next call recreates it.
+            // ToneGenerator has become invalid (e.g. audio system interrupted); discard and
+            // recreate it immediately so the next beep call finds a warm instance.
             toneGenerator = null
+            initToneGenerator()
             return
         }
         if (remaining > 1) {
