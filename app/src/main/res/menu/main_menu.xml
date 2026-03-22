@@ -9,4 +9,9 @@
         android:contentDescription="@string/card_management"
         app:showAsAction="always" />
 
+    <item
+        android:id="@+id/action_advanced_settings"
+        android:title="@string/advanced_settings"
+        app:showAsAction="never" />
+
 </menu>

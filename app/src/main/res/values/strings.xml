@@ -46,4 +46,21 @@
     <string name="format_reset_success">Saldo reiniciado a 0 (tarjeta ya formateada)</string>
     <string name="format_success">Tarjeta formateada</string>
     <string name="format_success_message">Clave %s encontrada: %s\nNueva clave generada: %s</string>
+
+    <!-- Advanced settings -->
+    <string name="advanced_settings">Ajustes avanzados</string>
+    <string name="setting_target_sector">Sector a modificar</string>
+    <string name="setting_target_sector_hint">Sector (1–15)</string>
+    <string name="setting_static_key">Clave estática</string>
+    <string name="setting_static_key_hint">Clave estática</string>
+    <string name="btn_show_key">Mostrar clave</string>
+    <string name="btn_hide_key">Ocultar clave</string>
+    <string name="btn_generate_key">Generar aleatoria</string>
+    <string name="generate_key_confirm_title">¿Generar nueva clave?</string>
+    <string name="generate_key_confirm_message">Las tarjetas anteriores quedarán bloqueadas o inaccesibles. ¿Deseas continuar?</string>
+    <string name="setting_dynamic_key">Activar clave dinámica (mezclar UID con clave estática)</string>
+    <string name="sector_invalid">El sector debe estar entre 1 y 15</string>
+    <string name="key_too_short">La clave debe tener al menos 8 caracteres</string>
+    <string name="btn_save_settings">Guardar</string>
+    <string name="settings_saved">Ajustes guardados</string>
 </resources>
