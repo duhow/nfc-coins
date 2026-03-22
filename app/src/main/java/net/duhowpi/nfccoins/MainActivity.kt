@@ -189,9 +189,12 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         handler.removeCallbacksAndMessages(BEEP_TOKEN)
-        beepSuccess?.release(); beepSuccess = null
-        beepError?.release();   beepError = null
-        beepRejection?.release(); beepRejection = null
+        beepSuccess?.release()
+        beepSuccess = null
+        beepError?.release()
+        beepError = null
+        beepRejection?.release()
+        beepRejection = null
     }
 
     override fun onNewIntent(intent: Intent) {
