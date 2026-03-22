@@ -24,6 +24,7 @@ import android.widget.Toast
 import androidx.annotation.ColorRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.IntentCompat
 import com.google.android.material.button.MaterialButtonToggleGroup
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -173,7 +174,7 @@ class MainActivity : AppCompatActivity() {
     // -------------------------------------------------------------------------
 
     private fun handleNfcIntent(intent: Intent) {
-        val tag: Tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG) ?: return
+        val tag: Tag = IntentCompat.getParcelableExtra(intent, NfcAdapter.EXTRA_TAG, Tag::class.java) ?: return
 
         if (!tag.techList.contains(MifareClassic::class.java.name)) {
             tvStatus.text = getString(R.string.unsupported_card)
@@ -904,7 +905,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showKeyboardFor(view: View) {
         val imm = getSystemService(InputMethodManager::class.java)
-        imm.showSoftInput(view, InputMethodManager.SHOW_FORCED)
+        imm.showSoftInput(view, 0)
     }
 
     private fun hideKeyboardFrom(view: View) {

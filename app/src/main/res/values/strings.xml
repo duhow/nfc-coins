@@ -50,7 +50,7 @@
     <string name="format_no_key_found">No se encontró ninguna clave estándar. La tarjeta puede estar ya personalizada.</string>
     <string name="format_reset_success">Saldo reiniciado a 0 (tarjeta ya formateada)</string>
     <string name="format_success">Tarjeta formateada</string>
-    <string name="format_success_message">Clave %s encontrada: %s\nNueva clave generada: %s</string>
+    <string name="format_success_message">Clave %1$s encontrada: %2$s\nNueva clave generada: %3$s</string>
     <string name="reset_card_success">Tarjeta reiniciada a valores de fábrica</string>
     <string name="reset_card_no_key">No se pudo autenticar con ninguna clave conocida</string>
 
