@@ -1,7 +1,6 @@
 package net.duhowpi.nfccoins
 
 import android.app.AlertDialog
-import android.app.PendingIntent
 import android.content.Intent
 import android.graphics.Color
 import android.media.AudioManager
@@ -91,7 +90,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etHiddenInput: EditText
 
     private var nfcAdapter: NfcAdapter? = null
-    private var pendingIntent: PendingIntent? = null
     private var toneGenerator: ToneGenerator? = null
 
     private var currentBalance: Int = -1
@@ -128,12 +126,6 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        pendingIntent = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-            PendingIntent.FLAG_MUTABLE
-        )
-
         if (intent?.action == NfcAdapter.ACTION_TECH_DISCOVERED) {
             handleNfcIntent(intent)
         }
@@ -160,12 +152,21 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        nfcAdapter?.enableForegroundDispatch(this, pendingIntent, null, null)
+        nfcAdapter?.enableReaderMode(
+            this,
+            { tag -> handler.post { handleTag(tag) } },
+            NfcAdapter.FLAG_READER_NFC_A or
+            NfcAdapter.FLAG_READER_NFC_B or
+            NfcAdapter.FLAG_READER_NFC_F or
+            NfcAdapter.FLAG_READER_NFC_V or
+            NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS,
+            null
+        )
     }
 
     override fun onPause() {
         super.onPause()
-        nfcAdapter?.disableForegroundDispatch(this)
+        nfcAdapter?.disableReaderMode(this)
     }
 
     override fun onDestroy() {
@@ -184,9 +185,8 @@ class MainActivity : AppCompatActivity() {
     // NFC handling
     // -------------------------------------------------------------------------
 
-    private fun handleNfcIntent(intent: Intent) {
-        val tag: Tag = IntentCompat.getParcelableExtra(intent, NfcAdapter.EXTRA_TAG, Tag::class.java) ?: return
-
+    /** Entry point for tags discovered via reader mode (called on main thread). */
+    private fun handleTag(tag: Tag) {
         if (!tag.techList.contains(MifareClassic::class.java.name)) {
             tvStatus.text = getString(R.string.unsupported_card)
             playNfcErrorBeep()
@@ -228,6 +228,11 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun handleNfcIntent(intent: Intent) {
+        val tag: Tag = IntentCompat.getParcelableExtra(intent, NfcAdapter.EXTRA_TAG, Tag::class.java) ?: return
+        handleTag(tag)
     }
 
     /** Modo sin botón activo: solo muestra el saldo en grande. */
