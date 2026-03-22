@@ -10,7 +10,9 @@ import android.nfc.tech.MifareClassic
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.Editable
 import android.text.InputType
+import android.text.TextWatcher
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -18,6 +20,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.annotation.ColorRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButtonToggleGroup
@@ -40,9 +43,6 @@ import javax.crypto.spec.SecretKeySpec
 class MainActivity : AppCompatActivity() {
 
     companion object {
-        private val PSK: String get() = BuildConfig.NFC_PSK
-
-        private const val TARGET_SECTOR = 14
         private const val DATA_BLOCK_OFFSET = 0
         private const val KEY_LEN = 6
 
@@ -63,10 +63,14 @@ class MainActivity : AppCompatActivity() {
         // Bits de acceso estándar: lectura y escritura con Key A en todos los bloques de datos
         private val ACCESS_BITS = byteArrayOf(0xFF.toByte(), 0x07.toByte(), 0x80.toByte(), 0x69.toByte())
 
+        // Clave de fábrica Mifare Classic (todos los bytes a 0xFF)
+        private val FACTORY_KEY = byteArrayOf(0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte())
+
         private const val AUTO_RESET_DELAY_MS = 7000L
+        private val FLASH_TOKEN = Any()
     }
 
-    private enum class PendingAction { NONE, ADD_BALANCE, FORMAT_CARD }
+    private enum class PendingAction { NONE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
 
     private lateinit var rootLayout: View
     private lateinit var tvStatus: TextView
@@ -125,11 +129,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == R.id.action_management) {
-            showCardManagementDialog()
-            return true
+        return when (item.itemId) {
+            R.id.action_management -> {
+                showCardManagementDialog()
+                true
+            }
+            R.id.action_advanced_settings -> {
+                startActivity(Intent(this, AdvancedSettingsActivity::class.java))
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
         }
-        return super.onOptionsItemSelected(item)
     }
 
     override fun onResume() {
@@ -174,6 +184,10 @@ class MainActivity : AppCompatActivity() {
                 pendingAction = PendingAction.NONE
                 formatCard(tag)
             }
+            PendingAction.RESET_CARD -> {
+                pendingAction = PendingAction.NONE
+                resetCard(tag)
+            }
             PendingAction.NONE -> {
                 val cardKey = deriveCardKey(uid)
                 when (toggleGroup.checkedButtonId) {
@@ -187,19 +201,22 @@ class MainActivity : AppCompatActivity() {
 
     /** Modo sin botón activo: solo muestra el saldo en grande. */
     private fun readAndShowBalance(tag: Tag, cardKey: ByteArray) {
+        val sector = AdvancedSettingsActivity.getTargetSector(this)
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
             return
         }
         try {
             mifare.connect()
-            if (!mifare.authenticateSectorWithKeyA(TARGET_SECTOR, cardKey)) {
+            if (!mifare.authenticateSectorWithKeyA(sector, cardKey)) {
                 tvStatus.text = getString(R.string.auth_failed)
+                flashBackground(R.color.error_orange)
                 scheduleAutoReset()
                 return
             }
-            val blockIndex = mifare.sectorToBlock(TARGET_SECTOR) + DATA_BLOCK_OFFSET
+            val blockIndex = mifare.sectorToBlock(sector) + DATA_BLOCK_OFFSET
             val data = mifare.readBlock(blockIndex)
             currentBalance = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
             tvBalance.text = currentBalance.toString()
@@ -208,6 +225,7 @@ class MainActivity : AppCompatActivity() {
             scheduleAutoReset()
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_reading, e.message)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
@@ -216,19 +234,22 @@ class MainActivity : AppCompatActivity() {
 
     /** Modo con botón activo: descuenta monedas y muestra saldo inicial → final en grande. */
     private fun readAndDeduct(tag: Tag, cardKey: ByteArray, amount: Int) {
+        val sector = AdvancedSettingsActivity.getTargetSector(this)
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
             return
         }
         try {
             mifare.connect()
-            if (!mifare.authenticateSectorWithKeyA(TARGET_SECTOR, cardKey)) {
+            if (!mifare.authenticateSectorWithKeyA(sector, cardKey)) {
                 tvStatus.text = getString(R.string.auth_failed)
+                flashBackground(R.color.error_orange)
                 scheduleAutoReset()
                 return
             }
-            val blockIndex = mifare.sectorToBlock(TARGET_SECTOR) + DATA_BLOCK_OFFSET
+            val blockIndex = mifare.sectorToBlock(sector) + DATA_BLOCK_OFFSET
             val data = mifare.readBlock(blockIndex)
             val balance = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
 
@@ -258,6 +279,7 @@ class MainActivity : AppCompatActivity() {
 
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
@@ -265,15 +287,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     // -------------------------------------------------------------------------
-    // Fondo rojo para saldo insuficiente
+    // Flash background color temporarily
     // -------------------------------------------------------------------------
 
-    private fun flashRedBackground() {
-        rootLayout.setBackgroundColor(ContextCompat.getColor(this, R.color.error_red_dark))
+    private fun flashBackground(@ColorRes colorRes: Int) {
+        if (!AdvancedSettingsActivity.isFlashEnabled(this)) return
+        handler.removeCallbacksAndMessages(FLASH_TOKEN)
+        rootLayout.setBackgroundColor(ContextCompat.getColor(this, colorRes))
         handler.postDelayed({
             rootLayout.setBackgroundColor(Color.TRANSPARENT)
-        }, 3000)
+        }, FLASH_TOKEN, 3000)
     }
+
+    private fun flashRedBackground() = flashBackground(R.color.error_red_dark)
 
     private fun scheduleAutoReset() {
         handler.removeCallbacks(autoResetRunnable)
@@ -281,6 +307,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resetToWaiting() {
+        handler.removeCallbacksAndMessages(FLASH_TOKEN)
+        rootLayout.setBackgroundColor(Color.TRANSPARENT)
         tvCardId.text = getString(R.string.no_card_detected)
         tvBalance.text = getString(R.string.balance_initial)
         layoutBeforeAfter.visibility = View.GONE
@@ -300,7 +328,8 @@ class MainActivity : AppCompatActivity() {
             .setItems(
                 arrayOf(
                     getString(R.string.action_add_balance),
-                    getString(R.string.action_format_card)
+                    getString(R.string.action_format_card),
+                    getString(R.string.action_reset_card)
                 )
             ) { _, which ->
                 when (which) {
@@ -308,6 +337,10 @@ class MainActivity : AppCompatActivity() {
                     1 -> {
                         pendingAction = PendingAction.FORMAT_CARD
                         tvStatus.text = getString(R.string.tap_card_to_format)
+                    }
+                    2 -> {
+                        pendingAction = PendingAction.RESET_CARD
+                        tvStatus.text = getString(R.string.tap_card_to_reset)
                     }
                 }
             }
@@ -323,6 +356,23 @@ class MainActivity : AppCompatActivity() {
             hint = getString(R.string.hint_add_amount)
             inputType = InputType.TYPE_CLASS_NUMBER
         }
+
+        // Limit input to MAX_BALANCE in real time
+        input.addTextChangedListener(object : TextWatcher {
+            private var isUpdating = false
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                if (isUpdating || s.isNullOrEmpty()) return
+                val value = s.toString().toIntOrNull() ?: return
+                if (value > MAX_BALANCE) {
+                    isUpdating = true
+                    s.replace(0, s.length, MAX_BALANCE.toString())
+                    isUpdating = false
+                }
+            }
+        })
+
         AlertDialog.Builder(this)
             .setTitle(R.string.action_add_balance)
             .setView(input)
@@ -334,6 +384,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 pendingAddAmount = amount
                 pendingAction = PendingAction.ADD_BALANCE
+                tvBalance.text = "+$amount"
                 tvStatus.text = getString(R.string.tap_card_to_add)
             }
             .setNegativeButton(android.R.string.cancel) { _, _ ->
@@ -348,21 +399,24 @@ class MainActivity : AppCompatActivity() {
      * si falla la autenticación, la tarjeta no está formateada y se muestra un error.
      */
     private fun addBalanceToCard(tag: Tag) {
+        val sector = AdvancedSettingsActivity.getTargetSector(this)
         val uid = tag.id
         val cardKey = deriveCardKey(uid)
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
             return
         }
         try {
             mifare.connect()
-            if (!mifare.authenticateSectorWithKeyA(TARGET_SECTOR, cardKey)) {
+            if (!mifare.authenticateSectorWithKeyA(sector, cardKey)) {
                 tvStatus.text = getString(R.string.card_not_formatted)
+                flashBackground(R.color.error_orange)
                 scheduleAutoReset()
                 return
             }
-            val blockIndex = mifare.sectorToBlock(TARGET_SECTOR) + DATA_BLOCK_OFFSET
+            val blockIndex = mifare.sectorToBlock(sector) + DATA_BLOCK_OFFSET
             val data = mifare.readBlock(blockIndex)
             val oldBalance = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
             val newBalance = oldBalance + pendingAddAmount
@@ -383,9 +437,11 @@ class MainActivity : AppCompatActivity() {
             tvBalanceAfter.text = newBalance.toString()
             layoutBeforeAfter.visibility = View.VISIBLE
             tvStatus.text = getString(R.string.balance_added_ok, pendingAddAmount)
+            flashBackground(R.color.success_green)
             scheduleAutoReset()
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
@@ -393,15 +449,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Intenta formatear el sector 14 de la tarjeta.
+     * Intenta formatear el sector configurado de la tarjeta.
      * Primero prueba la clave derivada del UID: si ya está formateada, solo pone el saldo a cero.
      * Si no, busca una clave estándar y escribe el sector con la clave derivada.
      */
     private fun formatCard(tag: Tag) {
+        val sector = AdvancedSettingsActivity.getTargetSector(this)
         val uid = tag.id
         val derivedKey = deriveCardKey(uid)
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
             return
         }
@@ -410,8 +468,8 @@ class MainActivity : AppCompatActivity() {
             mifare.connect()
 
             // Si ya está formateada con la clave derivada, solo reinicia el saldo a 0
-            if (mifare.authenticateSectorWithKeyA(TARGET_SECTOR, derivedKey)) {
-                val blockIndex = mifare.sectorToBlock(TARGET_SECTOR) + DATA_BLOCK_OFFSET
+            if (mifare.authenticateSectorWithKeyA(sector, derivedKey)) {
+                val blockIndex = mifare.sectorToBlock(sector) + DATA_BLOCK_OFFSET
                 val data = mifare.readBlock(blockIndex)
                 val oldBalance = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
                 mifare.writeBlock(blockIndex, ByteArray(MifareClassic.BLOCK_SIZE))
@@ -422,6 +480,7 @@ class MainActivity : AppCompatActivity() {
                 tvBalanceAfter.text = "0"
                 layoutBeforeAfter.visibility = View.VISIBLE
                 tvStatus.text = getString(R.string.format_reset_success)
+                flashBackground(R.color.success_purple_dark)
                 scheduleAutoReset()
                 return
             }
@@ -431,12 +490,12 @@ class MainActivity : AppCompatActivity() {
             var usedKeyA = true
 
             for (key in STANDARD_KEYS) {
-                if (mifare.authenticateSectorWithKeyA(TARGET_SECTOR, key)) {
+                if (mifare.authenticateSectorWithKeyA(sector, key)) {
                     foundKey = key
                     usedKeyA = true
                     break
                 }
-                if (mifare.authenticateSectorWithKeyB(TARGET_SECTOR, key)) {
+                if (mifare.authenticateSectorWithKeyB(sector, key)) {
                     foundKey = key
                     usedKeyA = false
                     break
@@ -445,25 +504,27 @@ class MainActivity : AppCompatActivity() {
 
             if (foundKey == null) {
                 tvStatus.text = getString(R.string.format_no_key_found)
+                flashBackground(R.color.error_orange)
                 scheduleAutoReset()
                 return
             }
 
             // Reautenticar con la clave encontrada
             val reAuthed = if (usedKeyA) {
-                mifare.authenticateSectorWithKeyA(TARGET_SECTOR, foundKey)
+                mifare.authenticateSectorWithKeyA(sector, foundKey)
             } else {
-                mifare.authenticateSectorWithKeyB(TARGET_SECTOR, foundKey)
+                mifare.authenticateSectorWithKeyB(sector, foundKey)
             }
             if (!reAuthed) {
                 tvStatus.text = getString(R.string.auth_failed)
+                flashBackground(R.color.error_orange)
                 scheduleAutoReset()
                 return
             }
 
             // Limpiar bloques de datos del sector
-            val sectorStart = mifare.sectorToBlock(TARGET_SECTOR)
-            val blocksInSector = mifare.getBlockCountInSector(TARGET_SECTOR)
+            val sectorStart = mifare.sectorToBlock(sector)
+            val blocksInSector = mifare.getBlockCountInSector(sector)
             val emptyBlock = ByteArray(MifareClassic.BLOCK_SIZE)
             for (i in 0 until blocksInSector - 1) {
                 mifare.writeBlock(sectorStart + i, emptyBlock)
@@ -485,6 +546,7 @@ class MainActivity : AppCompatActivity() {
             tvBalance.text = "0"
             layoutBeforeAfter.visibility = View.GONE
             tvStatus.text = getString(R.string.format_success)
+            flashBackground(R.color.success_purple_dark)
             scheduleAutoReset()
 
             AlertDialog.Builder(this)
@@ -495,6 +557,7 @@ class MainActivity : AppCompatActivity() {
 
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
@@ -503,19 +566,117 @@ class MainActivity : AppCompatActivity() {
 
     // -------------------------------------------------------------------------
     // Derivación de clave: HMAC-SHA1(PSK, UID) → primeros 6 bytes
+    // Si la clave es exactamente 12 caracteres hex (6 bytes), se usa directamente
+    // en modo estático. En modo dinámico siempre se hace HMAC con el PSK.
     // -------------------------------------------------------------------------
 
-    private fun deriveCardKey(uid: ByteArray): ByteArray {
+    /** Convierte una cadena hex (con posibles espacios y ':') en ByteArray, o null si no es válida. */
+    private fun tryParseHexKey(raw: String): ByteArray? {
+        val hex = raw.replace(" ", "").replace(":", "").uppercase()
+        if (hex.length != KEY_LEN * 2) return null
         return try {
-            val mac = Mac.getInstance("HmacSHA1")
-            val secretKey = SecretKeySpec(PSK.toByteArray(Charsets.UTF_8), "HmacSHA1")
-            mac.init(secretKey)
-            mac.doFinal(uid).take(KEY_LEN).toByteArray()
+            ByteArray(KEY_LEN) { i -> hex.substring(i * 2, i * 2 + 2).toInt(16).toByte() }
+        } catch (e: NumberFormatException) {
+            null
+        }
+    }
+
+    private fun deriveCardKey(uid: ByteArray): ByteArray {
+        val psk = AdvancedSettingsActivity.getStaticKey(this)
+        val useDynamic = AdvancedSettingsActivity.isDynamicKeyEnabled(this)
+
+        // Si la clave estática es directamente un valor hex de 6 bytes y estamos en modo estático,
+        // la usamos tal cual como clave de la tarjeta.
+        if (!useDynamic) {
+            tryParseHexKey(psk)?.let { return it }
+        }
+
+        return try {
+            if (useDynamic) {
+                val mac = Mac.getInstance("HmacSHA1")
+                val secretKey = SecretKeySpec(psk.toByteArray(Charsets.UTF_8), "HmacSHA1")
+                mac.init(secretKey)
+                mac.doFinal(uid).take(KEY_LEN).toByteArray()
+            } else {
+                // Clave estática no-hex: usar los primeros 6 bytes del hash SHA-256 de la clave
+                val digest = java.security.MessageDigest.getInstance("SHA-256")
+                digest.digest(psk.toByteArray(Charsets.UTF_8)).take(KEY_LEN).toByteArray()
+            }
         } catch (e: Exception) {
             val digest = java.security.MessageDigest.getInstance("SHA-256")
-            digest.update(PSK.toByteArray(Charsets.UTF_8))
-            digest.update(uid)
+            digest.update(psk.toByteArray(Charsets.UTF_8))
+            if (useDynamic) digest.update(uid)
             digest.digest().take(KEY_LEN).toByteArray()
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Reinicio de tarjeta: pone datos a 0x00 y restaura clave de fábrica FF:FF
+    // -------------------------------------------------------------------------
+
+    private fun resetCard(tag: Tag) {
+        val sector = AdvancedSettingsActivity.getTargetSector(this)
+        val uid = tag.id
+        val derivedKey = deriveCardKey(uid)
+
+        val mifare = MifareClassic.get(tag) ?: run {
+            tvStatus.text = getString(R.string.error_get_mifare)
+            flashBackground(R.color.error_orange)
+            scheduleAutoReset()
+            return
+        }
+
+        try {
+            mifare.connect()
+
+            // Intentar con clave derivada primero, luego con claves estándar
+            var authenticated = mifare.authenticateSectorWithKeyA(sector, derivedKey)
+            if (!authenticated) {
+                for (key in STANDARD_KEYS) {
+                    if (mifare.authenticateSectorWithKeyA(sector, key) ||
+                        mifare.authenticateSectorWithKeyB(sector, key)) {
+                        authenticated = true
+                        break
+                    }
+                }
+            }
+
+            if (!authenticated) {
+                tvStatus.text = getString(R.string.reset_card_no_key)
+                flashBackground(R.color.error_orange)
+                scheduleAutoReset()
+                return
+            }
+
+            // Limpiar bloques de datos del sector (poner a 0x00)
+            val sectorStart = mifare.sectorToBlock(sector)
+            val blocksInSector = mifare.getBlockCountInSector(sector)
+            val emptyBlock = ByteArray(MifareClassic.BLOCK_SIZE)
+            for (i in 0 until blocksInSector - 1) {
+                mifare.writeBlock(sectorStart + i, emptyBlock)
+            }
+
+            // Escribir trailer con clave de fábrica FF:FF y bits de acceso estándar
+            // [Key A (6 bytes)] [Access bits (4 bytes)] [Key B (6 bytes)]
+            val trailer = ByteArray(MifareClassic.BLOCK_SIZE)
+            System.arraycopy(FACTORY_KEY, 0, trailer, 0, KEY_LEN)
+            System.arraycopy(ACCESS_BITS, 0, trailer, KEY_LEN, ACCESS_BITS.size)
+            System.arraycopy(FACTORY_KEY, 0, trailer, KEY_LEN + ACCESS_BITS.size, KEY_LEN)
+            mifare.writeBlock(sectorStart + blocksInSector - 1, trailer)
+
+            currentBalance = -1
+            tvBalance.text = getString(R.string.balance_initial)
+            layoutBeforeAfter.visibility = View.GONE
+            tvStatus.text = getString(R.string.reset_card_success)
+            flashBackground(R.color.success_purple_dark)
+            scheduleAutoReset()
+
+        } catch (e: Exception) {
+            tvStatus.text = getString(R.string.error_writing, e.message)
+            flashBackground(R.color.error_orange)
+            scheduleAutoReset()
+        } finally {
+            runCatching { mifare.close() }
         }
     }
 
