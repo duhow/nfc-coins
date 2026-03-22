@@ -3,8 +3,9 @@ package net.duhowpi.nfccoins
 import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
-import android.media.AudioManager
-import android.media.ToneGenerator
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.MifareClassic
@@ -32,6 +33,8 @@ import androidx.core.content.IntentCompat
 import com.google.android.material.button.MaterialButtonToggleGroup
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
+import kotlin.math.PI
+import kotlin.math.sin
 
 /**
  * NFC POS – Monedero con Mifare Classic
@@ -94,7 +97,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etHiddenInput: EditText
 
     private var nfcAdapter: NfcAdapter? = null
-    private var toneGenerator: ToneGenerator? = null
+    private var beepSuccess: AudioTrack? = null    // 770 Hz, 150 ms — transaction confirmed
+    private var beepError: AudioTrack? = null      // 852 Hz, 150 ms — NFC read error
+    private var beepRejection: AudioTrack? = null  // 770 Hz, 120 ms — insufficient balance
 
     private var currentBalance: Int = -1
     private var currentTag: Tag? = null
@@ -134,9 +139,8 @@ class MainActivity : AppCompatActivity() {
             handleNfcIntent(intent)
         }
 
-        // Pre-warm the audio hardware so the first startTone() call fires without the
-        // cold-start latency that collapses the first two beeps of a multi-beep sequence.
-        initToneGenerator()
+        // Pre-generate PCM beep tracks so playback is instant on the first NFC tap.
+        initAudio()
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -185,8 +189,9 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         handler.removeCallbacksAndMessages(BEEP_TOKEN)
-        toneGenerator?.release()
-        toneGenerator = null
+        beepSuccess?.release(); beepSuccess = null
+        beepError?.release();   beepError = null
+        beepRejection?.release(); beepRejection = null
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -373,69 +378,86 @@ class MainActivity : AppCompatActivity() {
     // Beep feedback: 1 beep = success, 2 beeps = NFC error, 3 beeps = no balance
     // -------------------------------------------------------------------------
 
-    // Creates the ToneGenerator eagerly (called from onCreate) so the audio hardware session is
-    // already open before the first NFC tap. A cold ToneGenerator causes the first startTone()
-    // to block briefly while the hardware initialises, making the first beep start late while
-    // subsequent handler-scheduled beeps fire on time — causing them to collapse together.
-    //
-    // Each ToneGenerator has its own internal AudioTrack and native tone thread. That thread is
-    // started by the first startTone() call — not by construction. To warm up the pipeline we
-    // must call startTone() on the exact same instance that will be used for real beeps; warming
-    // a throwaway instance (even at volume=0) does nothing for a separately constructed instance.
-    //
-    // We call startTone() with a 1 ms duration on the real instance immediately after
-    // construction. Because the Android audio output latency is typically 50–200 ms, the 1 ms of
-    // generated audio is flushed before it ever reaches the speaker, so the user hears nothing.
-    // startTone() blocks internally until its native thread has started and AudioTrack is open,
-    // so by the time it returns the instance is fully warm for all subsequent calls.
-    private fun initToneGenerator() {
-        if (toneGenerator != null) return
-        try {
-            val tg = ToneGenerator(AudioManager.STREAM_DTMF, ToneGenerator.MAX_VOLUME)
-            toneGenerator = tg
-            tg.startTone(ToneGenerator.TONE_CDMA_LOW_L, 1)
-        } catch (_: Exception) {}
+    // Generates PCM sine-wave beep tracks at startup and loads them into AudioTrack static
+    // buffers. In static mode the entire audio clip lives in memory; play() starts rendering
+    // immediately with no cold-start delay, eliminating the first-beep latency that plagued
+    // ToneGenerator and caused multi-beep sequences to collapse together on the first NFC tap.
+    private fun initAudio() {
+        if (beepSuccess != null) return
+        beepSuccess   = createBeepTrack(770.0, 150)
+        beepError     = createBeepTrack(852.0, 150)
+        beepRejection = createBeepTrack(770.0, 120)
     }
 
-    // Reuses the single ToneGenerator created in initToneGenerator() for the lifetime of the
-    // activity. startTone() stops any in-progress tone before playing the new one, so no explicit
-    // teardown is needed between calls.
-    private fun playBeep(count: Int, toneType: Int, durationMs: Int, intervalMs: Int = 100) {
+    // Synthesises a pure sine-wave tone and loads it into an AudioTrack (static mode).
+    // A short linear fade-in and fade-out (10 ms each) prevents audible clicks at the
+    // start and end of each beep caused by abrupt waveform discontinuities.
+    private fun createBeepTrack(freqHz: Double, durationMs: Int): AudioTrack? {
+        return try {
+            val sampleRate = 44100
+            val numSamples = sampleRate * durationMs / 1000
+            val fadeLen = sampleRate * 10 / 1000  // 10 ms fade in / out
+            val buffer = ShortArray(numSamples) { i ->
+                val phase = 2.0 * PI * freqHz * i / sampleRate
+                val amp = when {
+                    i < fadeLen            -> i.toDouble() / fadeLen
+                    i >= numSamples - fadeLen -> (numSamples - i).toDouble() / fadeLen
+                    else                   -> 1.0
+                }
+                (Short.MAX_VALUE * sin(phase) * amp).toInt().toShort()
+            }
+            val track = AudioTrack.Builder()
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(sampleRate)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build()
+                )
+                .setBufferSizeInBytes(buffer.size * 2)
+                .setTransferMode(AudioTrack.MODE_STATIC)
+                .build()
+            track.write(buffer, 0, buffer.size)
+            track
+        } catch (_: Exception) { null }
+    }
+
+    // Cancels any in-progress beep sequence, then starts a new one.
+    private fun playBeep(track: AudioTrack?, count: Int, durationMs: Int, intervalMs: Int = 100) {
         handler.removeCallbacksAndMessages(BEEP_TOKEN)
-        if (count <= 0) return
+        if (count <= 0 || track == null) return
         if (!AdvancedSettingsActivity.isSoundEnabled(this)) return
-        initToneGenerator()
-        val toneGen = toneGenerator ?: return
-        playBeepChain(toneGen, count, toneType, durationMs, intervalMs)
+        playBeepChain(track, count, durationMs, intervalMs)
     }
 
-    // Plays beeps one at a time by scheduling each next beep from inside the previous callback,
-    // so inter-beep intervals are measured from when the previous beep actually fired rather than
-    // from the original call site. This prevents timing drift caused by main-thread congestion.
-    private fun playBeepChain(
-        toneGen: ToneGenerator, remaining: Int, toneType: Int, durationMs: Int, intervalMs: Int
-    ) {
-        val started = try { toneGen.startTone(toneType, durationMs) } catch (_: Exception) { false }
-        if (!started) {
-            // ToneGenerator has become invalid (e.g. audio system interrupted); discard and
-            // recreate it immediately so the next beep call finds a warm instance.
-            toneGenerator = null
-            initToneGenerator()
-            return
-        }
+    // Plays beeps one at a time, scheduling each successive beep from inside the previous
+    // callback. This keeps inter-beep intervals relative to the actual fire time rather than
+    // the original call site, preventing drift under main-thread load.
+    private fun playBeepChain(track: AudioTrack, remaining: Int, durationMs: Int, intervalMs: Int) {
+        try {
+            track.stop()
+            track.reloadStaticData()
+            track.play()
+        } catch (_: Exception) { return }
         if (remaining > 1) {
             handler.postDelayed({
-                playBeepChain(toneGen, remaining - 1, toneType, durationMs, intervalMs)
+                playBeepChain(track, remaining - 1, durationMs, intervalMs)
             }, BEEP_TOKEN, (durationMs + intervalMs).toLong())
         }
     }
 
-    // 1 long high-pitched beep → transaction confirmed (like a payment terminal approval)
-    private fun playSuccessBeep() = playBeep(1, ToneGenerator.TONE_CDMA_LOW_L, 150)
-    // 2 short mid-pitched beeps (900 Hz) → NFC reading error
-    private fun playNfcErrorBeep() = playBeep(2, ToneGenerator.TONE_CDMA_MED_L, 150, 300)
-    // 3 short low-pitched beeps (600 Hz) → insufficient balance (rejection)
-    private fun playInsufficientBalanceBeep() = playBeep(3, ToneGenerator.TONE_CDMA_LOW_L, 120)
+    // 1 beep (770 Hz, 150 ms) → transaction confirmed
+    private fun playSuccessBeep() = playBeep(beepSuccess, 1, 150)
+    // 2 beeps (852 Hz, 150 ms) → NFC reading error
+    private fun playNfcErrorBeep() = playBeep(beepError, 2, 150, 300)
+    // 3 beeps (770 Hz, 120 ms) → insufficient balance
+    private fun playInsufficientBalanceBeep() = playBeep(beepRejection, 3, 120)
 
     private fun triggerVibration() {
         if (!AdvancedSettingsActivity.isVibrationEnabled(this)) return
