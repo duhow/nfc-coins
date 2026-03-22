@@ -750,6 +750,8 @@ class MainActivity : AppCompatActivity() {
         isUpdatingBalance = true
         tvBalance.setText(text)
         tvBalance.inputType = InputType.TYPE_NULL
+        tvBalance.isFocusable = false
+        tvBalance.isFocusableInTouchMode = false
         isUpdatingBalance = false
         hideKeyboardFrom(tvBalance)
     }
@@ -764,6 +766,8 @@ class MainActivity : AppCompatActivity() {
         isUpdatingBalance = true
         tvBalance.setText(getString(R.string.balance_initial))
         tvBalance.inputType = InputType.TYPE_NULL
+        tvBalance.isFocusable = false
+        tvBalance.isFocusableInTouchMode = false
         isUpdatingBalance = false
         hideKeyboardFrom(tvBalance)
     }
@@ -777,7 +781,9 @@ class MainActivity : AppCompatActivity() {
      * toggling, which avoids focus-routing conflicts with the IME.
      */
     private fun setupBalanceEditText() {
-        // Always focusable; TYPE_NULL prevents the keyboard from appearing on casual focus
+        // Start non-focusable with TYPE_NULL; focusability is toggled by enterCustomAmountMode/reset
+        tvBalance.isFocusable = false
+        tvBalance.isFocusableInTouchMode = false
         tvBalance.inputType = InputType.TYPE_NULL
 
         tvBalance.setOnClickListener {
@@ -834,11 +840,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Switches [tvBalance] into editable mode: changes its input type to numeric,
-     * clears the placeholder text, requests focus, and shows the keyboard.
+     * Switches [tvBalance] into editable mode: enables focusability, changes its
+     * input type to numeric, clears the placeholder text, requests focus, and
+     * shows the keyboard.
      */
     private fun enterCustomAmountMode() {
         isCustomAmountMode = true
+        // Enable focusability FIRST so requestFocus() can succeed
+        tvBalance.isFocusable = true
+        tvBalance.isFocusableInTouchMode = true
         // Switch to numeric input BEFORE requesting focus so the IME connection
         // is established with the correct type from the start.
         tvBalance.inputType = InputType.TYPE_CLASS_NUMBER

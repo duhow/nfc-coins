@@ -33,9 +33,7 @@
             android:textStyle="bold"
             android:layout_marginBottom="4dp"
             android:background="@null"
-            android:inputType="number"
-            android:focusable="false"
-            android:focusableInTouchMode="false"
+            android:inputType="none"
             android:gravity="center" />
 
         <TextView
