@@ -79,6 +79,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvCardId: TextView
     private lateinit var tvBalanceBefore: TextView
     private lateinit var tvBalanceAfter: TextView
+    private lateinit var tvActualBalance: TextView
     private lateinit var layoutBeforeAfter: LinearLayout
     private lateinit var toggleGroup: MaterialButtonToggleGroup
     private lateinit var etHiddenInput: EditText
@@ -106,6 +107,7 @@ class MainActivity : AppCompatActivity() {
         tvCardId          = findViewById(R.id.tvCardId)
         tvBalanceBefore   = findViewById(R.id.tvBalanceBefore)
         tvBalanceAfter    = findViewById(R.id.tvBalanceAfter)
+        tvActualBalance   = findViewById(R.id.tvActualBalance)
         layoutBeforeAfter = findViewById(R.id.layoutBeforeAfter)
         toggleGroup       = findViewById(R.id.toggleGroup)
         etHiddenInput     = findViewById(R.id.etHiddenInput)
@@ -203,7 +205,7 @@ class MainActivity : AppCompatActivity() {
                     customDeductAmount > 0 -> {
                         val amount = customDeductAmount
                         customDeductAmount = 0
-                        readAndDeduct(tag, cardKey, amount)
+                        readAndDeduct(tag, cardKey, amount, isCustomAmount = true)
                     }
                     else -> readAndShowBalance(tag, cardKey)
                 }
@@ -233,6 +235,7 @@ class MainActivity : AppCompatActivity() {
             currentBalance = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
             setBalanceText(currentBalance.toString())
             layoutBeforeAfter.visibility = View.GONE
+            tvActualBalance.visibility = View.GONE
             tvStatus.text = getString(R.string.card_read_ok)
             scheduleAutoReset()
         } catch (e: Exception) {
@@ -245,7 +248,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Modo con botón activo: descuenta monedas y muestra saldo inicial → final en grande. */
-    private fun readAndDeduct(tag: Tag, cardKey: ByteArray, amount: Int) {
+    private fun readAndDeduct(tag: Tag, cardKey: ByteArray, amount: Int, isCustomAmount: Boolean = false) {
         val sector = AdvancedSettingsActivity.getTargetSector(this)
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
@@ -267,7 +270,14 @@ class MainActivity : AppCompatActivity() {
 
             if (balance < amount) {
                 currentBalance = balance
-                setBalanceText(balance.toString())
+                if (isCustomAmount) {
+                    setBalanceText(amount.toString())
+                    tvActualBalance.text = balance.toString()
+                    tvActualBalance.visibility = View.VISIBLE
+                } else {
+                    setBalanceText(balance.toString())
+                    tvActualBalance.visibility = View.GONE
+                }
                 layoutBeforeAfter.visibility = View.GONE
                 tvStatus.text = getString(R.string.insufficient_balance)
                 flashRedBackground()
@@ -286,6 +296,7 @@ class MainActivity : AppCompatActivity() {
             tvBalanceBefore.text = balance.toString()
             tvBalanceAfter.text = newBalance.toString()
             layoutBeforeAfter.visibility = View.VISIBLE
+            tvActualBalance.visibility = View.GONE
             tvStatus.text = getString(R.string.deduct_ok, amount)
             scheduleAutoReset()
 
@@ -341,6 +352,7 @@ class MainActivity : AppCompatActivity() {
         currentBalance = -1
         resetBalanceToInitial()
         layoutBeforeAfter.visibility = View.GONE
+        tvActualBalance.visibility = View.GONE
         tvStatus.text = getString(R.string.waiting_card)
         pendingAction = PendingAction.NONE
         pendingAddAmount = 0
