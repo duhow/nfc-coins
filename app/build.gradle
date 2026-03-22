@@ -3,6 +3,36 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+def getGitVersionName = { ->
+    try {
+        def stdout = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'describe', '--tags', '--always'
+            standardOutput = stdout
+            ignoreExitValue = true
+        }
+        def result = stdout.toString().trim()
+        return result ? result.replaceFirst('^v', '') : 'unknown'
+    } catch (Exception e) {
+        return 'unknown'
+    }
+}
+
+def getGitVersionCode = { ->
+    try {
+        def stdout = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'rev-list', '--count', 'HEAD'
+            standardOutput = stdout
+            ignoreExitValue = true
+        }
+        def result = stdout.toString().trim()
+        return result.isInteger() ? result.toInteger() : 1
+    } catch (Exception e) {
+        return 1
+    }
+}
+
 android {
     namespace 'net.duhowpi.nfccoins'
     compileSdk 35
@@ -11,8 +41,8 @@ android {
         applicationId "net.duhowpi.nfccoins"
         minSdk 26
         targetSdk 35
-        versionCode 1
-        versionName "1.0"
+        versionCode getGitVersionCode()
+        versionName getGitVersionName()
 
         // PSK can be overridden at build time via -PNFC_POS_PSK=... or NFC_POS_PSK env variable
         def psk = project.findProperty("NFC_POS_PSK") ?: System.getenv("NFC_POS_PSK") ?: "NfcPosSecretKey2024"
