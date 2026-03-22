@@ -354,18 +354,18 @@ class MainActivity : AppCompatActivity() {
     // Beep feedback: 1 beep = success, 2 beeps = NFC error, 3 beeps = no balance
     // -------------------------------------------------------------------------
 
-    private fun playBeep(count: Int, durationMs: Int = 150, intervalMs: Int = 100) {
+    private fun playBeep(count: Int, toneType: Int, durationMs: Int, intervalMs: Int = 100) {
         handler.removeCallbacksAndMessages(BEEP_TOKEN)
         toneGenerator?.release()
         toneGenerator = null
         try {
-            val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, ToneGenerator.MAX_VOLUME)
+            val toneGen = ToneGenerator(AudioManager.STREAM_DTMF, ToneGenerator.MAX_VOLUME)
             toneGenerator = toneGen
             var delay = 0L
             repeat(count) {
                 handler.postDelayed({
                     try {
-                        toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, durationMs)
+                        toneGen.startTone(toneType, durationMs)
                     } catch (_: Exception) {}
                 }, BEEP_TOKEN, delay)
                 delay += (durationMs + intervalMs).toLong()
@@ -377,9 +377,12 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {}
     }
 
-    private fun playSuccessBeep() = playBeep(1, 300)
-    private fun playNfcErrorBeep() = playBeep(2, 100)
-    private fun playInsufficientBalanceBeep() = playBeep(3, 100)
+    // 1 long high-pitched beep (1300 Hz) → transaction confirmed (like a payment terminal approval)
+    private fun playSuccessBeep() = playBeep(1, ToneGenerator.TONE_CDMA_HIGH_L, 500)
+    // 2 short mid-pitched beeps (900 Hz) → NFC reading error
+    private fun playNfcErrorBeep() = playBeep(2, ToneGenerator.TONE_CDMA_MED_L, 100)
+    // 3 short low-pitched beeps (600 Hz) → insufficient balance (rejection)
+    private fun playInsufficientBalanceBeep() = playBeep(3, ToneGenerator.TONE_CDMA_LOW_L, 100)
 
     private fun scheduleAutoReset() {
         handler.removeCallbacks(autoResetRunnable)
