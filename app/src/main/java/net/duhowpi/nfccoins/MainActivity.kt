@@ -90,8 +90,6 @@ class MainActivity : AppCompatActivity() {
     private var pendingAction: PendingAction = PendingAction.NONE
     private var pendingAddAmount: Int = 0
     private var customDeductAmount: Int = 0
-    private var isUpdatingBalance = false
-    private var isCustomAmountMode = false
 
     private val handler = Handler(Looper.getMainLooper())
     private val autoResetRunnable = Runnable { resetToWaiting() }
@@ -743,17 +741,12 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Sets the balance display text programmatically (non-editable mode).
-     * Guards the TextWatcher via [isUpdatingBalance] and disables editing.
      */
     private fun setBalanceText(text: String) {
-        isCustomAmountMode = false
-        isUpdatingBalance = true
         tvBalance.setText(text)
         tvBalance.inputType = InputType.TYPE_NULL
         tvBalance.isFocusable = false
         tvBalance.isFocusableInTouchMode = false
-        isUpdatingBalance = false
-        hideKeyboardFrom(tvBalance)
     }
 
     /**
@@ -761,73 +754,25 @@ class MainActivity : AppCompatActivity() {
      * the user to click on it to enter a custom deduction amount.
      */
     private fun resetBalanceToInitial() {
-        isCustomAmountMode = false
         customDeductAmount = 0
-        isUpdatingBalance = true
         tvBalance.setText(getString(R.string.balance_initial))
         tvBalance.inputType = InputType.TYPE_NULL
         tvBalance.isFocusable = false
         tvBalance.isFocusableInTouchMode = false
-        isUpdatingBalance = false
-        hideKeyboardFrom(tvBalance)
     }
 
     /**
      * Sets up the balance EditText so that clicking it (when showing "--")
-     * opens the keyboard for custom deduction entry. Deleting all text
-     * reverts to "--" and read-only mode.
-     *
-     * Editability is controlled via [InputType] rather than [android.view.View.isFocusable]
-     * toggling, which avoids focus-routing conflicts with the IME.
+     * opens a dialog for entering a custom deduction amount.
      */
     private fun setupBalanceEditText() {
-        // Start non-focusable with TYPE_NULL; focusability is toggled by enterCustomAmountMode/reset
         tvBalance.isFocusable = false
         tvBalance.isFocusableInTouchMode = false
         tvBalance.inputType = InputType.TYPE_NULL
 
         tvBalance.setOnClickListener {
-            if (currentBalance == -1 && !isCustomAmountMode) {
-                enterCustomAmountMode()
-            }
-        }
-
-        tvBalance.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) {
-                if (isUpdatingBalance) return
-                if (!isCustomAmountMode) return
-                if (s.isNullOrEmpty()) {
-                    resetBalanceToInitial()
-                } else {
-                    val value = s.toString().toIntOrNull() ?: 0
-                    when {
-                        value > MAX_BALANCE -> {
-                            isUpdatingBalance = true
-                            s.replace(0, s.length, MAX_BALANCE.toString())
-                            isUpdatingBalance = false
-                        }
-                        s.toString() != value.toString() && value > 0 -> {
-                            // Normalize leading zeros (e.g. "0001" → "1")
-                            isUpdatingBalance = true
-                            s.replace(0, s.length, value.toString())
-                            isUpdatingBalance = false
-                        }
-                    }
-                    customDeductAmount = s.toString().toIntOrNull() ?: 0
-                    toggleGroup.clearChecked()
-                }
-            }
-        })
-
-        tvBalance.setOnFocusChangeListener { v, hasFocus ->
-            if (!hasFocus && isCustomAmountMode && !isUpdatingBalance) {
-                if (tvBalance.text.toString().isEmpty()) {
-                    resetBalanceToInitial()
-                } else {
-                    hideKeyboardFrom(v)
-                }
+            if (currentBalance == -1) {
+                showCustomDeductDialog()
             }
         }
 
@@ -839,26 +784,83 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Switches [tvBalance] into editable mode: enables focusability, changes its
-     * input type to numeric, clears the placeholder text, requests focus, and
-     * shows the keyboard.
-     */
-    private fun enterCustomAmountMode() {
-        isCustomAmountMode = true
-        // Enable focusability FIRST so requestFocus() can succeed
-        tvBalance.isFocusable = true
-        tvBalance.isFocusableInTouchMode = true
-        // Switch to numeric input BEFORE requesting focus so the IME connection
-        // is established with the correct type from the start.
-        tvBalance.inputType = InputType.TYPE_CLASS_NUMBER
-        if (tvBalance.text.toString() == getString(R.string.balance_initial)) {
-            isUpdatingBalance = true
-            tvBalance.text.clear()
-            isUpdatingBalance = false
+    /** Muestra el diálogo para introducir la cantidad a descontar antes de acercar la tarjeta. */
+    private fun showCustomDeductDialog() {
+        val paddingHoriz = (24 * resources.displayMetrics.density).toInt()
+        val paddingVert = (8 * resources.displayMetrics.density).toInt()
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(paddingHoriz, paddingVert, paddingHoriz, 0)
         }
-        tvBalance.requestFocus()
-        showKeyboardFor(tvBalance)
+
+        val input = EditText(this).apply {
+            hint = getString(R.string.hint_deduct_amount)
+            inputType = InputType.TYPE_CLASS_NUMBER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        container.addView(input)
+
+        var confirmButton: android.widget.Button? = null
+
+        input.addTextChangedListener(object : TextWatcher {
+            private var isUpdating = false
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                if (isUpdating) return
+                val value = s?.toString()?.toIntOrNull() ?: 0
+                confirmButton?.isEnabled = value > 0
+                val normalized = if (value > 0) value.toString() else null
+                when {
+                    value > MAX_BALANCE -> {
+                        isUpdating = true
+                        s?.replace(0, s.length, MAX_BALANCE.toString())
+                        isUpdating = false
+                    }
+                    normalized != null && s.toString() != normalized -> {
+                        // Normalize leading zeros (e.g. "0001" → "1")
+                        isUpdating = true
+                        s?.replace(0, s.length, normalized)
+                        isUpdating = false
+                    }
+                }
+            }
+        })
+
+        // Hide keyboard when focus leaves the EditText (e.g. when tabbing to dialog buttons)
+        input.setOnFocusChangeListener { v, hasFocus ->
+            if (!hasFocus) {
+                hideKeyboardFrom(v)
+            }
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.action_deduct_custom)
+            .setView(container)
+            .setPositiveButton(R.string.action_confirm) { _, _ ->
+                val amount = input.text.toString().toIntOrNull()
+                if (amount == null || amount <= 0) {
+                    Toast.makeText(this, getString(R.string.invalid_amount), Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                customDeductAmount = amount
+                toggleGroup.clearChecked()
+                setBalanceText("-$amount")
+                tvStatus.text = getString(R.string.tap_card_to_deduct)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+
+        confirmButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+        confirmButton?.isEnabled = false
+
+        input.requestFocus()
+        input.post { showKeyboardFor(input) }
     }
 
     private fun showKeyboardFor(view: View) {
