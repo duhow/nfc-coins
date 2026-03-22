@@ -8,9 +8,12 @@ import android.media.ToneGenerator
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.MifareClassic
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -75,6 +78,7 @@ class MainActivity : AppCompatActivity() {
         // Extra time after tone duration before releasing ToneGenerator, allowing the audio output
         // buffer to drain completely and preventing the last beep from being cut short.
         private const val AUDIO_DRAIN_MS = 150L
+        private const val VIBRATE_DURATION_MS = 200L
         private val FLASH_TOKEN = Any()
         private val BEEP_TOKEN = Any()
     }
@@ -195,6 +199,7 @@ class MainActivity : AppCompatActivity() {
 
     /** Entry point for tags discovered via reader mode (called on main thread). */
     private fun handleTag(tag: Tag) {
+        triggerVibration()
         if (!tag.techList.contains(MifareClassic::class.java.name)) {
             tvStatus.text = getString(R.string.unsupported_card)
             playNfcErrorBeep()
@@ -372,6 +377,7 @@ class MainActivity : AppCompatActivity() {
         toneGenerator?.release()
         toneGenerator = null
         if (count <= 0) return
+        if (!AdvancedSettingsActivity.isSoundEnabled(this)) return
         try {
             val toneGen = ToneGenerator(AudioManager.STREAM_DTMF, ToneGenerator.MAX_VOLUME)
             toneGenerator = toneGen
@@ -406,6 +412,17 @@ class MainActivity : AppCompatActivity() {
     private fun playNfcErrorBeep() = playBeep(2, ToneGenerator.TONE_CDMA_MED_L, 150, 300)
     // 3 short low-pitched beeps (600 Hz) → insufficient balance (rejection)
     private fun playInsufficientBalanceBeep() = playBeep(3, ToneGenerator.TONE_CDMA_LOW_L, 120)
+
+    private fun triggerVibration() {
+        if (!AdvancedSettingsActivity.isVibrationEnabled(this)) return
+        @Suppress("DEPRECATION")
+        val vibrator = getSystemService(VIBRATOR_SERVICE) as? Vibrator ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createOneShot(VIBRATE_DURATION_MS, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            vibrator.vibrate(VIBRATE_DURATION_MS)
+        }
+    }
 
     private fun scheduleAutoReset() {
         handler.removeCallbacks(autoResetRunnable)

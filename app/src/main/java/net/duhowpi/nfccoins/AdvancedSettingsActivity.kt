@@ -23,6 +23,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         const val KEY_FLASH_ENABLED = "flash_enabled"
         const val KEY_DEBUG_ENABLED = "debug_enabled"
         const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
+        const val KEY_SOUND_ENABLED = "sound_enabled"
+        const val KEY_VIBRATION_ENABLED = "vibration_enabled"
         const val DEFAULT_SECTOR = 14
 
         fun getTargetSector(context: Context): Int {
@@ -54,6 +56,16 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             return prefs.getBoolean(KEY_KEEP_SCREEN_ON, false)
         }
+
+        fun isSoundEnabled(context: Context): Boolean {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            return prefs.getBoolean(KEY_SOUND_ENABLED, true)
+        }
+
+        fun isVibrationEnabled(context: Context): Boolean {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            return prefs.getBoolean(KEY_VIBRATION_ENABLED, false)
+        }
     }
 
     private lateinit var etSector: TextInputEditText
@@ -64,6 +76,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private lateinit var cbFlashEnabled: MaterialCheckBox
     private lateinit var cbDebugEnabled: MaterialCheckBox
     private lateinit var cbKeepScreenOn: MaterialCheckBox
+    private lateinit var cbSoundEnabled: MaterialCheckBox
+    private lateinit var cbVibrationEnabled: MaterialCheckBox
     private lateinit var btnSaveSettings: MaterialButton
 
     private var keyVisible = false
@@ -83,6 +97,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         cbFlashEnabled        = findViewById(R.id.cbFlashEnabled)
         cbDebugEnabled        = findViewById(R.id.cbDebugEnabled)
         cbKeepScreenOn        = findViewById(R.id.cbKeepScreenOn)
+        cbSoundEnabled        = findViewById(R.id.cbSoundEnabled)
+        cbVibrationEnabled    = findViewById(R.id.cbVibrationEnabled)
         btnSaveSettings       = findViewById(R.id.btnSaveSettings)
 
         loadCurrentSettings()
@@ -104,6 +120,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         cbFlashEnabled.isChecked = isFlashEnabled(this)
         cbDebugEnabled.isChecked = isDebugEnabled(this)
         cbKeepScreenOn.isChecked = isKeepScreenOnEnabled(this)
+        cbSoundEnabled.isChecked = isSoundEnabled(this)
+        cbVibrationEnabled.isChecked = isVibrationEnabled(this)
 
         // Key is hidden by default
         etStaticKey.transformationMethod = PasswordTransformationMethod.getInstance()
@@ -170,6 +188,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         val flashEnabled = cbFlashEnabled.isChecked
         val debugEnabled = cbDebugEnabled.isChecked
         val keepScreenOn = cbKeepScreenOn.isChecked
+        val soundEnabled = cbSoundEnabled.isChecked
+        val vibrationEnabled = cbVibrationEnabled.isChecked
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
@@ -179,6 +199,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             .putBoolean(KEY_FLASH_ENABLED, flashEnabled)
             .putBoolean(KEY_DEBUG_ENABLED, debugEnabled)
             .putBoolean(KEY_KEEP_SCREEN_ON, keepScreenOn)
+            .putBoolean(KEY_SOUND_ENABLED, soundEnabled)
+            .putBoolean(KEY_VIBRATION_ENABLED, vibrationEnabled)
             .apply()
 
         Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()
