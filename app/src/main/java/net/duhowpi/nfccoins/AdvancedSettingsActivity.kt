@@ -22,6 +22,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         const val KEY_DYNAMIC_KEY_ENABLED = "dynamic_key_enabled"
         const val KEY_FLASH_ENABLED = "flash_enabled"
         const val KEY_DEBUG_ENABLED = "debug_enabled"
+        const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
         const val DEFAULT_SECTOR = 14
 
         fun getTargetSector(context: Context): Int {
@@ -48,6 +49,11 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             return prefs.getBoolean(KEY_DEBUG_ENABLED, false)
         }
+
+        fun isKeepScreenOnEnabled(context: Context): Boolean {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            return prefs.getBoolean(KEY_KEEP_SCREEN_ON, false)
+        }
     }
 
     private lateinit var etSector: TextInputEditText
@@ -57,6 +63,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private lateinit var cbDynamicKey: MaterialCheckBox
     private lateinit var cbFlashEnabled: MaterialCheckBox
     private lateinit var cbDebugEnabled: MaterialCheckBox
+    private lateinit var cbKeepScreenOn: MaterialCheckBox
     private lateinit var btnSaveSettings: MaterialButton
 
     private var keyVisible = false
@@ -75,6 +82,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         cbDynamicKey          = findViewById(R.id.cbDynamicKey)
         cbFlashEnabled        = findViewById(R.id.cbFlashEnabled)
         cbDebugEnabled        = findViewById(R.id.cbDebugEnabled)
+        cbKeepScreenOn        = findViewById(R.id.cbKeepScreenOn)
         btnSaveSettings       = findViewById(R.id.btnSaveSettings)
 
         loadCurrentSettings()
@@ -95,6 +103,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         cbDynamicKey.isChecked = isDynamicKeyEnabled(this)
         cbFlashEnabled.isChecked = isFlashEnabled(this)
         cbDebugEnabled.isChecked = isDebugEnabled(this)
+        cbKeepScreenOn.isChecked = isKeepScreenOnEnabled(this)
 
         // Key is hidden by default
         etStaticKey.transformationMethod = PasswordTransformationMethod.getInstance()
@@ -160,6 +169,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         val dynamicKeyEnabled = cbDynamicKey.isChecked
         val flashEnabled = cbFlashEnabled.isChecked
         val debugEnabled = cbDebugEnabled.isChecked
+        val keepScreenOn = cbKeepScreenOn.isChecked
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
@@ -168,6 +178,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             .putBoolean(KEY_DYNAMIC_KEY_ENABLED, dynamicKeyEnabled)
             .putBoolean(KEY_FLASH_ENABLED, flashEnabled)
             .putBoolean(KEY_DEBUG_ENABLED, debugEnabled)
+            .putBoolean(KEY_KEEP_SCREEN_ON, keepScreenOn)
             .apply()
 
         Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()
