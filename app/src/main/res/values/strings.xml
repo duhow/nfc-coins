@@ -41,7 +41,9 @@
     <string name="invalid_amount">Cantidad no válida</string>
     <string name="balance_too_high">El saldo máximo es 65535 monedas</string>
     <string name="balance_added_ok">Se añadieron %d moneda(s) correctamente</string>
+    <string name="card_not_formatted">Tarjeta no formateada. Usa \'Formatear tarjeta nueva\' primero.</string>
     <string name="format_no_key_found">No se encontró ninguna clave estándar. La tarjeta puede estar ya personalizada.</string>
+    <string name="format_reset_success">Saldo reiniciado a 0 (tarjeta ya formateada)</string>
     <string name="format_success">Tarjeta formateada</string>
     <string name="format_success_message">Clave %s encontrada: %s\nNueva clave generada: %s</string>
 </resources>
