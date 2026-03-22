@@ -318,6 +318,22 @@ class MainActivity : AppCompatActivity() {
         handler.postDelayed(autoResetRunnable, AUTO_RESET_DELAY_MS)
     }
 
+    /**
+     * Sets pendingAction and manages the auto-reset timer accordingly.
+     * For non-NONE actions the existing timer is cancelled (via scheduleAutoReset, which always
+     * removes the callback before re-posting) and a fresh 7-second countdown is started,
+     * preventing stale timers from clearing the new state.
+     * For NONE the timer is simply removed (full reset is handled by resetToWaiting).
+     */
+    private fun setPendingAction(action: PendingAction) {
+        pendingAction = action
+        if (action != PendingAction.NONE) {
+            scheduleAutoReset() // removes any existing callback before posting the new one
+        } else {
+            handler.removeCallbacks(autoResetRunnable)
+        }
+    }
+
     private fun resetToWaiting() {
         handler.removeCallbacksAndMessages(FLASH_TOKEN)
         rootLayout.setBackgroundColor(Color.TRANSPARENT)
@@ -335,6 +351,9 @@ class MainActivity : AppCompatActivity() {
     // -------------------------------------------------------------------------
 
     private fun showCardManagementDialog() {
+        // Cancel any running auto-reset so it doesn't interfere while the user
+        // is actively interacting with the dialog.
+        handler.removeCallbacks(autoResetRunnable)
         AlertDialog.Builder(this)
             .setTitle(R.string.card_management)
             .setItems(
@@ -347,11 +366,11 @@ class MainActivity : AppCompatActivity() {
                 when (which) {
                     0 -> showAddAmountDialog()
                     1 -> {
-                        pendingAction = PendingAction.FORMAT_CARD
+                        setPendingAction(PendingAction.FORMAT_CARD)
                         tvStatus.text = getString(R.string.tap_card_to_format)
                     }
                     2 -> {
-                        pendingAction = PendingAction.RESET_CARD
+                        setPendingAction(PendingAction.RESET_CARD)
                         tvStatus.text = getString(R.string.tap_card_to_reset)
                     }
                 }
@@ -429,7 +448,7 @@ class MainActivity : AppCompatActivity() {
                     return@setPositiveButton
                 }
                 pendingAddAmount = amount
-                pendingAction = PendingAction.ADD_BALANCE
+                setPendingAction(PendingAction.ADD_BALANCE)
                 setBalanceText("+$amount")
                 tvStatus.text = getString(R.string.tap_card_to_add)
             }
