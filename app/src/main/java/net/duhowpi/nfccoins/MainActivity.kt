@@ -377,12 +377,12 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {}
     }
 
-    // 1 long high-pitched beep (1300 Hz) → transaction confirmed (like a payment terminal approval)
-    private fun playSuccessBeep() = playBeep(1, ToneGenerator.TONE_CDMA_HIGH_L, 500)
+    // 1 long high-pitched beep → transaction confirmed (like a payment terminal approval)
+    private fun playSuccessBeep() = playBeep(1, ToneGenerator.TONE_CDMA_LOW_L, 150)
     // 2 short mid-pitched beeps (900 Hz) → NFC reading error
-    private fun playNfcErrorBeep() = playBeep(2, ToneGenerator.TONE_CDMA_MED_L, 100)
+    private fun playNfcErrorBeep() = playBeep(2, ToneGenerator.TONE_CDMA_MED_L, 150, 300)
     // 3 short low-pitched beeps (600 Hz) → insufficient balance (rejection)
-    private fun playInsufficientBalanceBeep() = playBeep(3, ToneGenerator.TONE_CDMA_LOW_L, 100)
+    private fun playInsufficientBalanceBeep() = playBeep(3, ToneGenerator.TONE_CDMA_LOW_L, 120)
 
     private fun scheduleAutoReset() {
         handler.removeCallbacks(autoResetRunnable)
