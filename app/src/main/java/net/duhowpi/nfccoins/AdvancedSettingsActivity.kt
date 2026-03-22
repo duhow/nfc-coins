@@ -1,4 +1,4 @@
-package com.example.nfcpos
+package net.duhowpi.nfccoins
 
 import android.content.Context
 import android.os.Bundle
