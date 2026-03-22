@@ -903,7 +903,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showKeyboardFor(view: View) {
         val imm = getSystemService(InputMethodManager::class.java)
-        imm.showSoftInput(view, InputMethodManager.SHOW_FORCED)
+        imm.showSoftInput(view, 0)
     }
 
     private fun hideKeyboardFrom(view: View) {
