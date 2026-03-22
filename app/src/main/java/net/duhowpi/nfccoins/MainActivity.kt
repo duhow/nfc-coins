@@ -341,17 +341,19 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Sets pendingAction and manages the auto-reset timer accordingly.
-     * For non-NONE actions the existing timer is cancelled (via scheduleAutoReset, which always
-     * removes the callback before re-posting) and a fresh 7-second countdown is started,
+     * For ADD_BALANCE the timer is cancelled so the state persists until the user taps the
+     * balance display or a deduction button.
+     * For other non-NONE actions the existing timer is cancelled (via scheduleAutoReset, which
+     * always removes the callback before re-posting) and a fresh 7-second countdown is started,
      * preventing stale timers from clearing the new state.
      * For NONE the timer is simply removed (full reset is handled by resetToWaiting).
      */
     private fun setPendingAction(action: PendingAction) {
         pendingAction = action
-        if (action != PendingAction.NONE) {
-            scheduleAutoReset() // removes any existing callback before posting the new one
-        } else {
-            handler.removeCallbacks(autoResetRunnable)
+        when (action) {
+            PendingAction.NONE -> handler.removeCallbacks(autoResetRunnable)
+            PendingAction.ADD_BALANCE -> handler.removeCallbacks(autoResetRunnable)
+            else -> scheduleAutoReset() // removes any existing callback before posting the new one
         }
     }
 
@@ -366,6 +368,13 @@ class MainActivity : AppCompatActivity() {
         tvStatus.text = getString(R.string.waiting_card)
         pendingAction = PendingAction.NONE
         pendingAddAmount = 0
+    }
+
+    private fun cancelAddBalance() {
+        pendingAction = PendingAction.NONE
+        pendingAddAmount = 0
+        resetBalanceToInitial()
+        tvStatus.text = getString(R.string.waiting_card)
     }
 
     // -------------------------------------------------------------------------
@@ -828,6 +837,10 @@ class MainActivity : AppCompatActivity() {
                     handler.removeCallbacks(autoResetRunnable)
                     resetToWaiting()
                 }
+                pendingAction == PendingAction.ADD_BALANCE -> {
+                    // Tapping the balance display while waiting to add balance cancels the operation.
+                    cancelAddBalance()
+                }
                 currentBalance == -1 && !isCustomAmountMode && pendingAction == PendingAction.NONE -> {
                     enterCustomAmountMode()
                 }
@@ -886,10 +899,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Selecting a fixed-deduction toggle button clears any custom deduction amount
+        // Selecting a fixed-deduction toggle button clears any custom deduction amount or pending add-balance action
         toggleGroup.addOnButtonCheckedListener { _, _, isChecked ->
-            if (isChecked && customDeductAmount > 0) {
-                resetBalanceToInitial()
+            if (isChecked) {
+                if (pendingAction == PendingAction.ADD_BALANCE) {
+                    cancelAddBalance()
+                } else if (customDeductAmount > 0) {
+                    resetBalanceToInitial()
+                }
             }
         }
     }
