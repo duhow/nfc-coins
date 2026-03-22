@@ -11,9 +11,10 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.InputType
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.widget.EditText
-import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -75,7 +76,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvBalanceAfter: TextView
     private lateinit var layoutBeforeAfter: LinearLayout
     private lateinit var toggleGroup: MaterialButtonToggleGroup
-    private lateinit var btnManagement: ImageButton
 
     private var nfcAdapter: NfcAdapter? = null
     private var pendingIntent: PendingIntent? = null
@@ -100,13 +100,11 @@ class MainActivity : AppCompatActivity() {
         tvBalanceAfter    = findViewById(R.id.tvBalanceAfter)
         layoutBeforeAfter = findViewById(R.id.layoutBeforeAfter)
         toggleGroup       = findViewById(R.id.toggleGroup)
-        btnManagement     = findViewById(R.id.btnManagement)
 
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         if (nfcAdapter == null) {
             tvStatus.text = getString(R.string.nfc_not_available)
             toggleGroup.isEnabled = false
-            btnManagement.isEnabled = false
             return
         }
 
@@ -115,6 +113,8 @@ class MainActivity : AppCompatActivity() {
             Intent(this, javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_MUTABLE
         )
+
+        btnManagement.setOnClickListener { showCardManagementDialog() }
 
         btnManagement.setOnClickListener { showCardManagementDialog() }
 
