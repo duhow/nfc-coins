@@ -26,4 +26,22 @@
     <!-- Buttons -->
     <string name="deduct_1">− 1 moneda</string>
     <string name="deduct_2">− 2 monedas</string>
+    <string name="deduct_1_short">−1</string>
+    <string name="deduct_2_short">−2</string>
+
+    <!-- Card management -->
+    <string name="card_management">Gestión de tarjetas</string>
+    <string name="action_add_balance">Añadir saldo</string>
+    <string name="action_format_card">Formatear tarjeta nueva</string>
+    <string name="action_confirm">Confirmar</string>
+    <string name="tap_card_to_add">Acerca la tarjeta para añadir saldo…</string>
+    <string name="tap_card_to_format">Acerca la tarjeta a formatear…</string>
+    <string name="hint_add_amount">Cantidad a añadir</string>
+    <string name="add_balance_title">Saldo actual: %d monedas</string>
+    <string name="invalid_amount">Cantidad no válida</string>
+    <string name="balance_too_high">El saldo máximo es 65535 monedas</string>
+    <string name="balance_added_ok">Se añadieron %d moneda(s) correctamente</string>
+    <string name="format_no_key_found">No se encontró ninguna clave estándar. La tarjeta puede estar ya personalizada.</string>
+    <string name="format_success">Tarjeta formateada</string>
+    <string name="format_success_message">Clave %s encontrada: %s\nNueva clave generada: %s</string>
 </resources>
