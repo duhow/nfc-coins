@@ -68,6 +68,7 @@
     <string name="setting_dynamic_key">Activar clave dinámica (mezclar UID con clave estática)</string>
     <string name="setting_flash_enabled">Activar cambio de color de fondo</string>
     <string name="setting_debug_mode">Modo debug</string>
+    <string name="setting_keep_screen_on">Mantener pantalla encendida</string>
     <string name="sector_invalid">El sector debe estar entre 1 y 15</string>
     <string name="key_too_short">La clave debe tener al menos 8 caracteres</string>
     <string name="btn_save_settings">Guardar</string>
