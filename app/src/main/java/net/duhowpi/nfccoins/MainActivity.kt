@@ -91,6 +91,7 @@ class MainActivity : AppCompatActivity() {
     private var pendingAddAmount: Int = 0
     private var customDeductAmount: Int = 0
     private var isUpdatingBalance = false
+    private var isCustomAmountMode = false
 
     private val handler = Handler(Looper.getMainLooper())
     private val autoResetRunnable = Runnable { resetToWaiting() }
@@ -745,11 +746,11 @@ class MainActivity : AppCompatActivity() {
      * Guards the TextWatcher via [isUpdatingBalance] and disables editing.
      */
     private fun setBalanceText(text: String) {
+        isCustomAmountMode = false
         isUpdatingBalance = true
         tvBalance.setText(text)
+        tvBalance.inputType = InputType.TYPE_NULL
         isUpdatingBalance = false
-        tvBalance.isFocusable = false
-        tvBalance.isFocusableInTouchMode = false
         hideKeyboardFrom(tvBalance)
     }
 
@@ -758,12 +759,12 @@ class MainActivity : AppCompatActivity() {
      * the user to click on it to enter a custom deduction amount.
      */
     private fun resetBalanceToInitial() {
+        isCustomAmountMode = false
         customDeductAmount = 0
         isUpdatingBalance = true
         tvBalance.setText(getString(R.string.balance_initial))
+        tvBalance.inputType = InputType.TYPE_NULL
         isUpdatingBalance = false
-        tvBalance.isFocusable = false
-        tvBalance.isFocusableInTouchMode = false
         hideKeyboardFrom(tvBalance)
     }
 
@@ -771,25 +772,17 @@ class MainActivity : AppCompatActivity() {
      * Sets up the balance EditText so that clicking it (when showing "--")
      * opens the keyboard for custom deduction entry. Deleting all text
      * reverts to "--" and read-only mode.
+     *
+     * Editability is controlled via [InputType] rather than [android.view.View.isFocusable]
+     * toggling, which avoids focus-routing conflicts with the IME.
      */
     private fun setupBalanceEditText() {
-        tvBalance.isFocusable = false
-        tvBalance.isFocusableInTouchMode = false
+        // Always focusable; TYPE_NULL prevents the keyboard from appearing on casual focus
+        tvBalance.inputType = InputType.TYPE_NULL
 
         tvBalance.setOnClickListener {
-            if (currentBalance == -1) {
-                tvBalance.isFocusable = true
-                tvBalance.isFocusableInTouchMode = true
-                if (tvBalance.text.toString() == getString(R.string.balance_initial)) {
-                    isUpdatingBalance = true
-                    tvBalance.text.clear()
-                    isUpdatingBalance = false
-                }
-                // Defer requestFocus/showKeyboard until after all touch events are processed
-                tvBalance.post {
-                    tvBalance.requestFocus()
-                    showKeyboardFor(tvBalance)
-                }
+            if (currentBalance == -1 && !isCustomAmountMode) {
+                enterCustomAmountMode()
             }
         }
 
@@ -798,7 +791,7 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
                 if (isUpdatingBalance) return
-                if (!tvBalance.isFocusableInTouchMode) return
+                if (!isCustomAmountMode) return
                 if (s.isNullOrEmpty()) {
                     resetBalanceToInitial()
                 } else {
@@ -823,7 +816,7 @@ class MainActivity : AppCompatActivity() {
         })
 
         tvBalance.setOnFocusChangeListener { v, hasFocus ->
-            if (!hasFocus && !isUpdatingBalance) {
+            if (!hasFocus && isCustomAmountMode && !isUpdatingBalance) {
                 if (tvBalance.text.toString().isEmpty()) {
                     resetBalanceToInitial()
                 } else {
@@ -840,9 +833,27 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Switches [tvBalance] into editable mode: changes its input type to numeric,
+     * clears the placeholder text, requests focus, and shows the keyboard.
+     */
+    private fun enterCustomAmountMode() {
+        isCustomAmountMode = true
+        // Switch to numeric input BEFORE requesting focus so the IME connection
+        // is established with the correct type from the start.
+        tvBalance.inputType = InputType.TYPE_CLASS_NUMBER
+        if (tvBalance.text.toString() == getString(R.string.balance_initial)) {
+            isUpdatingBalance = true
+            tvBalance.text.clear()
+            isUpdatingBalance = false
+        }
+        tvBalance.requestFocus()
+        showKeyboardFor(tvBalance)
+    }
+
     private fun showKeyboardFor(view: View) {
         val imm = getSystemService(InputMethodManager::class.java)
-        imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+        imm.showSoftInput(view, InputMethodManager.SHOW_FORCED)
     }
 
     private fun hideKeyboardFrom(view: View) {
