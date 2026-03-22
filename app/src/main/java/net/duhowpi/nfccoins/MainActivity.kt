@@ -1,4 +1,4 @@
-package com.example.nfcpos
+package net.duhowpi.nfccoins
 
 import android.app.AlertDialog
 import android.app.PendingIntent

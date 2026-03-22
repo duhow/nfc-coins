@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">NFC POS Monedero</string>
+    <string name="app_name">NFC Coins</string>
 
     <!-- Card info -->
     <string name="no_card_detected">Acerca una tarjeta Mifare Classic</string>
