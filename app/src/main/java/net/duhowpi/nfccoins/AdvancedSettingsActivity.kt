@@ -21,6 +21,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         const val KEY_STATIC_KEY = "static_key"
         const val KEY_DYNAMIC_KEY_ENABLED = "dynamic_key_enabled"
         const val KEY_FLASH_ENABLED = "flash_enabled"
+        const val KEY_DEBUG_ENABLED = "debug_enabled"
         const val DEFAULT_SECTOR = 14
 
         fun getTargetSector(context: Context): Int {
@@ -42,6 +43,11 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             return prefs.getBoolean(KEY_FLASH_ENABLED, true)
         }
+
+        fun isDebugEnabled(context: Context): Boolean {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            return prefs.getBoolean(KEY_DEBUG_ENABLED, false)
+        }
     }
 
     private lateinit var etSector: TextInputEditText
@@ -50,6 +56,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private lateinit var btnGenerateKey: MaterialButton
     private lateinit var cbDynamicKey: MaterialCheckBox
     private lateinit var cbFlashEnabled: MaterialCheckBox
+    private lateinit var cbDebugEnabled: MaterialCheckBox
     private lateinit var btnSaveSettings: MaterialButton
 
     private var keyVisible = false
@@ -67,6 +74,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         btnGenerateKey        = findViewById(R.id.btnGenerateKey)
         cbDynamicKey          = findViewById(R.id.cbDynamicKey)
         cbFlashEnabled        = findViewById(R.id.cbFlashEnabled)
+        cbDebugEnabled        = findViewById(R.id.cbDebugEnabled)
         btnSaveSettings       = findViewById(R.id.btnSaveSettings)
 
         loadCurrentSettings()
@@ -86,6 +94,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         etStaticKey.setText(getStaticKey(this))
         cbDynamicKey.isChecked = isDynamicKeyEnabled(this)
         cbFlashEnabled.isChecked = isFlashEnabled(this)
+        cbDebugEnabled.isChecked = isDebugEnabled(this)
 
         // Key is hidden by default
         etStaticKey.transformationMethod = PasswordTransformationMethod.getInstance()
@@ -150,6 +159,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         }
         val dynamicKeyEnabled = cbDynamicKey.isChecked
         val flashEnabled = cbFlashEnabled.isChecked
+        val debugEnabled = cbDebugEnabled.isChecked
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
@@ -157,6 +167,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             .putString(KEY_STATIC_KEY, staticKey.ifEmpty { BuildConfig.NFC_PSK })
             .putBoolean(KEY_DYNAMIC_KEY_ENABLED, dynamicKeyEnabled)
             .putBoolean(KEY_FLASH_ENABLED, flashEnabled)
+            .putBoolean(KEY_DEBUG_ENABLED, debugEnabled)
             .apply()
 
         Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()

@@ -643,11 +643,13 @@ class MainActivity : AppCompatActivity() {
             flashBackground(R.color.success_purple_dark)
             scheduleAutoReset()
 
-            AlertDialog.Builder(this)
-                .setTitle(R.string.format_success)
-                .setMessage(getString(R.string.format_success_message, keyType, foundKeyHex, newKeyHex))
-                .setPositiveButton(android.R.string.ok, null)
-                .show()
+            if (AdvancedSettingsActivity.isDebugEnabled(this)) {
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.format_success)
+                    .setMessage(getString(R.string.format_success_message, keyType, foundKeyHex, newKeyHex))
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show()
+            }
 
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
