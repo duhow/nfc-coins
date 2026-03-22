@@ -1,0 +1,29 @@
+<resources>
+    <string name="app_name">NFC POS Monedero</string>
+
+    <!-- Card info -->
+    <string name="no_card_detected">Acerca una tarjeta Mifare Classic</string>
+    <string name="card_id_format">Tarjeta: %s</string>
+
+    <!-- Balance -->
+    <string name="balance_initial">--</string>
+    <string name="balance_format">%d</string>
+    <string name="coins_label">monedas</string>
+
+    <!-- Status messages -->
+    <string name="waiting_card">Esperando tarjeta…</string>
+    <string name="card_read_ok">Tarjeta leída correctamente</string>
+    <string name="auth_failed">Error de autenticación con la tarjeta</string>
+    <string name="unsupported_card">Tarjeta no compatible (se requiere Mifare Classic)</string>
+    <string name="nfc_not_available">NFC no disponible en este dispositivo</string>
+    <string name="no_card">No hay tarjeta. Acércala de nuevo.</string>
+    <string name="insufficient_balance">Saldo insuficiente</string>
+    <string name="deduct_ok">Descontadas %d moneda(s) correctamente</string>
+    <string name="error_get_mifare">Error: no se pudo acceder a la tarjeta Mifare</string>
+    <string name="error_reading">Error de lectura: %s</string>
+    <string name="error_writing">Error de escritura: %s</string>
+
+    <!-- Buttons -->
+    <string name="deduct_1">− 1 moneda</string>
+    <string name="deduct_2">− 2 monedas</string>
+</resources>
