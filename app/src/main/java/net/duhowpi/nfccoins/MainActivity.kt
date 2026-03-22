@@ -30,6 +30,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import com.google.android.material.button.MaterialButtonToggleGroup
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
@@ -402,6 +406,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 layoutBeforeAfter.visibility = View.GONE
                 tvStatus.text = getString(R.string.insufficient_balance)
+                showTransactionHistory(txBlock)
                 flashRedBackground()
                 playInsufficientBalanceBeep()
                 scheduleAutoReset()
@@ -1278,6 +1283,10 @@ class MainActivity : AppCompatActivity() {
     /**
      * Renders up to [TransactionBlock.MAX_TRANSACTIONS] transaction entries in the
      * history section at the bottom of the screen.
+     *
+     * Each entry timestamp is reconstructed as [initTimestamp] + [secondsOffset] and
+     * shown as HH:mm:ss. When the transaction occurred on a day other than today,
+     * the date (dd/MM) is prepended.
      */
     private fun showTransactionHistory(txBlock: TransactionBlock) {
         if (txBlock.initTimestamp <= 0L && txBlock.transactions.isEmpty()) {
@@ -1286,13 +1295,25 @@ class MainActivity : AppCompatActivity() {
         }
         layoutTransactionHistory.visibility = View.VISIBLE
         val entries = txBlock.transactions
+
+        val timeFmt  = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        val dateFmt  = SimpleDateFormat("dd/MM HH:mm:ss", Locale.getDefault())
+        val todayStart = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
         for (i in tvTx.indices) {
             val tv = tvTx[i]
             val entry = entries.getOrNull(i)
             if (entry == null) {
                 tv.visibility = View.GONE
             } else {
-                val timeLabel = getString(R.string.tx_time_format, entry.secondsOffset)
+                val txEpochMs = (txBlock.initTimestamp + entry.secondsOffset) * 1000L
+                val fmt = if (txEpochMs >= todayStart) timeFmt else dateFmt
+                val timeLabel = fmt.format(Date(txEpochMs))
                 val amtLabel = when (entry.operation) {
                     TxOperation.ADD      -> getString(R.string.tx_add, entry.amount)
                     TxOperation.SUBTRACT -> getString(R.string.tx_subtract, entry.amount)

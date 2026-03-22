@@ -80,7 +80,6 @@
     <string name="tx_history_label">Últimas transacciones</string>
     <string name="tx_add">+%d monedas</string>
     <string name="tx_subtract">-%d monedas</string>
-    <string name="tx_time_format">+%ds</string>
     <string name="tx_entry_format">%1$s  %2$s</string>
     <string name="card_tampered">Tarjeta adulterada. Operación cancelada.</string>
     <string name="write_retried">Escritura reiniciada tras interrupción anterior</string>

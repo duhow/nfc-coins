@@ -159,7 +159,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textSize="13sp"
-                android:fontFamily="monospace"
                 android:visibility="gone" />
 
             <TextView
@@ -167,7 +166,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textSize="13sp"
-                android:fontFamily="monospace"
                 android:visibility="gone" />
 
             <TextView
@@ -175,7 +173,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textSize="13sp"
-                android:fontFamily="monospace"
                 android:visibility="gone" />
 
             <TextView
@@ -183,7 +180,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textSize="13sp"
-                android:fontFamily="monospace"
                 android:visibility="gone" />
 
         </LinearLayout>
