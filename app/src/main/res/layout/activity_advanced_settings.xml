@@ -132,6 +132,24 @@
             android:layout_height="wrap_content"
             android:text="@string/setting_keep_screen_on"
             android:checked="false"
+            android:layout_marginBottom="8dp" />
+
+        <!-- Sound enabled checkbox -->
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/cbSoundEnabled"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/setting_sound_enabled"
+            android:checked="true"
+            android:layout_marginBottom="8dp" />
+
+        <!-- Vibration enabled checkbox -->
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/cbVibrationEnabled"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/setting_vibration_enabled"
+            android:checked="false"
             android:layout_marginBottom="32dp" />
 
         <!-- Save button -->

@@ -1,15 +1,19 @@
 package net.duhowpi.nfccoins
 
 import android.app.AlertDialog
-import android.app.PendingIntent
 import android.content.Intent
 import android.graphics.Color
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.MifareClassic
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -71,7 +75,9 @@ class MainActivity : AppCompatActivity() {
         private val FACTORY_KEY = hexKey(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF)
 
         private const val AUTO_RESET_DELAY_MS = 7000L
+        private const val VIBRATE_DURATION_MS = 200L
         private val FLASH_TOKEN = Any()
+        private val BEEP_TOKEN = Any()
     }
 
     private enum class PendingAction { NONE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
@@ -88,7 +94,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etHiddenInput: EditText
 
     private var nfcAdapter: NfcAdapter? = null
-    private var pendingIntent: PendingIntent? = null
+    private var toneGenerator: ToneGenerator? = null
 
     private var currentBalance: Int = -1
     private var currentTag: Tag? = null
@@ -124,15 +130,13 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        pendingIntent = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-            PendingIntent.FLAG_MUTABLE
-        )
-
         if (intent?.action == NfcAdapter.ACTION_TECH_DISCOVERED) {
             handleNfcIntent(intent)
         }
+
+        // Pre-warm the audio hardware so the first startTone() call fires without the
+        // cold-start latency that collapses the first two beeps of a multi-beep sequence.
+        initToneGenerator()
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -156,7 +160,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        nfcAdapter?.enableForegroundDispatch(this, pendingIntent, null, null)
+        nfcAdapter?.enableReaderMode(
+            this,
+            { tag -> handler.post { handleTag(tag) } },
+            NfcAdapter.FLAG_READER_NFC_A or
+            NfcAdapter.FLAG_READER_NFC_B or
+            NfcAdapter.FLAG_READER_NFC_F or
+            NfcAdapter.FLAG_READER_NFC_V or
+            NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS,
+            null
+        )
         if (AdvancedSettingsActivity.isKeepScreenOnEnabled(this)) {
             window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         } else {
@@ -166,7 +179,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        nfcAdapter?.disableForegroundDispatch(this)
+        nfcAdapter?.disableReaderMode(this)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        handler.removeCallbacksAndMessages(BEEP_TOKEN)
+        toneGenerator?.release()
+        toneGenerator = null
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -178,11 +198,12 @@ class MainActivity : AppCompatActivity() {
     // NFC handling
     // -------------------------------------------------------------------------
 
-    private fun handleNfcIntent(intent: Intent) {
-        val tag: Tag = IntentCompat.getParcelableExtra(intent, NfcAdapter.EXTRA_TAG, Tag::class.java) ?: return
-
+    /** Entry point for tags discovered via reader mode (called on main thread). */
+    private fun handleTag(tag: Tag) {
+        triggerVibration()
         if (!tag.techList.contains(MifareClassic::class.java.name)) {
             tvStatus.text = getString(R.string.unsupported_card)
+            playNfcErrorBeep()
             scheduleAutoReset()
             return
         }
@@ -223,12 +244,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun handleNfcIntent(intent: Intent) {
+        val tag: Tag = IntentCompat.getParcelableExtra(intent, NfcAdapter.EXTRA_TAG, Tag::class.java) ?: return
+        handleTag(tag)
+    }
+
     /** Modo sin botón activo: solo muestra el saldo en grande. */
     private fun readAndShowBalance(tag: Tag, cardKey: ByteArray) {
         val sector = AdvancedSettingsActivity.getTargetSector(this)
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
             return
         }
@@ -237,6 +264,7 @@ class MainActivity : AppCompatActivity() {
             if (!mifare.authenticateSectorWithKeyA(sector, cardKey)) {
                 tvStatus.text = getString(R.string.auth_failed)
                 flashBackground(R.color.error_orange)
+                playNfcErrorBeep()
                 scheduleAutoReset()
                 return
             }
@@ -247,10 +275,12 @@ class MainActivity : AppCompatActivity() {
             layoutBeforeAfter.visibility = View.GONE
             tvActualBalance.visibility = View.GONE
             tvStatus.text = getString(R.string.card_read_ok)
+            playSuccessBeep()
             scheduleAutoReset()
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_reading, e.message)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
@@ -263,6 +293,7 @@ class MainActivity : AppCompatActivity() {
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
             return
         }
@@ -271,6 +302,7 @@ class MainActivity : AppCompatActivity() {
             if (!mifare.authenticateSectorWithKeyA(sector, cardKey)) {
                 tvStatus.text = getString(R.string.auth_failed)
                 flashBackground(R.color.error_orange)
+                playNfcErrorBeep()
                 scheduleAutoReset()
                 return
             }
@@ -291,6 +323,7 @@ class MainActivity : AppCompatActivity() {
                 layoutBeforeAfter.visibility = View.GONE
                 tvStatus.text = getString(R.string.insufficient_balance)
                 flashRedBackground()
+                playInsufficientBalanceBeep()
                 scheduleAutoReset()
                 return
             }
@@ -308,11 +341,13 @@ class MainActivity : AppCompatActivity() {
             layoutBeforeAfter.visibility = View.VISIBLE
             tvActualBalance.visibility = View.GONE
             tvStatus.text = getString(R.string.deduct_ok, amount)
+            playSuccessBeep()
             scheduleAutoReset()
 
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
@@ -333,6 +368,85 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun flashRedBackground() = flashBackground(R.color.error_red_dark)
+
+    // -------------------------------------------------------------------------
+    // Beep feedback: 1 beep = success, 2 beeps = NFC error, 3 beeps = no balance
+    // -------------------------------------------------------------------------
+
+    // Creates the ToneGenerator eagerly (called from onCreate) so the audio hardware session is
+    // already open before the first NFC tap. A cold ToneGenerator causes the first startTone()
+    // to block briefly while the hardware initialises, making the first beep start late while
+    // subsequent handler-scheduled beeps fire on time — causing them to collapse together.
+    //
+    // Each ToneGenerator has its own internal AudioTrack and native tone thread. That thread is
+    // started by the first startTone() call — not by construction. To warm up the pipeline we
+    // must call startTone() on the exact same instance that will be used for real beeps; warming
+    // a throwaway instance (even at volume=0) does nothing for a separately constructed instance.
+    //
+    // We call startTone() with a 1 ms duration on the real instance immediately after
+    // construction. Because the Android audio output latency is typically 50–200 ms, the 1 ms of
+    // generated audio is flushed before it ever reaches the speaker, so the user hears nothing.
+    // startTone() blocks internally until its native thread has started and AudioTrack is open,
+    // so by the time it returns the instance is fully warm for all subsequent calls.
+    private fun initToneGenerator() {
+        if (toneGenerator != null) return
+        try {
+            val tg = ToneGenerator(AudioManager.STREAM_DTMF, ToneGenerator.MAX_VOLUME)
+            toneGenerator = tg
+            tg.startTone(ToneGenerator.TONE_CDMA_LOW_L, 1)
+        } catch (_: Exception) {}
+    }
+
+    // Reuses the single ToneGenerator created in initToneGenerator() for the lifetime of the
+    // activity. startTone() stops any in-progress tone before playing the new one, so no explicit
+    // teardown is needed between calls.
+    private fun playBeep(count: Int, toneType: Int, durationMs: Int, intervalMs: Int = 100) {
+        handler.removeCallbacksAndMessages(BEEP_TOKEN)
+        if (count <= 0) return
+        if (!AdvancedSettingsActivity.isSoundEnabled(this)) return
+        initToneGenerator()
+        val toneGen = toneGenerator ?: return
+        playBeepChain(toneGen, count, toneType, durationMs, intervalMs)
+    }
+
+    // Plays beeps one at a time by scheduling each next beep from inside the previous callback,
+    // so inter-beep intervals are measured from when the previous beep actually fired rather than
+    // from the original call site. This prevents timing drift caused by main-thread congestion.
+    private fun playBeepChain(
+        toneGen: ToneGenerator, remaining: Int, toneType: Int, durationMs: Int, intervalMs: Int
+    ) {
+        val started = try { toneGen.startTone(toneType, durationMs) } catch (_: Exception) { false }
+        if (!started) {
+            // ToneGenerator has become invalid (e.g. audio system interrupted); discard and
+            // recreate it immediately so the next beep call finds a warm instance.
+            toneGenerator = null
+            initToneGenerator()
+            return
+        }
+        if (remaining > 1) {
+            handler.postDelayed({
+                playBeepChain(toneGen, remaining - 1, toneType, durationMs, intervalMs)
+            }, BEEP_TOKEN, (durationMs + intervalMs).toLong())
+        }
+    }
+
+    // 1 long high-pitched beep → transaction confirmed (like a payment terminal approval)
+    private fun playSuccessBeep() = playBeep(1, ToneGenerator.TONE_CDMA_LOW_L, 150)
+    // 2 short mid-pitched beeps (900 Hz) → NFC reading error
+    private fun playNfcErrorBeep() = playBeep(2, ToneGenerator.TONE_CDMA_MED_L, 150, 300)
+    // 3 short low-pitched beeps (600 Hz) → insufficient balance (rejection)
+    private fun playInsufficientBalanceBeep() = playBeep(3, ToneGenerator.TONE_CDMA_LOW_L, 120)
+
+    private fun triggerVibration() {
+        if (!AdvancedSettingsActivity.isVibrationEnabled(this)) return
+        @Suppress("DEPRECATION")
+        val vibrator = getSystemService(VIBRATOR_SERVICE) as? Vibrator ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createOneShot(VIBRATE_DURATION_MS, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            vibrator.vibrate(VIBRATE_DURATION_MS)
+        }
+    }
 
     private fun scheduleAutoReset() {
         handler.removeCallbacks(autoResetRunnable)
@@ -513,6 +627,7 @@ class MainActivity : AppCompatActivity() {
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
             return
         }
@@ -521,6 +636,7 @@ class MainActivity : AppCompatActivity() {
             if (!mifare.authenticateSectorWithKeyA(sector, cardKey)) {
                 tvStatus.text = getString(R.string.card_not_formatted)
                 flashBackground(R.color.error_orange)
+                playNfcErrorBeep()
                 scheduleAutoReset()
                 return
             }
@@ -546,10 +662,12 @@ class MainActivity : AppCompatActivity() {
             layoutBeforeAfter.visibility = View.VISIBLE
             tvStatus.text = getString(R.string.balance_added_ok, pendingAddAmount)
             flashBackground(R.color.success_green)
+            playSuccessBeep()
             scheduleAutoReset()
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
@@ -568,6 +686,7 @@ class MainActivity : AppCompatActivity() {
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
             return
         }
@@ -589,6 +708,7 @@ class MainActivity : AppCompatActivity() {
                 layoutBeforeAfter.visibility = View.VISIBLE
                 tvStatus.text = getString(R.string.format_reset_success)
                 flashBackground(R.color.success_purple_dark)
+                playSuccessBeep()
                 scheduleAutoReset()
                 return
             }
@@ -613,6 +733,7 @@ class MainActivity : AppCompatActivity() {
             if (foundKey == null) {
                 tvStatus.text = getString(R.string.format_no_key_found)
                 flashBackground(R.color.error_orange)
+                playNfcErrorBeep()
                 scheduleAutoReset()
                 return
             }
@@ -626,6 +747,7 @@ class MainActivity : AppCompatActivity() {
             if (!reAuthed) {
                 tvStatus.text = getString(R.string.auth_failed)
                 flashBackground(R.color.error_orange)
+                playNfcErrorBeep()
                 scheduleAutoReset()
                 return
             }
@@ -655,6 +777,7 @@ class MainActivity : AppCompatActivity() {
             layoutBeforeAfter.visibility = View.GONE
             tvStatus.text = getString(R.string.format_success)
             flashBackground(R.color.success_purple_dark)
+            playSuccessBeep()
             scheduleAutoReset()
 
             if (AdvancedSettingsActivity.isDebugEnabled(this)) {
@@ -668,6 +791,7 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
@@ -732,6 +856,7 @@ class MainActivity : AppCompatActivity() {
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
             return
         }
@@ -754,6 +879,7 @@ class MainActivity : AppCompatActivity() {
             if (!authenticated) {
                 tvStatus.text = getString(R.string.reset_card_no_key)
                 flashBackground(R.color.error_orange)
+                playNfcErrorBeep()
                 scheduleAutoReset()
                 return
             }
@@ -779,11 +905,13 @@ class MainActivity : AppCompatActivity() {
             layoutBeforeAfter.visibility = View.GONE
             tvStatus.text = getString(R.string.reset_card_success)
             flashBackground(R.color.success_purple_dark)
+            playSuccessBeep()
             scheduleAutoReset()
 
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
