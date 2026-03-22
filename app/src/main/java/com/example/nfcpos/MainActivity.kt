@@ -20,6 +20,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.annotation.ColorRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButtonToggleGroup
@@ -66,6 +67,7 @@ class MainActivity : AppCompatActivity() {
         private val FACTORY_KEY = byteArrayOf(0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte())
 
         private const val AUTO_RESET_DELAY_MS = 7000L
+        private val FLASH_TOKEN = Any()
     }
 
     private enum class PendingAction { NONE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
@@ -202,6 +204,7 @@ class MainActivity : AppCompatActivity() {
         val sector = AdvancedSettingsActivity.getTargetSector(this)
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
             return
         }
@@ -209,6 +212,7 @@ class MainActivity : AppCompatActivity() {
             mifare.connect()
             if (!mifare.authenticateSectorWithKeyA(sector, cardKey)) {
                 tvStatus.text = getString(R.string.auth_failed)
+                flashBackground(R.color.error_orange)
                 scheduleAutoReset()
                 return
             }
@@ -221,6 +225,7 @@ class MainActivity : AppCompatActivity() {
             scheduleAutoReset()
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_reading, e.message)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
@@ -232,6 +237,7 @@ class MainActivity : AppCompatActivity() {
         val sector = AdvancedSettingsActivity.getTargetSector(this)
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
             return
         }
@@ -239,6 +245,7 @@ class MainActivity : AppCompatActivity() {
             mifare.connect()
             if (!mifare.authenticateSectorWithKeyA(sector, cardKey)) {
                 tvStatus.text = getString(R.string.auth_failed)
+                flashBackground(R.color.error_orange)
                 scheduleAutoReset()
                 return
             }
@@ -272,6 +279,7 @@ class MainActivity : AppCompatActivity() {
 
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
@@ -279,15 +287,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     // -------------------------------------------------------------------------
-    // Fondo rojo para saldo insuficiente
+    // Flash background color temporarily
     // -------------------------------------------------------------------------
 
-    private fun flashRedBackground() {
-        rootLayout.setBackgroundColor(ContextCompat.getColor(this, R.color.error_red_dark))
+    private fun flashBackground(@ColorRes colorRes: Int) {
+        handler.removeCallbacksAndMessages(FLASH_TOKEN)
+        rootLayout.setBackgroundColor(ContextCompat.getColor(this, colorRes))
         handler.postDelayed({
             rootLayout.setBackgroundColor(Color.TRANSPARENT)
-        }, 3000)
+        }, FLASH_TOKEN, 3000)
     }
+
+    private fun flashRedBackground() = flashBackground(R.color.error_red_dark)
 
     private fun scheduleAutoReset() {
         handler.removeCallbacks(autoResetRunnable)
@@ -295,6 +306,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resetToWaiting() {
+        handler.removeCallbacksAndMessages(FLASH_TOKEN)
+        rootLayout.setBackgroundColor(Color.TRANSPARENT)
         tvCardId.text = getString(R.string.no_card_detected)
         tvBalance.text = getString(R.string.balance_initial)
         layoutBeforeAfter.visibility = View.GONE
@@ -390,6 +403,7 @@ class MainActivity : AppCompatActivity() {
         val cardKey = deriveCardKey(uid)
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
             return
         }
@@ -397,6 +411,7 @@ class MainActivity : AppCompatActivity() {
             mifare.connect()
             if (!mifare.authenticateSectorWithKeyA(sector, cardKey)) {
                 tvStatus.text = getString(R.string.card_not_formatted)
+                flashBackground(R.color.error_orange)
                 scheduleAutoReset()
                 return
             }
@@ -421,9 +436,11 @@ class MainActivity : AppCompatActivity() {
             tvBalanceAfter.text = newBalance.toString()
             layoutBeforeAfter.visibility = View.VISIBLE
             tvStatus.text = getString(R.string.balance_added_ok, pendingAddAmount)
+            flashBackground(R.color.success_green)
             scheduleAutoReset()
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
@@ -441,6 +458,7 @@ class MainActivity : AppCompatActivity() {
         val derivedKey = deriveCardKey(uid)
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
             return
         }
@@ -461,6 +479,7 @@ class MainActivity : AppCompatActivity() {
                 tvBalanceAfter.text = "0"
                 layoutBeforeAfter.visibility = View.VISIBLE
                 tvStatus.text = getString(R.string.format_reset_success)
+                flashBackground(R.color.success_purple_dark)
                 scheduleAutoReset()
                 return
             }
@@ -484,6 +503,7 @@ class MainActivity : AppCompatActivity() {
 
             if (foundKey == null) {
                 tvStatus.text = getString(R.string.format_no_key_found)
+                flashBackground(R.color.error_orange)
                 scheduleAutoReset()
                 return
             }
@@ -496,6 +516,7 @@ class MainActivity : AppCompatActivity() {
             }
             if (!reAuthed) {
                 tvStatus.text = getString(R.string.auth_failed)
+                flashBackground(R.color.error_orange)
                 scheduleAutoReset()
                 return
             }
@@ -524,6 +545,7 @@ class MainActivity : AppCompatActivity() {
             tvBalance.text = "0"
             layoutBeforeAfter.visibility = View.GONE
             tvStatus.text = getString(R.string.format_success)
+            flashBackground(R.color.success_purple_dark)
             scheduleAutoReset()
 
             AlertDialog.Builder(this)
@@ -534,6 +556,7 @@ class MainActivity : AppCompatActivity() {
 
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
@@ -597,6 +620,7 @@ class MainActivity : AppCompatActivity() {
 
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
             return
         }
@@ -618,6 +642,7 @@ class MainActivity : AppCompatActivity() {
 
             if (!authenticated) {
                 tvStatus.text = getString(R.string.reset_card_no_key)
+                flashBackground(R.color.error_orange)
                 scheduleAutoReset()
                 return
             }
@@ -642,10 +667,12 @@ class MainActivity : AppCompatActivity() {
             tvBalance.text = getString(R.string.balance_initial)
             layoutBeforeAfter.visibility = View.GONE
             tvStatus.text = getString(R.string.reset_card_success)
+            flashBackground(R.color.success_purple_dark)
             scheduleAutoReset()
 
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
+            flashBackground(R.color.error_orange)
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
