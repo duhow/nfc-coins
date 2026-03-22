@@ -207,6 +207,8 @@ class MainActivity : AppCompatActivity() {
                     customDeductAmount > 0 -> {
                         val amount = customDeductAmount
                         customDeductAmount = 0
+                        isCustomAmountMode = false
+                        clearHiddenInput()
                         readAndDeduct(tag, cardKey, amount, isCustomAmount = true)
                     }
                     else -> readAndShowBalance(tag, cardKey)
