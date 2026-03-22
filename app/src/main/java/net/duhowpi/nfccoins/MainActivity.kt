@@ -16,6 +16,7 @@ import android.text.TextWatcher
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -74,7 +75,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var rootLayout: View
     private lateinit var tvStatus: TextView
-    private lateinit var tvBalance: TextView
+    private lateinit var tvBalance: EditText
     private lateinit var tvCardId: TextView
     private lateinit var tvBalanceBefore: TextView
     private lateinit var tvBalanceAfter: TextView
@@ -88,6 +89,9 @@ class MainActivity : AppCompatActivity() {
     private var currentTag: Tag? = null
     private var pendingAction: PendingAction = PendingAction.NONE
     private var pendingAddAmount: Int = 0
+    private var customDeductAmount: Int = 0
+    private var isUpdatingBalance = false
+    private var isCustomAmountMode = false
 
     private val handler = Handler(Looper.getMainLooper())
     private val autoResetRunnable = Runnable { resetToWaiting() }
@@ -104,6 +108,8 @@ class MainActivity : AppCompatActivity() {
         tvBalanceAfter    = findViewById(R.id.tvBalanceAfter)
         layoutBeforeAfter = findViewById(R.id.layoutBeforeAfter)
         toggleGroup       = findViewById(R.id.toggleGroup)
+
+        setupBalanceEditText()
 
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         if (nfcAdapter == null) {
@@ -190,10 +196,15 @@ class MainActivity : AppCompatActivity() {
             }
             PendingAction.NONE -> {
                 val cardKey = deriveCardKey(uid)
-                when (toggleGroup.checkedButtonId) {
-                    R.id.btnDeduct1 -> readAndDeduct(tag, cardKey, 1)
-                    R.id.btnDeduct2 -> readAndDeduct(tag, cardKey, 2)
-                    else            -> readAndShowBalance(tag, cardKey)
+                when {
+                    toggleGroup.checkedButtonId == R.id.btnDeduct1 -> readAndDeduct(tag, cardKey, 1)
+                    toggleGroup.checkedButtonId == R.id.btnDeduct2 -> readAndDeduct(tag, cardKey, 2)
+                    customDeductAmount > 0 -> {
+                        val amount = customDeductAmount
+                        customDeductAmount = 0
+                        readAndDeduct(tag, cardKey, amount)
+                    }
+                    else -> readAndShowBalance(tag, cardKey)
                 }
             }
         }
@@ -219,7 +230,7 @@ class MainActivity : AppCompatActivity() {
             val blockIndex = mifare.sectorToBlock(sector) + DATA_BLOCK_OFFSET
             val data = mifare.readBlock(blockIndex)
             currentBalance = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
-            tvBalance.text = currentBalance.toString()
+            setBalanceText(currentBalance.toString())
             layoutBeforeAfter.visibility = View.GONE
             tvStatus.text = getString(R.string.card_read_ok)
             scheduleAutoReset()
@@ -255,7 +266,7 @@ class MainActivity : AppCompatActivity() {
 
             if (balance < amount) {
                 currentBalance = balance
-                tvBalance.text = balance.toString()
+                setBalanceText(balance.toString())
                 layoutBeforeAfter.visibility = View.GONE
                 tvStatus.text = getString(R.string.insufficient_balance)
                 flashRedBackground()
@@ -270,7 +281,7 @@ class MainActivity : AppCompatActivity() {
             mifare.writeBlock(blockIndex, block)
 
             currentBalance = newBalance
-            tvBalance.text = newBalance.toString()
+            setBalanceText(newBalance.toString())
             tvBalanceBefore.text = balance.toString()
             tvBalanceAfter.text = newBalance.toString()
             layoutBeforeAfter.visibility = View.VISIBLE
@@ -310,10 +321,10 @@ class MainActivity : AppCompatActivity() {
         handler.removeCallbacksAndMessages(FLASH_TOKEN)
         rootLayout.setBackgroundColor(Color.TRANSPARENT)
         tvCardId.text = getString(R.string.no_card_detected)
-        tvBalance.text = getString(R.string.balance_initial)
+        currentBalance = -1
+        resetBalanceToInitial()
         layoutBeforeAfter.visibility = View.GONE
         tvStatus.text = getString(R.string.waiting_card)
-        currentBalance = -1
         pendingAction = PendingAction.NONE
         pendingAddAmount = 0
     }
@@ -352,30 +363,64 @@ class MainActivity : AppCompatActivity() {
 
     /** Muestra el diálogo para introducir la cantidad a añadir antes de acercar la tarjeta. */
     private fun showAddAmountDialog() {
+        val paddingHoriz = (24 * resources.displayMetrics.density).toInt()
+        val paddingVert = (8 * resources.displayMetrics.density).toInt()
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(paddingHoriz, paddingVert, paddingHoriz, 0)
+        }
+
         val input = EditText(this).apply {
             hint = getString(R.string.hint_add_amount)
             inputType = InputType.TYPE_CLASS_NUMBER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
 
-        // Limit input to MAX_BALANCE in real time
+        container.addView(input)
+
+        // Use a nullable var so the TextWatcher can reference confirmButton
+        // after the dialog is shown (buttons are created by show())
+        var confirmButton: android.widget.Button? = null
+
         input.addTextChangedListener(object : TextWatcher {
             private var isUpdating = false
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                if (isUpdating || s.isNullOrEmpty()) return
-                val value = s.toString().toIntOrNull() ?: return
-                if (value > MAX_BALANCE) {
-                    isUpdating = true
-                    s.replace(0, s.length, MAX_BALANCE.toString())
-                    isUpdating = false
+                if (isUpdating) return
+                val value = s?.toString()?.toIntOrNull() ?: 0
+                confirmButton?.isEnabled = value > 0
+                val normalized = if (value > 0) value.toString() else null
+                when {
+                    value > MAX_BALANCE -> {
+                        isUpdating = true
+                        s?.replace(0, s.length, MAX_BALANCE.toString())
+                        isUpdating = false
+                    }
+                    normalized != null && s.toString() != normalized -> {
+                        // Normalize leading zeros (e.g. "0001" → "1")
+                        isUpdating = true
+                        s?.replace(0, s.length, normalized)
+                        isUpdating = false
+                    }
                 }
             }
         })
 
-        AlertDialog.Builder(this)
+        // Hide keyboard when focus leaves the EditText (e.g. when tabbing to dialog buttons)
+        input.setOnFocusChangeListener { v, hasFocus ->
+            if (!hasFocus) {
+                hideKeyboardFrom(v)
+            }
+        }
+
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.action_add_balance)
-            .setView(input)
+            .setView(container)
             .setPositiveButton(R.string.action_confirm) { _, _ ->
                 val amount = input.text.toString().toIntOrNull()
                 if (amount == null || amount <= 0) {
@@ -384,14 +429,26 @@ class MainActivity : AppCompatActivity() {
                 }
                 pendingAddAmount = amount
                 pendingAction = PendingAction.ADD_BALANCE
-                tvBalance.text = "+$amount"
+                setBalanceText("+$amount")
                 tvStatus.text = getString(R.string.tap_card_to_add)
             }
             .setNegativeButton(android.R.string.cancel) { _, _ ->
                 pendingAction = PendingAction.NONE
                 pendingAddAmount = 0
             }
+            .setNeutralButton("+1", null) // null prevents auto-dismiss; listener set below
             .show()
+
+        confirmButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+        confirmButton?.isEnabled = false
+
+        // Override neutral button click to increment without dismissing the dialog
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener {
+            val current = input.text.toString().toIntOrNull() ?: 0
+            val newValue = (current + 1).coerceAtMost(MAX_BALANCE)
+            input.setText(newValue.toString())
+            input.setSelection(input.text.length)
+        }
     }
 
     /**
@@ -432,7 +489,7 @@ class MainActivity : AppCompatActivity() {
             mifare.writeBlock(blockIndex, block)
 
             currentBalance = newBalance
-            tvBalance.text = newBalance.toString()
+            setBalanceText(newBalance.toString())
             tvBalanceBefore.text = oldBalance.toString()
             tvBalanceAfter.text = newBalance.toString()
             layoutBeforeAfter.visibility = View.VISIBLE
@@ -475,7 +532,7 @@ class MainActivity : AppCompatActivity() {
                 mifare.writeBlock(blockIndex, ByteArray(MifareClassic.BLOCK_SIZE))
 
                 currentBalance = 0
-                tvBalance.text = "0"
+                setBalanceText("0")
                 tvBalanceBefore.text = oldBalance.toString()
                 tvBalanceAfter.text = "0"
                 layoutBeforeAfter.visibility = View.VISIBLE
@@ -543,7 +600,7 @@ class MainActivity : AppCompatActivity() {
             val keyType = if (usedKeyA) "A" else "B"
 
             currentBalance = 0
-            tvBalance.text = "0"
+            setBalanceText("0")
             layoutBeforeAfter.visibility = View.GONE
             tvStatus.text = getString(R.string.format_success)
             flashBackground(R.color.success_purple_dark)
@@ -665,7 +722,7 @@ class MainActivity : AppCompatActivity() {
             mifare.writeBlock(sectorStart + blocksInSector - 1, trailer)
 
             currentBalance = -1
-            tvBalance.text = getString(R.string.balance_initial)
+            resetBalanceToInitial()
             layoutBeforeAfter.visibility = View.GONE
             tvStatus.text = getString(R.string.reset_card_success)
             flashBackground(R.color.success_purple_dark)
@@ -683,6 +740,136 @@ class MainActivity : AppCompatActivity() {
     // -------------------------------------------------------------------------
     // Utilidades
     // -------------------------------------------------------------------------
+
+    /**
+     * Sets the balance display text programmatically (non-editable mode).
+     * Guards the TextWatcher via [isUpdatingBalance] and disables editing.
+     */
+    private fun setBalanceText(text: String) {
+        isCustomAmountMode = false
+        isUpdatingBalance = true
+        tvBalance.setText(text)
+        tvBalance.inputType = InputType.TYPE_NULL
+        tvBalance.isFocusable = false
+        tvBalance.isFocusableInTouchMode = false
+        isUpdatingBalance = false
+        hideKeyboardFrom(tvBalance)
+    }
+
+    /**
+     * Resets the balance display to the initial "--" state and allows
+     * the user to click on it to enter a custom deduction amount.
+     */
+    private fun resetBalanceToInitial() {
+        isCustomAmountMode = false
+        customDeductAmount = 0
+        isUpdatingBalance = true
+        tvBalance.setText(getString(R.string.balance_initial))
+        tvBalance.inputType = InputType.TYPE_NULL
+        tvBalance.isFocusable = false
+        tvBalance.isFocusableInTouchMode = false
+        isUpdatingBalance = false
+        hideKeyboardFrom(tvBalance)
+    }
+
+    /**
+     * Sets up the balance EditText so that clicking it (when showing "--")
+     * opens the keyboard for custom deduction entry. Deleting all text
+     * reverts to "--" and read-only mode.
+     *
+     * Editability is controlled via [InputType] rather than [android.view.View.isFocusable]
+     * toggling, which avoids focus-routing conflicts with the IME.
+     */
+    private fun setupBalanceEditText() {
+        // Start non-focusable with TYPE_NULL; focusability is toggled by enterCustomAmountMode/reset
+        tvBalance.isFocusable = false
+        tvBalance.isFocusableInTouchMode = false
+        tvBalance.inputType = InputType.TYPE_NULL
+
+        tvBalance.setOnClickListener {
+            if (currentBalance == -1 && !isCustomAmountMode) {
+                enterCustomAmountMode()
+            }
+        }
+
+        tvBalance.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                if (isUpdatingBalance) return
+                if (!isCustomAmountMode) return
+                if (s.isNullOrEmpty()) {
+                    resetBalanceToInitial()
+                } else {
+                    val value = s.toString().toIntOrNull() ?: 0
+                    when {
+                        value > MAX_BALANCE -> {
+                            isUpdatingBalance = true
+                            s.replace(0, s.length, MAX_BALANCE.toString())
+                            isUpdatingBalance = false
+                        }
+                        s.toString() != value.toString() && value > 0 -> {
+                            // Normalize leading zeros (e.g. "0001" → "1")
+                            isUpdatingBalance = true
+                            s.replace(0, s.length, value.toString())
+                            isUpdatingBalance = false
+                        }
+                    }
+                    customDeductAmount = s.toString().toIntOrNull() ?: 0
+                    toggleGroup.clearChecked()
+                }
+            }
+        })
+
+        tvBalance.setOnFocusChangeListener { v, hasFocus ->
+            if (!hasFocus && isCustomAmountMode && !isUpdatingBalance) {
+                if (tvBalance.text.toString().isEmpty()) {
+                    resetBalanceToInitial()
+                } else {
+                    hideKeyboardFrom(v)
+                }
+            }
+        }
+
+        // Selecting a fixed-deduction toggle button clears any custom deduction amount
+        toggleGroup.addOnButtonCheckedListener { _, _, isChecked ->
+            if (isChecked && customDeductAmount > 0) {
+                resetBalanceToInitial()
+            }
+        }
+    }
+
+    /**
+     * Switches [tvBalance] into editable mode: enables focusability, changes its
+     * input type to numeric, clears the placeholder text, requests focus, and
+     * shows the keyboard.
+     */
+    private fun enterCustomAmountMode() {
+        isCustomAmountMode = true
+        // Enable focusability FIRST so requestFocus() can succeed
+        tvBalance.isFocusable = true
+        tvBalance.isFocusableInTouchMode = true
+        // Switch to numeric input BEFORE requesting focus so the IME connection
+        // is established with the correct type from the start.
+        tvBalance.inputType = InputType.TYPE_CLASS_NUMBER
+        if (tvBalance.text.toString() == getString(R.string.balance_initial)) {
+            isUpdatingBalance = true
+            tvBalance.text.clear()
+            isUpdatingBalance = false
+        }
+        tvBalance.requestFocus()
+        showKeyboardFor(tvBalance)
+    }
+
+    private fun showKeyboardFor(view: View) {
+        val imm = getSystemService(InputMethodManager::class.java)
+        imm.showSoftInput(view, InputMethodManager.SHOW_FORCED)
+    }
+
+    private fun hideKeyboardFrom(view: View) {
+        val imm = getSystemService(InputMethodManager::class.java)
+        imm.hideSoftInputFromWindow(view.windowToken, 0)
+    }
 
     private fun ByteArray.toHex(): String =
         joinToString("") { "%02X".format(it) }
