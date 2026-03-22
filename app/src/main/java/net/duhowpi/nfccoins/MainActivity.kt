@@ -154,6 +154,10 @@ class MainActivity : AppCompatActivity() {
                 startActivity(Intent(this, AdvancedSettingsActivity::class.java))
                 true
             }
+            R.id.action_about -> {
+                showAboutDialog()
+                true
+            }
             else -> super.onOptionsItemSelected(item)
         }
     }
@@ -489,6 +493,18 @@ class MainActivity : AppCompatActivity() {
         pendingAddAmount = 0
         resetBalanceToInitial()
         tvStatus.text = getString(R.string.waiting_card)
+    }
+
+    // -------------------------------------------------------------------------
+    // Acerca de
+    // -------------------------------------------------------------------------
+
+    private fun showAboutDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.about_title)
+            .setMessage(getString(R.string.about_message, BuildConfig.VERSION_NAME))
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     // -------------------------------------------------------------------------

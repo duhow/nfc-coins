@@ -54,6 +54,11 @@
     <string name="reset_card_success">Tarjeta reiniciada a valores de fábrica</string>
     <string name="reset_card_no_key">No se pudo autenticar con ninguna clave conocida</string>
 
+    <!-- About -->
+    <string name="about">Acerca de</string>
+    <string name="about_title">Acerca de NFC Coins</string>
+    <string name="about_message">NFC Coins es una aplicación para gestionar saldos en tarjetas Mifare Classic mediante NFC.\n\nVersión: %s</string>
+
     <!-- Advanced settings -->
     <string name="advanced_settings">Ajustes avanzados</string>
     <string name="setting_target_sector">Sector a modificar</string>
