@@ -368,23 +368,31 @@ class MainActivity : AppCompatActivity() {
         handler.removeCallbacksAndMessages(BEEP_TOKEN)
         toneGenerator?.release()
         toneGenerator = null
+        if (count <= 0) return
         try {
             val toneGen = ToneGenerator(AudioManager.STREAM_DTMF, ToneGenerator.MAX_VOLUME)
             toneGenerator = toneGen
-            var delay = 0L
-            repeat(count) {
-                handler.postDelayed({
-                    try {
-                        toneGen.startTone(toneType, durationMs)
-                    } catch (_: Exception) {}
-                }, BEEP_TOKEN, delay)
-                delay += (durationMs + intervalMs).toLong()
-            }
+            playBeepChain(toneGen, count, toneType, durationMs, intervalMs)
+        } catch (_: Exception) {}
+    }
+
+    // Plays beeps one at a time by scheduling each next beep from inside the previous callback,
+    // so inter-beep intervals are measured from when the previous beep actually fired rather than
+    // from the original call site. This prevents timing drift caused by main-thread congestion.
+    private fun playBeepChain(
+        toneGen: ToneGenerator, remaining: Int, toneType: Int, durationMs: Int, intervalMs: Int
+    ) {
+        try { toneGen.startTone(toneType, durationMs) } catch (_: Exception) {}
+        if (remaining > 1) {
+            handler.postDelayed({
+                playBeepChain(toneGen, remaining - 1, toneType, durationMs, intervalMs)
+            }, BEEP_TOKEN, (durationMs + intervalMs).toLong())
+        } else {
             handler.postDelayed({
                 toneGen.release()
                 if (toneGenerator === toneGen) toneGenerator = null
-            }, BEEP_TOKEN, delay)
-        } catch (_: Exception) {}
+            }, BEEP_TOKEN, durationMs.toLong())
+        }
     }
 
     // 1 long high-pitched beep → transaction confirmed (like a payment terminal approval)
