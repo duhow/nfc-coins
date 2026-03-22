@@ -370,6 +370,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 pendingAddAmount = amount
                 pendingAction = PendingAction.ADD_BALANCE
+                tvBalance.text = "+$amount"
                 tvStatus.text = getString(R.string.tap_card_to_add)
             }
             .setNegativeButton(android.R.string.cancel) { _, _ ->
