@@ -58,6 +58,8 @@
     <string name="about">Acerca de</string>
     <string name="about_title">Acerca de NFC Coins</string>
     <string name="about_message">NFC Coins es una aplicación para gestionar saldos en tarjetas Mifare Classic mediante NFC.\n\nVersión: %s</string>
+    <string name="view_source">Ver código fuente</string>
+    <string name="github_url" translatable="false">https://github.com/duhow/nfc-coins</string>
 
     <!-- Advanced settings -->
     <string name="advanced_settings">Ajustes avanzados</string>

@@ -2,6 +2,7 @@ package net.duhowpi.nfccoins
 
 import android.app.AlertDialog
 import android.content.Intent
+import android.net.Uri
 import android.graphics.Color
 import android.media.AudioManager
 import android.media.ToneGenerator
@@ -504,6 +505,12 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.about_title)
             .setMessage(getString(R.string.about_message, BuildConfig.VERSION_NAME))
             .setPositiveButton(android.R.string.ok, null)
+            .setNeutralButton(R.string.view_source) { _, _ ->
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.github_url)))
+                if (intent.resolveActivity(packageManager) != null) {
+                    startActivity(intent)
+                }
+            }
             .show()
     }
 
