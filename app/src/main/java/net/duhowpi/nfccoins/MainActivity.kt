@@ -72,6 +72,9 @@ class MainActivity : AppCompatActivity() {
         private val FACTORY_KEY = hexKey(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF)
 
         private const val AUTO_RESET_DELAY_MS = 7000L
+        // Extra time after tone duration before releasing ToneGenerator, allowing the audio output
+        // buffer to drain completely and preventing the last beep from being cut short.
+        private const val AUDIO_DRAIN_MS = 150L
         private val FLASH_TOKEN = Any()
         private val BEEP_TOKEN = Any()
     }
@@ -379,6 +382,8 @@ class MainActivity : AppCompatActivity() {
     // Plays beeps one at a time by scheduling each next beep from inside the previous callback,
     // so inter-beep intervals are measured from when the previous beep actually fired rather than
     // from the original call site. This prevents timing drift caused by main-thread congestion.
+    // The release is delayed by durationMs + AUDIO_DRAIN_MS to allow the audio output buffer to
+    // fully drain before ToneGenerator is destroyed, preventing the last beep from being cut short.
     private fun playBeepChain(
         toneGen: ToneGenerator, remaining: Int, toneType: Int, durationMs: Int, intervalMs: Int
     ) {
@@ -391,7 +396,7 @@ class MainActivity : AppCompatActivity() {
             handler.postDelayed({
                 toneGen.release()
                 if (toneGenerator === toneGen) toneGenerator = null
-            }, BEEP_TOKEN, durationMs.toLong())
+            }, BEEP_TOKEN, (durationMs + AUDIO_DRAIN_MS).toLong())
         }
     }
 
