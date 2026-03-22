@@ -61,6 +61,8 @@ class MainActivity : AppCompatActivity() {
 
         // Bits de acceso estándar: lectura y escritura con Key A en todos los bloques de datos
         private val ACCESS_BITS = byteArrayOf(0xFF.toByte(), 0x07.toByte(), 0x80.toByte(), 0x69.toByte())
+
+        private const val AUTO_RESET_DELAY_MS = 7000L
     }
 
     private enum class PendingAction { NONE, ADD_BALANCE, FORMAT_CARD }
@@ -81,8 +83,10 @@ class MainActivity : AppCompatActivity() {
     private var currentBalance: Int = -1
     private var currentTag: Tag? = null
     private var pendingAction: PendingAction = PendingAction.NONE
+    private var pendingAddAmount: Int = 0
 
     private val handler = Handler(Looper.getMainLooper())
+    private val autoResetRunnable = Runnable { resetToWaiting() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -143,9 +147,11 @@ class MainActivity : AppCompatActivity() {
 
         if (!tag.techList.contains(MifareClassic::class.java.name)) {
             tvStatus.text = getString(R.string.unsupported_card)
+            scheduleAutoReset()
             return
         }
 
+        handler.removeCallbacks(autoResetRunnable)
         currentTag = tag
         val uid = tag.id
         tvCardId.text = getString(R.string.card_id_format, uid.toHex())
@@ -174,12 +180,14 @@ class MainActivity : AppCompatActivity() {
     private fun readAndShowBalance(tag: Tag, cardKey: ByteArray) {
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
+            scheduleAutoReset()
             return
         }
         try {
             mifare.connect()
             if (!mifare.authenticateSectorWithKeyA(TARGET_SECTOR, cardKey)) {
                 tvStatus.text = getString(R.string.auth_failed)
+                scheduleAutoReset()
                 return
             }
             val blockIndex = mifare.sectorToBlock(TARGET_SECTOR) + DATA_BLOCK_OFFSET
@@ -188,8 +196,10 @@ class MainActivity : AppCompatActivity() {
             tvBalance.text = currentBalance.toString()
             layoutBeforeAfter.visibility = View.GONE
             tvStatus.text = getString(R.string.card_read_ok)
+            scheduleAutoReset()
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_reading, e.message)
+            scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
         }
@@ -199,12 +209,14 @@ class MainActivity : AppCompatActivity() {
     private fun readAndDeduct(tag: Tag, cardKey: ByteArray, amount: Int) {
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
+            scheduleAutoReset()
             return
         }
         try {
             mifare.connect()
             if (!mifare.authenticateSectorWithKeyA(TARGET_SECTOR, cardKey)) {
                 tvStatus.text = getString(R.string.auth_failed)
+                scheduleAutoReset()
                 return
             }
             val blockIndex = mifare.sectorToBlock(TARGET_SECTOR) + DATA_BLOCK_OFFSET
@@ -217,6 +229,7 @@ class MainActivity : AppCompatActivity() {
                 layoutBeforeAfter.visibility = View.GONE
                 tvStatus.text = getString(R.string.insufficient_balance)
                 flashRedBackground()
+                scheduleAutoReset()
                 return
             }
 
@@ -227,14 +240,16 @@ class MainActivity : AppCompatActivity() {
             mifare.writeBlock(blockIndex, block)
 
             currentBalance = newBalance
-            tvBalance.text = ""
+            tvBalance.text = newBalance.toString()
             tvBalanceBefore.text = balance.toString()
             tvBalanceAfter.text = newBalance.toString()
             layoutBeforeAfter.visibility = View.VISIBLE
             tvStatus.text = getString(R.string.deduct_ok, amount)
+            scheduleAutoReset()
 
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
+            scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
         }
@@ -251,6 +266,21 @@ class MainActivity : AppCompatActivity() {
         }, 3000)
     }
 
+    private fun scheduleAutoReset() {
+        handler.removeCallbacks(autoResetRunnable)
+        handler.postDelayed(autoResetRunnable, AUTO_RESET_DELAY_MS)
+    }
+
+    private fun resetToWaiting() {
+        tvCardId.text = getString(R.string.no_card_detected)
+        tvBalance.text = getString(R.string.balance_initial)
+        layoutBeforeAfter.visibility = View.GONE
+        tvStatus.text = getString(R.string.waiting_card)
+        currentBalance = -1
+        pendingAction = PendingAction.NONE
+        pendingAddAmount = 0
+    }
+
     // -------------------------------------------------------------------------
     // Gestión de tarjetas
     // -------------------------------------------------------------------------
@@ -265,10 +295,7 @@ class MainActivity : AppCompatActivity() {
                 )
             ) { _, which ->
                 when (which) {
-                    0 -> {
-                        pendingAction = PendingAction.ADD_BALANCE
-                        tvStatus.text = getString(R.string.tap_card_to_add)
-                    }
+                    0 -> showAddAmountDialog()
                     1 -> {
                         pendingAction = PendingAction.FORMAT_CARD
                         tvStatus.text = getString(R.string.tap_card_to_format)
@@ -281,43 +308,14 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    /** Lee el saldo de la tarjeta y muestra un diálogo para introducir la cantidad a añadir. */
-    private fun addBalanceToCard(tag: Tag) {
-        val uid = tag.id
-        val cardKey = deriveCardKey(uid)
-        val mifare = MifareClassic.get(tag) ?: run {
-            tvStatus.text = getString(R.string.error_get_mifare)
-            return
-        }
-
-        val readBalance: Int
-        try {
-            mifare.connect()
-            if (!mifare.authenticateSectorWithKeyA(TARGET_SECTOR, cardKey)) {
-                tvStatus.text = getString(R.string.auth_failed)
-                return
-            }
-            val blockIndex = mifare.sectorToBlock(TARGET_SECTOR) + DATA_BLOCK_OFFSET
-            val data = mifare.readBlock(blockIndex)
-            readBalance = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
-        } catch (e: Exception) {
-            tvStatus.text = getString(R.string.error_reading, e.message)
-            return
-        } finally {
-            runCatching { mifare.close() }
-        }
-
-        tvBalance.text = readBalance.toString()
-        layoutBeforeAfter.visibility = View.GONE
-        tvStatus.text = getString(R.string.card_read_ok)
-
+    /** Muestra el diálogo para introducir la cantidad a añadir antes de acercar la tarjeta. */
+    private fun showAddAmountDialog() {
         val input = EditText(this).apply {
             hint = getString(R.string.hint_add_amount)
             inputType = InputType.TYPE_CLASS_NUMBER
         }
-
         AlertDialog.Builder(this)
-            .setTitle(getString(R.string.add_balance_title, readBalance))
+            .setTitle(R.string.action_add_balance)
             .setView(input)
             .setPositiveButton(R.string.action_confirm) { _, _ ->
                 val amount = input.text.toString().toIntOrNull()
@@ -325,44 +323,61 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this, getString(R.string.invalid_amount), Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
-                val newBalance = readBalance + amount
-                if (newBalance > MAX_BALANCE) {
-                    Toast.makeText(this, getString(R.string.balance_too_high), Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
-                writeNewBalance(tag, cardKey, oldBalance = readBalance, newBalance = newBalance,
-                    successMsg = getString(R.string.balance_added_ok, amount))
+                pendingAddAmount = amount
+                pendingAction = PendingAction.ADD_BALANCE
+                tvStatus.text = getString(R.string.tap_card_to_add)
             }
-            .setNegativeButton(android.R.string.cancel, null)
+            .setNegativeButton(android.R.string.cancel) { _, _ ->
+                pendingAction = PendingAction.NONE
+                pendingAddAmount = 0
+            }
             .show()
     }
 
-    /** Escribe un nuevo saldo en la tarjeta y actualiza la UI. */
-    private fun writeNewBalance(tag: Tag, cardKey: ByteArray, oldBalance: Int, newBalance: Int, successMsg: String) {
+    /**
+     * Aplica el saldo pendiente a la tarjeta. Solo intenta con la clave derivada del UID;
+     * si falla la autenticación, la tarjeta no está formateada y se muestra un error.
+     */
+    private fun addBalanceToCard(tag: Tag) {
+        val uid = tag.id
+        val cardKey = deriveCardKey(uid)
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
+            scheduleAutoReset()
             return
         }
         try {
             mifare.connect()
             if (!mifare.authenticateSectorWithKeyA(TARGET_SECTOR, cardKey)) {
-                tvStatus.text = getString(R.string.auth_failed)
+                tvStatus.text = getString(R.string.card_not_formatted)
+                scheduleAutoReset()
+                return
+            }
+            val blockIndex = mifare.sectorToBlock(TARGET_SECTOR) + DATA_BLOCK_OFFSET
+            val data = mifare.readBlock(blockIndex)
+            val oldBalance = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
+            val newBalance = oldBalance + pendingAddAmount
+            if (newBalance > MAX_BALANCE) {
+                Toast.makeText(this, getString(R.string.balance_too_high), Toast.LENGTH_SHORT).show()
+                pendingAddAmount = 0
+                scheduleAutoReset()
                 return
             }
             val block = ByteArray(MifareClassic.BLOCK_SIZE)
             block[0] = ((newBalance shr 8) and 0xFF).toByte()
             block[1] = (newBalance and 0xFF).toByte()
-            val blockIndex = mifare.sectorToBlock(TARGET_SECTOR) + DATA_BLOCK_OFFSET
             mifare.writeBlock(blockIndex, block)
 
             currentBalance = newBalance
-            tvBalance.text = ""
+            tvBalance.text = newBalance.toString()
             tvBalanceBefore.text = oldBalance.toString()
             tvBalanceAfter.text = newBalance.toString()
             layoutBeforeAfter.visibility = View.VISIBLE
-            tvStatus.text = successMsg
+            tvStatus.text = getString(R.string.balance_added_ok, pendingAddAmount)
+            scheduleAutoReset()
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
+            scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
         }
@@ -378,6 +393,7 @@ class MainActivity : AppCompatActivity() {
         val derivedKey = deriveCardKey(uid)
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
+            scheduleAutoReset()
             return
         }
 
@@ -403,6 +419,7 @@ class MainActivity : AppCompatActivity() {
 
             if (foundKey == null) {
                 tvStatus.text = getString(R.string.format_no_key_found)
+                scheduleAutoReset()
                 return
             }
 
@@ -414,6 +431,7 @@ class MainActivity : AppCompatActivity() {
             }
             if (!reAuthed) {
                 tvStatus.text = getString(R.string.auth_failed)
+                scheduleAutoReset()
                 return
             }
 
@@ -441,6 +459,7 @@ class MainActivity : AppCompatActivity() {
             tvBalance.text = "0"
             layoutBeforeAfter.visibility = View.GONE
             tvStatus.text = getString(R.string.format_success)
+            scheduleAutoReset()
 
             AlertDialog.Builder(this)
                 .setTitle(R.string.format_success)
@@ -450,6 +469,7 @@ class MainActivity : AppCompatActivity() {
 
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
+            scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
         }
