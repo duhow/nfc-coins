@@ -13,7 +13,6 @@ import android.os.Looper
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
-import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -25,7 +24,6 @@ import android.widget.Toast
 import androidx.annotation.ColorRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -381,16 +379,7 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        val plusOneButton = MaterialButton(this).apply {
-            text = "+1"
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { gravity = Gravity.START }
-        }
-
         container.addView(input)
-        container.addView(plusOneButton)
 
         // Use a nullable var so the TextWatcher can reference confirmButton
         // after the dialog is shown (buttons are created by show())
@@ -404,26 +393,28 @@ class MainActivity : AppCompatActivity() {
                 if (isUpdating) return
                 val value = s?.toString()?.toIntOrNull() ?: 0
                 confirmButton?.isEnabled = value > 0
-                if (value > MAX_BALANCE) {
-                    isUpdating = true
-                    s?.replace(0, s.length, MAX_BALANCE.toString())
-                    isUpdating = false
+                val normalized = if (value > 0) value.toString() else null
+                when {
+                    value > MAX_BALANCE -> {
+                        isUpdating = true
+                        s?.replace(0, s.length, MAX_BALANCE.toString())
+                        isUpdating = false
+                    }
+                    normalized != null && s.toString() != normalized -> {
+                        // Normalize leading zeros (e.g. "0001" → "1")
+                        isUpdating = true
+                        s?.replace(0, s.length, normalized)
+                        isUpdating = false
+                    }
                 }
             }
         })
 
-        // Hide keyboard when focus leaves the EditText (e.g., when tabbing to dialog buttons)
+        // Hide keyboard when focus leaves the EditText (e.g. when tabbing to dialog buttons)
         input.setOnFocusChangeListener { v, hasFocus ->
             if (!hasFocus) {
                 hideKeyboardFrom(v)
             }
-        }
-
-        plusOneButton.setOnClickListener {
-            val current = input.text.toString().toIntOrNull() ?: 0
-            val newValue = (current + 1).coerceAtMost(MAX_BALANCE)
-            input.setText(newValue.toString())
-            input.setSelection(input.text.length)
         }
 
         val dialog = AlertDialog.Builder(this)
@@ -444,10 +435,19 @@ class MainActivity : AppCompatActivity() {
                 pendingAction = PendingAction.NONE
                 pendingAddAmount = 0
             }
+            .setNeutralButton("+1", null) // null prevents auto-dismiss; listener set below
             .show()
 
         confirmButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
         confirmButton?.isEnabled = false
+
+        // Override neutral button click to increment without dismissing the dialog
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener {
+            val current = input.text.toString().toIntOrNull() ?: 0
+            val newValue = (current + 1).coerceAtMost(MAX_BALANCE)
+            input.setText(newValue.toString())
+            input.setSelection(input.text.length)
+        }
     }
 
     /**
@@ -785,8 +785,11 @@ class MainActivity : AppCompatActivity() {
                     tvBalance.text.clear()
                     isUpdatingBalance = false
                 }
-                tvBalance.requestFocus()
-                showKeyboardFor(tvBalance)
+                // Defer requestFocus/showKeyboard until after all touch events are processed
+                tvBalance.post {
+                    tvBalance.requestFocus()
+                    showKeyboardFor(tvBalance)
+                }
             }
         }
 
@@ -800,10 +803,18 @@ class MainActivity : AppCompatActivity() {
                     resetBalanceToInitial()
                 } else {
                     val value = s.toString().toIntOrNull() ?: 0
-                    if (value > MAX_BALANCE) {
-                        isUpdatingBalance = true
-                        s.replace(0, s.length, MAX_BALANCE.toString())
-                        isUpdatingBalance = false
+                    when {
+                        value > MAX_BALANCE -> {
+                            isUpdatingBalance = true
+                            s.replace(0, s.length, MAX_BALANCE.toString())
+                            isUpdatingBalance = false
+                        }
+                        s.toString() != value.toString() && value > 0 -> {
+                            // Normalize leading zeros (e.g. "0001" → "1")
+                            isUpdatingBalance = true
+                            s.replace(0, s.length, value.toString())
+                            isUpdatingBalance = false
+                        }
                     }
                     customDeductAmount = s.toString().toIntOrNull() ?: 0
                     toggleGroup.clearChecked()
