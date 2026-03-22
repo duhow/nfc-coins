@@ -114,13 +114,22 @@ class MainActivity : AppCompatActivity() {
             PendingIntent.FLAG_MUTABLE
         )
 
-        btnManagement.setOnClickListener { showCardManagementDialog() }
-
-        btnManagement.setOnClickListener { showCardManagementDialog() }
-
         if (intent?.action == NfcAdapter.ACTION_TECH_DISCOVERED) {
             handleNfcIntent(intent)
         }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.main_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == R.id.action_management) {
+            showCardManagementDialog()
+            return true
+        }
+        return super.onOptionsItemSelected(item)
     }
 
     override fun onResume() {
@@ -384,9 +393,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Intenta formatear el sector 14 de la tarjeta usando claves estándar de fábrica y NDEF.
-     * Si encuentra una clave válida, escribe el sector con la clave derivada del UID y muestra
-     * al usuario la clave encontrada y la nueva clave generada.
+     * Intenta formatear el sector 14 de la tarjeta.
+     * Primero prueba la clave derivada del UID: si ya está formateada, solo pone el saldo a cero.
+     * Si no, busca una clave estándar y escribe el sector con la clave derivada.
      */
     private fun formatCard(tag: Tag) {
         val uid = tag.id
@@ -399,6 +408,23 @@ class MainActivity : AppCompatActivity() {
 
         try {
             mifare.connect()
+
+            // Si ya está formateada con la clave derivada, solo reinicia el saldo a 0
+            if (mifare.authenticateSectorWithKeyA(TARGET_SECTOR, derivedKey)) {
+                val blockIndex = mifare.sectorToBlock(TARGET_SECTOR) + DATA_BLOCK_OFFSET
+                val data = mifare.readBlock(blockIndex)
+                val oldBalance = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
+                mifare.writeBlock(blockIndex, ByteArray(MifareClassic.BLOCK_SIZE))
+
+                currentBalance = 0
+                tvBalance.text = "0"
+                tvBalanceBefore.text = oldBalance.toString()
+                tvBalanceAfter.text = "0"
+                layoutBeforeAfter.visibility = View.VISIBLE
+                tvStatus.text = getString(R.string.format_reset_success)
+                scheduleAutoReset()
+                return
+            }
 
             // Buscar clave estándar que permita acceder al sector
             var foundKey: ByteArray? = null
