@@ -4,11 +4,9 @@ on:
   push:
     branches:
       - main
-      - master
   pull_request:
     branches:
       - main
-      - master
   workflow_dispatch:
 
 jobs:
@@ -47,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout repository
@@ -65,10 +63,31 @@ jobs:
         env:
           NFC_POS_PSK: ${{ secrets.NFC_POS_PSK }}
 
+      - name: Decode Android keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > $RUNNER_TEMP/release.jks
+
+      - name: Sign APK with apksigner
+        run: |
+          BUILD_TOOLS_DIR=$(find "$ANDROID_SDK_ROOT/build-tools" -maxdepth 1 -type d | sort -V | tail -n 1)
+          "$BUILD_TOOLS_DIR/apksigner" sign \
+            --ks "$RUNNER_TEMP/release.jks" \
+            --ks-key-alias "${{ github.event.repository.name }}" \
+            --ks-pass pass:"${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+            --key-pass pass:"${{ secrets.ANDROID_KEY_PASSWORD }}" \
+            --out app/build/outputs/apk/release/app-release.apk \
+            app/build/outputs/apk/release/app-release-unsigned.apk
+
+      - name: Verify APK signature
+        run: |
+          BUILD_TOOLS_DIR=$(find "$ANDROID_SDK_ROOT/build-tools" -maxdepth 1 -type d | sort -V | tail -n 1)
+          "$BUILD_TOOLS_DIR/apksigner" verify --verbose --print-certs \
+            app/build/outputs/apk/release/app-release.apk
+
       - name: Upload release APK
         uses: actions/upload-artifact@v7
         with:
           name: app-release
           archive: false
-          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
