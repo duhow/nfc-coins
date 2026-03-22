@@ -75,9 +75,6 @@ class MainActivity : AppCompatActivity() {
         private val FACTORY_KEY = hexKey(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF)
 
         private const val AUTO_RESET_DELAY_MS = 7000L
-        // Extra time after tone duration before releasing ToneGenerator, allowing the audio output
-        // buffer to drain completely and preventing the last beep from being cut short.
-        private const val AUDIO_DRAIN_MS = 150L
         private const val VIBRATE_DURATION_MS = 200L
         private val FLASH_TOKEN = Any()
         private val BEEP_TOKEN = Any()
@@ -372,37 +369,36 @@ class MainActivity : AppCompatActivity() {
     // Beep feedback: 1 beep = success, 2 beeps = NFC error, 3 beeps = no balance
     // -------------------------------------------------------------------------
 
+    // Lazily creates a single ToneGenerator and reuses it for the lifetime of the activity.
+    // Reusing avoids the audio-hardware setup latency and the brief overlap that can occur when
+    // releasing one ToneGenerator while starting another. startTone() stops any in-progress tone
+    // before playing the new one, so no explicit teardown is needed between calls.
     private fun playBeep(count: Int, toneType: Int, durationMs: Int, intervalMs: Int = 100) {
         handler.removeCallbacksAndMessages(BEEP_TOKEN)
-        toneGenerator?.release()
-        toneGenerator = null
         if (count <= 0) return
         if (!AdvancedSettingsActivity.isSoundEnabled(this)) return
-        try {
-            val toneGen = ToneGenerator(AudioManager.STREAM_DTMF, ToneGenerator.MAX_VOLUME)
-            toneGenerator = toneGen
-            playBeepChain(toneGen, count, toneType, durationMs, intervalMs)
-        } catch (_: Exception) {}
+        val toneGen = toneGenerator ?: try {
+            ToneGenerator(AudioManager.STREAM_DTMF, ToneGenerator.MAX_VOLUME).also { toneGenerator = it }
+        } catch (_: Exception) { return }
+        playBeepChain(toneGen, count, toneType, durationMs, intervalMs)
     }
 
     // Plays beeps one at a time by scheduling each next beep from inside the previous callback,
     // so inter-beep intervals are measured from when the previous beep actually fired rather than
     // from the original call site. This prevents timing drift caused by main-thread congestion.
-    // The release is delayed by durationMs + AUDIO_DRAIN_MS to allow the audio output buffer to
-    // fully drain before ToneGenerator is destroyed, preventing the last beep from being cut short.
     private fun playBeepChain(
         toneGen: ToneGenerator, remaining: Int, toneType: Int, durationMs: Int, intervalMs: Int
     ) {
-        try { toneGen.startTone(toneType, durationMs) } catch (_: Exception) {}
+        val started = try { toneGen.startTone(toneType, durationMs) } catch (_: Exception) { false }
+        if (!started) {
+            // ToneGenerator has become invalid; discard it so the next call recreates it.
+            toneGenerator = null
+            return
+        }
         if (remaining > 1) {
             handler.postDelayed({
                 playBeepChain(toneGen, remaining - 1, toneType, durationMs, intervalMs)
             }, BEEP_TOKEN, (durationMs + intervalMs).toLong())
-        } else {
-            handler.postDelayed({
-                toneGen.release()
-                if (toneGenerator === toneGen) toneGenerator = null
-            }, BEEP_TOKEN, (durationMs + AUDIO_DRAIN_MS).toLong())
         }
     }
 
