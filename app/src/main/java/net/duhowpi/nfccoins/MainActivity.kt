@@ -42,9 +42,20 @@ import javax.crypto.spec.SecretKeySpec
  * acercar la tarjeta muestra el saldo; si uno está activo, descuenta automáticamente.
  * Incluye gestión de tarjetas: añadir saldo y formatear con claves estándar.
  *
- * Formato del bloque de datos (bloque 56 = primer bloque del sector 14):
- *   Bytes 0-1 : saldo en big-endian (uint16)
- *   Bytes 2-15: reservados (0x00)
+ * Formato del bloque contador (bloque 56 = primer bloque del sector 14):
+ *   Mifare Classic Value Block (16 bytes, little-endian):
+ *   Bytes  0– 3: valor int32 (saldo) en little-endian
+ *   Bytes  4– 7: ~valor (complemento bit a bit)
+ *   Bytes  8–11: valor (copia redundante)
+ *   Byte  12   : dirección del bloque (addr)
+ *   Byte  13   : ~addr
+ *   Byte  14   : addr
+ *   Byte  15   : ~addr
+ *
+ * Las operaciones de incremento/decremento del chip se realizan con
+ * MifareClassic.increment() / decrement() + transfer(), que son atómicas
+ * a nivel de chip. La recuperación de escrituras interrumpidas se hace
+ * con writeBlock() del bloque en formato Value Block.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -298,7 +309,13 @@ class MainActivity : AppCompatActivity() {
             val counterData = mifare.readBlock(sectorStart + DATA_BLOCK_OFFSET)
             val txBlock1    = mifare.readBlock(sectorStart + TX_BLOCK_1_OFFSET)
             val txBlock2    = mifare.readBlock(sectorStart + TX_BLOCK_2_OFFSET)
-            currentBalance = ((counterData[0].toInt() and 0xFF) shl 8) or (counterData[1].toInt() and 0xFF)
+            currentBalance = readValueBlock(counterData) ?: run {
+                tvStatus.text = getString(R.string.error_reading, "invalid value block")
+                flashBackground(R.color.error_orange)
+                playNfcErrorBeep()
+                scheduleAutoReset()
+                return
+            }
             setBalanceText(currentBalance.toString())
             layoutBeforeAfter.visibility = View.GONE
             tvActualBalance.visibility = View.GONE
@@ -365,7 +382,13 @@ class MainActivity : AppCompatActivity() {
             }
             pendingWrite = null  // Previous write (if any) was successful.
 
-            val balance = ((counterData[0].toInt() and 0xFF) shl 8) or (counterData[1].toInt() and 0xFF)
+            val balance = readValueBlock(counterData) ?: run {
+                tvStatus.text = getString(R.string.error_reading, "invalid value block")
+                flashBackground(R.color.error_orange)
+                playNfcErrorBeep()
+                scheduleAutoReset()
+                return
+            }
 
             if (balance < amount) {
                 currentBalance = balance
@@ -386,9 +409,10 @@ class MainActivity : AppCompatActivity() {
             }
 
             val newBalance = balance - amount
-            val newCounterBlock = ByteArray(MifareClassic.BLOCK_SIZE)
-            newCounterBlock[0] = ((newBalance shr 8) and 0xFF).toByte()
-            newCounterBlock[1] = (newBalance and 0xFF).toByte()
+            // Build the Value Block bytes that the chip will hold after decrement+transfer.
+            // These bytes are passed to the checksum so the transaction blocks are bound
+            // to the expected new counter state, not the old one.
+            val newCounterBlock = makeValueBlock(newBalance)
 
             val nowSecs = System.currentTimeMillis() / 1000L
             val updatedTxBlock = txBlock.addTransaction(nowSecs, TxOperation.SUBTRACT, amount)
@@ -397,7 +421,10 @@ class MainActivity : AppCompatActivity() {
             // Retain the intended state in memory so an interrupted write can be retried.
             pendingWrite = PendingWrite(uid, newCounterBlock, newTxBlock1, newTxBlock2)
 
-            mifare.writeBlock(sectorStart + DATA_BLOCK_OFFSET, newCounterBlock)
+            // Atomically decrement the value block on the chip, then commit with transfer.
+            val blockIndex = sectorStart + DATA_BLOCK_OFFSET
+            mifare.decrement(blockIndex, amount)
+            mifare.transfer(blockIndex)
             mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, newTxBlock1)
             mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, newTxBlock2)
             pendingWrite = null
@@ -739,7 +766,13 @@ class MainActivity : AppCompatActivity() {
             }
             pendingWrite = null
 
-            val oldBalance = ((counterData[0].toInt() and 0xFF) shl 8) or (counterData[1].toInt() and 0xFF)
+            val oldBalance = readValueBlock(counterData) ?: run {
+                tvStatus.text = getString(R.string.error_reading, "invalid value block")
+                flashBackground(R.color.error_orange)
+                playNfcErrorBeep()
+                scheduleAutoReset()
+                return
+            }
             val newBalance = oldBalance + pendingAddAmount
             if (newBalance > MAX_BALANCE) {
                 Toast.makeText(this, getString(R.string.balance_too_high), Toast.LENGTH_SHORT).show()
@@ -748,9 +781,8 @@ class MainActivity : AppCompatActivity() {
                 return
             }
 
-            val newCounterBlock = ByteArray(MifareClassic.BLOCK_SIZE)
-            newCounterBlock[0] = ((newBalance shr 8) and 0xFF).toByte()
-            newCounterBlock[1] = (newBalance and 0xFF).toByte()
+            // Build the Value Block bytes that the chip will hold after increment+transfer.
+            val newCounterBlock = makeValueBlock(newBalance)
 
             val nowSecs = System.currentTimeMillis() / 1000L
             val updatedTxBlock = txBlock.addTransaction(nowSecs, TxOperation.ADD, pendingAddAmount)
@@ -759,7 +791,10 @@ class MainActivity : AppCompatActivity() {
             // Retain the intended state in memory so an interrupted write can be retried.
             pendingWrite = PendingWrite(uid, newCounterBlock, newTxBlock1, newTxBlock2)
 
-            mifare.writeBlock(sectorStart + DATA_BLOCK_OFFSET, newCounterBlock)
+            // Atomically increment the value block on the chip, then commit with transfer.
+            val blockIndex = sectorStart + DATA_BLOCK_OFFSET
+            mifare.increment(blockIndex, pendingAddAmount)
+            mifare.transfer(blockIndex)
             mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, newTxBlock1)
             mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, newTxBlock2)
             pendingWrite = null
@@ -809,14 +844,14 @@ class MainActivity : AppCompatActivity() {
             if (mifare.authenticateSectorWithKeyA(sector, derivedKey)) {
                 val sectorStart = mifare.sectorToBlock(sector)
                 val counterData = mifare.readBlock(sectorStart + DATA_BLOCK_OFFSET)
-                val oldBalance = ((counterData[0].toInt() and 0xFF) shl 8) or (counterData[1].toInt() and 0xFF)
+                val oldBalance = readValueBlock(counterData) ?: 0
 
-                val emptyCounter = ByteArray(MifareClassic.BLOCK_SIZE)
+                val zeroValueBlock = makeValueBlock(0)
                 val nowSecs = System.currentTimeMillis() / 1000L
                 val freshTxBlock = TransactionBlock(nowSecs)
-                val (txB1, txB2) = freshTxBlock.toBytes(emptyCounter, uid, psk)
+                val (txB1, txB2) = freshTxBlock.toBytes(zeroValueBlock, uid, psk)
 
-                mifare.writeBlock(sectorStart + DATA_BLOCK_OFFSET, emptyCounter)
+                mifare.writeBlock(sectorStart + DATA_BLOCK_OFFSET, zeroValueBlock)
                 mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, txB1)
                 mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, txB2)
 
@@ -872,15 +907,15 @@ class MainActivity : AppCompatActivity() {
                 return
             }
 
-            // Inicializar contador a 0 y bloques de transacción con timestamp actual
+            // Inicializar contador en formato Value Block (valor=0) y bloques de transacción
             val sectorStart = mifare.sectorToBlock(sector)
             val blocksInSector = mifare.getBlockCountInSector(sector)
-            val emptyCounter = ByteArray(MifareClassic.BLOCK_SIZE)
+            val zeroValueBlock = makeValueBlock(0)
             val nowSecs = System.currentTimeMillis() / 1000L
             val freshTxBlock = TransactionBlock(nowSecs)
-            val (txB1, txB2) = freshTxBlock.toBytes(emptyCounter, uid, psk)
+            val (txB1, txB2) = freshTxBlock.toBytes(zeroValueBlock, uid, psk)
 
-            mifare.writeBlock(sectorStart + DATA_BLOCK_OFFSET, emptyCounter)
+            mifare.writeBlock(sectorStart + DATA_BLOCK_OFFSET, zeroValueBlock)
             mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, txB1)
             mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, txB2)
 
@@ -1188,6 +1223,56 @@ class MainActivity : AppCompatActivity() {
     private fun hideKeyboardFrom(view: View) {
         val imm = getSystemService(InputMethodManager::class.java)
         imm.hideSoftInputFromWindow(view.windowToken, 0)
+    }
+
+    // -------------------------------------------------------------------------
+    // Value Block helpers (Mifare Classic 16-byte format, little-endian)
+    // -------------------------------------------------------------------------
+
+    /** Bitwise inverse of a single byte (Kotlin's Byte.inv() is not available). */
+    private fun Byte.inv8(): Byte = (this.toInt() xor 0xFF).toByte()
+
+    /**
+     * Creates a 16-byte Mifare Classic Value Block for [value].
+     *
+     * Layout: value(4B LE) | ~value(4B) | value(4B) | addr ~addr addr ~addr
+     *
+     * The address field is set to [DATA_BLOCK_OFFSET] (the block's position
+     * within its sector), which is the conventional choice.
+     */
+    private fun makeValueBlock(value: Int): ByteArray {
+        val block = ByteArray(MifareClassic.BLOCK_SIZE)
+        val b0 = (value and 0xFF).toByte()
+        val b1 = ((value shr 8) and 0xFF).toByte()
+        val b2 = ((value shr 16) and 0xFF).toByte()
+        val b3 = ((value shr 24) and 0xFF).toByte()
+        // Bytes 0–3: value LE
+        block[0] = b0; block[1] = b1; block[2] = b2; block[3] = b3
+        // Bytes 4–7: ~value LE
+        block[4] = b0.inv8(); block[5] = b1.inv8(); block[6] = b2.inv8(); block[7] = b3.inv8()
+        // Bytes 8–11: value LE (redundant copy)
+        block[8] = b0; block[9] = b1; block[10] = b2; block[11] = b3
+        // Bytes 12–15: addr ~addr addr ~addr
+        val addr = DATA_BLOCK_OFFSET.toByte()
+        block[12] = addr; block[13] = addr.inv8(); block[14] = addr; block[15] = addr.inv8()
+        return block
+    }
+
+    /**
+     * Parses a Mifare Classic Value Block and returns its integer value,
+     * or `null` when the block data does not have valid triple-redundancy.
+     */
+    private fun readValueBlock(data: ByteArray): Int? {
+        if (data.size != MifareClassic.BLOCK_SIZE) return null
+        // Check that bytes 0–3 == bytes 8–11 (redundant copy)
+        if ((0..3).any { data[it] != data[it + 8] }) return null
+        // Check that bytes 4–7 are bitwise inverse of bytes 0–3
+        if ((0..3).any { data[it] != data[it + 4].inv8() }) return null
+        // Parse little-endian int32
+        return (data[0].toInt() and 0xFF) or
+               ((data[1].toInt() and 0xFF) shl 8) or
+               ((data[2].toInt() and 0xFF) shl 16) or
+               ((data[3].toInt() and 0xFF) shl 24)
     }
 
     /**

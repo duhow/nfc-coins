@@ -53,6 +53,9 @@ class TransactionBlock(
         private const val CHECKSUM_SIZE = 4
         private const val TOTAL_SIZE = TX_PAYLOAD_SIZE + CHECKSUM_SIZE  // 32 = 2 * 16
 
+        /** Maximum value for the 24-bit seconds-offset field (≈ 194 days). */
+        private const val MAX_SECONDS_OFFSET = 0xFF_FFFFL
+
         /**
          * Deserialises two 16-byte blocks into a [TransactionBlock].
          * Invalid or empty transaction slots are silently ignored.
@@ -152,7 +155,7 @@ class TransactionBlock(
      * If the list is already at [MAX_TRANSACTIONS], the oldest entry is dropped.
      */
     fun addTransaction(nowSeconds: Long, operation: TxOperation, amount: Int): TransactionBlock {
-        val offset = (nowSeconds - initTimestamp).coerceIn(0L, 0xFF_FFFFL).toInt()
+        val offset = (nowSeconds - initTimestamp).coerceIn(0L, MAX_SECONDS_OFFSET).toInt()
         val newList = (transactions + TransactionEntry(offset, operation, amount))
             .takeLast(MAX_TRANSACTIONS)
         return TransactionBlock(initTimestamp, newList)
