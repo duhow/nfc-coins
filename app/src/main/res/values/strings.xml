@@ -39,6 +39,9 @@
     <string name="tap_card_to_format">Acerca la tarjeta a formatear…</string>
     <string name="tap_card_to_reset">Acerca la tarjeta a reiniciar…</string>
     <string name="hint_add_amount">Cantidad a añadir</string>
+    <string name="action_deduct_custom">Descontar cantidad</string>
+    <string name="hint_deduct_amount">Cantidad a descontar</string>
+    <string name="tap_card_to_deduct">Acerca la tarjeta para descontar…</string>
     <string name="add_balance_title">Saldo actual: %d monedas</string>
     <string name="invalid_amount">Cantidad no válida</string>
     <string name="balance_too_high">El saldo máximo es 65535 monedas</string>

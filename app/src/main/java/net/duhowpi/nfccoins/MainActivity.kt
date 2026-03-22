@@ -81,6 +81,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvBalanceAfter: TextView
     private lateinit var layoutBeforeAfter: LinearLayout
     private lateinit var toggleGroup: MaterialButtonToggleGroup
+    private lateinit var etHiddenInput: EditText
 
     private var nfcAdapter: NfcAdapter? = null
     private var pendingIntent: PendingIntent? = null
@@ -90,7 +91,6 @@ class MainActivity : AppCompatActivity() {
     private var pendingAction: PendingAction = PendingAction.NONE
     private var pendingAddAmount: Int = 0
     private var customDeductAmount: Int = 0
-    private var isUpdatingBalance = false
     private var isCustomAmountMode = false
 
     private val handler = Handler(Looper.getMainLooper())
@@ -108,6 +108,7 @@ class MainActivity : AppCompatActivity() {
         tvBalanceAfter    = findViewById(R.id.tvBalanceAfter)
         layoutBeforeAfter = findViewById(R.id.layoutBeforeAfter)
         toggleGroup       = findViewById(R.id.toggleGroup)
+        etHiddenInput     = findViewById(R.id.etHiddenInput)
 
         setupBalanceEditText()
 
@@ -743,17 +744,13 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Sets the balance display text programmatically (non-editable mode).
-     * Guards the TextWatcher via [isUpdatingBalance] and disables editing.
      */
     private fun setBalanceText(text: String) {
         isCustomAmountMode = false
-        isUpdatingBalance = true
         tvBalance.setText(text)
         tvBalance.inputType = InputType.TYPE_NULL
         tvBalance.isFocusable = false
         tvBalance.isFocusableInTouchMode = false
-        isUpdatingBalance = false
-        hideKeyboardFrom(tvBalance)
     }
 
     /**
@@ -763,70 +760,85 @@ class MainActivity : AppCompatActivity() {
     private fun resetBalanceToInitial() {
         isCustomAmountMode = false
         customDeductAmount = 0
-        isUpdatingBalance = true
+        clearHiddenInput()
         tvBalance.setText(getString(R.string.balance_initial))
         tvBalance.inputType = InputType.TYPE_NULL
         tvBalance.isFocusable = false
         tvBalance.isFocusableInTouchMode = false
-        isUpdatingBalance = false
-        hideKeyboardFrom(tvBalance)
     }
 
     /**
-     * Sets up the balance EditText so that clicking it (when showing "--")
-     * opens the keyboard for custom deduction entry. Deleting all text
-     * reverts to "--" and read-only mode.
-     *
-     * Editability is controlled via [InputType] rather than [android.view.View.isFocusable]
-     * toggling, which avoids focus-routing conflicts with the IME.
+     * Sets up the balance EditText so that:
+     * - Tapping it when a balance is shown (card just read) immediately resets to waiting state.
+     * - Tapping it when showing "--" focuses the hidden input and opens the keyboard for
+     *   custom deduction entry, mirroring typed digits into the visible balance display.
      */
     private fun setupBalanceEditText() {
-        // Start non-focusable with TYPE_NULL; focusability is toggled by enterCustomAmountMode/reset
         tvBalance.isFocusable = false
         tvBalance.isFocusableInTouchMode = false
         tvBalance.inputType = InputType.TYPE_NULL
 
         tvBalance.setOnClickListener {
-            if (currentBalance == -1 && !isCustomAmountMode) {
-                enterCustomAmountMode()
+            when {
+                currentBalance >= 0 -> {
+                    // Tapping the displayed balance cancels the auto-reset and resets immediately.
+                    handler.removeCallbacks(autoResetRunnable)
+                    resetToWaiting()
+                }
+                currentBalance == -1 && !isCustomAmountMode && pendingAction == PendingAction.NONE -> {
+                    enterCustomAmountMode()
+                }
             }
         }
 
-        tvBalance.addTextChangedListener(object : TextWatcher {
+        // Mirror hidden-input digits into tvBalance while typing.
+        etHiddenInput.addTextChangedListener(object : TextWatcher {
+            private var isUpdating = false
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                if (isUpdatingBalance) return
+                if (isUpdating) return
                 if (!isCustomAmountMode) return
-                if (s.isNullOrEmpty()) {
-                    resetBalanceToInitial()
-                } else {
-                    val value = s.toString().toIntOrNull() ?: 0
-                    when {
-                        value > MAX_BALANCE -> {
-                            isUpdatingBalance = true
-                            s.replace(0, s.length, MAX_BALANCE.toString())
-                            isUpdatingBalance = false
-                        }
-                        s.toString() != value.toString() && value > 0 -> {
-                            // Normalize leading zeros (e.g. "0001" → "1")
-                            isUpdatingBalance = true
-                            s.replace(0, s.length, value.toString())
-                            isUpdatingBalance = false
-                        }
+                val raw = s?.toString() ?: ""
+                val value = raw.toIntOrNull() ?: 0
+                when {
+                    raw.isEmpty() -> {
+                        tvBalance.setText(getString(R.string.balance_initial))
                     }
-                    customDeductAmount = s.toString().toIntOrNull() ?: 0
-                    toggleGroup.clearChecked()
+                    value > MAX_BALANCE -> {
+                        isUpdating = true
+                        s?.replace(0, s.length, MAX_BALANCE.toString())
+                        isUpdating = false
+                        tvBalance.setText(MAX_BALANCE.toString())
+                    }
+                    raw != value.toString() && value > 0 -> {
+                        // Normalize leading zeros
+                        isUpdating = true
+                        s?.replace(0, s.length, value.toString())
+                        isUpdating = false
+                        tvBalance.setText(value.toString())
+                    }
+                    else -> {
+                        tvBalance.setText(raw)
+                    }
                 }
+                customDeductAmount = etHiddenInput.text.toString().toIntOrNull() ?: 0
+                if (customDeductAmount > 0) toggleGroup.clearChecked()
             }
         })
 
-        tvBalance.setOnFocusChangeListener { v, hasFocus ->
-            if (!hasFocus && isCustomAmountMode && !isUpdatingBalance) {
-                if (tvBalance.text.toString().isEmpty()) {
-                    resetBalanceToInitial()
+        etHiddenInput.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus && isCustomAmountMode) {
+                isCustomAmountMode = false
+                val amount = etHiddenInput.text.toString().toIntOrNull() ?: 0
+                clearHiddenInput()
+                if (amount > 0) {
+                    // Keep the typed value visible and update status
+                    customDeductAmount = amount
+                    tvBalance.setText(amount.toString())
+                    tvStatus.text = getString(R.string.tap_card_to_deduct)
                 } else {
-                    hideKeyboardFrom(v)
+                    resetBalanceToInitial()
                 }
             }
         }
@@ -839,26 +851,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Switches [tvBalance] into editable mode: enables focusability, changes its
-     * input type to numeric, clears the placeholder text, requests focus, and
-     * shows the keyboard.
-     */
+    /** Focuses the hidden input and opens the numeric keyboard for custom deduction entry. */
     private fun enterCustomAmountMode() {
         isCustomAmountMode = true
-        // Enable focusability FIRST so requestFocus() can succeed
-        tvBalance.isFocusable = true
-        tvBalance.isFocusableInTouchMode = true
-        // Switch to numeric input BEFORE requesting focus so the IME connection
-        // is established with the correct type from the start.
-        tvBalance.inputType = InputType.TYPE_CLASS_NUMBER
-        if (tvBalance.text.toString() == getString(R.string.balance_initial)) {
-            isUpdatingBalance = true
-            tvBalance.text.clear()
-            isUpdatingBalance = false
+        etHiddenInput.text.clear()
+        tvBalance.setText(getString(R.string.balance_initial))
+        etHiddenInput.post {
+            etHiddenInput.requestFocus()
+            showKeyboardFor(etHiddenInput)
         }
-        tvBalance.requestFocus()
-        showKeyboardFor(tvBalance)
+    }
+
+    private fun clearHiddenInput() {
+        etHiddenInput.text.clear()
+        hideKeyboardFrom(etHiddenInput)
     }
 
     private fun showKeyboardFor(view: View) {
