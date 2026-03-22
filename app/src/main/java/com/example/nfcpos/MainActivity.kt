@@ -62,10 +62,13 @@ class MainActivity : AppCompatActivity() {
         // Bits de acceso estándar: lectura y escritura con Key A en todos los bloques de datos
         private val ACCESS_BITS = byteArrayOf(0xFF.toByte(), 0x07.toByte(), 0x80.toByte(), 0x69.toByte())
 
+        // Clave de fábrica Mifare Classic (todos los bytes a 0xFF)
+        private val FACTORY_KEY = byteArrayOf(0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte())
+
         private const val AUTO_RESET_DELAY_MS = 7000L
     }
 
-    private enum class PendingAction { NONE, ADD_BALANCE, FORMAT_CARD }
+    private enum class PendingAction { NONE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
 
     private lateinit var rootLayout: View
     private lateinit var tvStatus: TextView
@@ -178,6 +181,10 @@ class MainActivity : AppCompatActivity() {
             PendingAction.FORMAT_CARD -> {
                 pendingAction = PendingAction.NONE
                 formatCard(tag)
+            }
+            PendingAction.RESET_CARD -> {
+                pendingAction = PendingAction.NONE
+                resetCard(tag)
             }
             PendingAction.NONE -> {
                 val cardKey = deriveCardKey(uid)
@@ -307,7 +314,8 @@ class MainActivity : AppCompatActivity() {
             .setItems(
                 arrayOf(
                     getString(R.string.action_add_balance),
-                    getString(R.string.action_format_card)
+                    getString(R.string.action_format_card),
+                    getString(R.string.action_reset_card)
                 )
             ) { _, which ->
                 when (which) {
@@ -315,6 +323,10 @@ class MainActivity : AppCompatActivity() {
                     1 -> {
                         pendingAction = PendingAction.FORMAT_CARD
                         tvStatus.text = getString(R.string.tap_card_to_format)
+                    }
+                    2 -> {
+                        pendingAction = PendingAction.RESET_CARD
+                        tvStatus.text = getString(R.string.tap_card_to_reset)
                     }
                 }
             }
@@ -529,11 +541,31 @@ class MainActivity : AppCompatActivity() {
 
     // -------------------------------------------------------------------------
     // Derivación de clave: HMAC-SHA1(PSK, UID) → primeros 6 bytes
+    // Si la clave es exactamente 12 caracteres hex (6 bytes), se usa directamente
+    // en modo estático. En modo dinámico siempre se hace HMAC con el PSK.
     // -------------------------------------------------------------------------
+
+    /** Convierte una cadena hex (con posibles espacios y ':') en ByteArray, o null si no es válida. */
+    private fun tryParseHexKey(raw: String): ByteArray? {
+        val hex = raw.replace(" ", "").replace(":", "").uppercase()
+        if (hex.length != KEY_LEN * 2) return null
+        return try {
+            ByteArray(KEY_LEN) { i -> hex.substring(i * 2, i * 2 + 2).toInt(16).toByte() }
+        } catch (e: NumberFormatException) {
+            null
+        }
+    }
 
     private fun deriveCardKey(uid: ByteArray): ByteArray {
         val psk = AdvancedSettingsActivity.getStaticKey(this)
         val useDynamic = AdvancedSettingsActivity.isDynamicKeyEnabled(this)
+
+        // Si la clave estática es directamente un valor hex de 6 bytes y estamos en modo estático,
+        // la usamos tal cual como clave de la tarjeta.
+        if (!useDynamic) {
+            tryParseHexKey(psk)?.let { return it }
+        }
+
         return try {
             if (useDynamic) {
                 val mac = Mac.getInstance("HmacSHA1")
@@ -541,7 +573,7 @@ class MainActivity : AppCompatActivity() {
                 mac.init(secretKey)
                 mac.doFinal(uid).take(KEY_LEN).toByteArray()
             } else {
-                // Clave estática: usar los primeros 6 bytes del hash SHA-256 de la clave
+                // Clave estática no-hex: usar los primeros 6 bytes del hash SHA-256 de la clave
                 val digest = java.security.MessageDigest.getInstance("SHA-256")
                 digest.digest(psk.toByteArray(Charsets.UTF_8)).take(KEY_LEN).toByteArray()
             }
@@ -550,6 +582,72 @@ class MainActivity : AppCompatActivity() {
             digest.update(psk.toByteArray(Charsets.UTF_8))
             if (useDynamic) digest.update(uid)
             digest.digest().take(KEY_LEN).toByteArray()
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Reinicio de tarjeta: pone datos a 0x00 y restaura clave de fábrica FF:FF
+    // -------------------------------------------------------------------------
+
+    private fun resetCard(tag: Tag) {
+        val sector = AdvancedSettingsActivity.getTargetSector(this)
+        val uid = tag.id
+        val derivedKey = deriveCardKey(uid)
+
+        val mifare = MifareClassic.get(tag) ?: run {
+            tvStatus.text = getString(R.string.error_get_mifare)
+            scheduleAutoReset()
+            return
+        }
+
+        try {
+            mifare.connect()
+
+            // Intentar con clave derivada primero, luego con claves estándar
+            var authenticated = mifare.authenticateSectorWithKeyA(sector, derivedKey)
+            if (!authenticated) {
+                for (key in STANDARD_KEYS) {
+                    if (mifare.authenticateSectorWithKeyA(sector, key) ||
+                        mifare.authenticateSectorWithKeyB(sector, key)) {
+                        authenticated = true
+                        break
+                    }
+                }
+            }
+
+            if (!authenticated) {
+                tvStatus.text = getString(R.string.reset_card_no_key)
+                scheduleAutoReset()
+                return
+            }
+
+            // Limpiar bloques de datos del sector (poner a 0x00)
+            val sectorStart = mifare.sectorToBlock(sector)
+            val blocksInSector = mifare.getBlockCountInSector(sector)
+            val emptyBlock = ByteArray(MifareClassic.BLOCK_SIZE)
+            for (i in 0 until blocksInSector - 1) {
+                mifare.writeBlock(sectorStart + i, emptyBlock)
+            }
+
+            // Escribir trailer con clave de fábrica FF:FF y bits de acceso estándar
+            // [Key A (6 bytes)] [Access bits (4 bytes)] [Key B (6 bytes)]
+            val trailer = ByteArray(MifareClassic.BLOCK_SIZE)
+            System.arraycopy(FACTORY_KEY, 0, trailer, 0, KEY_LEN)
+            System.arraycopy(ACCESS_BITS, 0, trailer, KEY_LEN, ACCESS_BITS.size)
+            System.arraycopy(FACTORY_KEY, 0, trailer, KEY_LEN + ACCESS_BITS.size, KEY_LEN)
+            mifare.writeBlock(sectorStart + blocksInSector - 1, trailer)
+
+            currentBalance = -1
+            tvBalance.text = getString(R.string.balance_initial)
+            layoutBeforeAfter.visibility = View.GONE
+            tvStatus.text = getString(R.string.reset_card_success)
+            scheduleAutoReset()
+
+        } catch (e: Exception) {
+            tvStatus.text = getString(R.string.error_writing, e.message)
+            scheduleAutoReset()
+        } finally {
+            runCatching { mifare.close() }
         }
     }
 

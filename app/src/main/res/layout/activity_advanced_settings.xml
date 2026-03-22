@@ -55,9 +55,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:hint="@string/setting_static_key_hint"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                app:passwordToggleEnabled="false">
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etStaticKey"
@@ -76,8 +74,12 @@
                 android:layout_height="48dp"
                 android:layout_gravity="center_vertical"
                 android:layout_marginStart="8dp"
+                android:paddingStart="0dp"
+                android:paddingEnd="0dp"
                 android:contentDescription="@string/btn_show_key"
-                app:icon="@drawable/ic_eye" />
+                app:icon="@drawable/ic_eye"
+                app:iconPadding="0dp"
+                app:iconGravity="textStart" />
 
             <!-- Generate random button -->
             <com.google.android.material.button.MaterialButton
@@ -87,8 +89,12 @@
                 android:layout_height="48dp"
                 android:layout_gravity="center_vertical"
                 android:layout_marginStart="4dp"
+                android:paddingStart="0dp"
+                android:paddingEnd="0dp"
                 android:contentDescription="@string/btn_generate_key"
-                app:icon="@drawable/ic_refresh" />
+                app:icon="@drawable/ic_refresh"
+                app:iconPadding="0dp"
+                app:iconGravity="textStart" />
 
         </LinearLayout>
 

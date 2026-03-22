@@ -99,7 +99,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             btnToggleKeyVisibility.contentDescription = getString(R.string.btn_show_key)
             btnToggleKeyVisibility.setIconResource(R.drawable.ic_eye)
         }
-        etStaticKey.setSelection(cursorPos.coerceAtLeast(0))
+        etStaticKey.setSelection(cursorPos.coerceIn(0, etStaticKey.text?.length ?: 0))
     }
 
     private fun confirmGenerateKey() {

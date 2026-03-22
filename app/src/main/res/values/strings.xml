@@ -33,9 +33,11 @@
     <string name="card_management">Gestión de tarjetas</string>
     <string name="action_add_balance">Añadir saldo</string>
     <string name="action_format_card">Formatear tarjeta nueva</string>
+    <string name="action_reset_card">Reiniciar tarjeta</string>
     <string name="action_confirm">Confirmar</string>
     <string name="tap_card_to_add">Acerca la tarjeta para añadir saldo…</string>
     <string name="tap_card_to_format">Acerca la tarjeta a formatear…</string>
+    <string name="tap_card_to_reset">Acerca la tarjeta a reiniciar…</string>
     <string name="hint_add_amount">Cantidad a añadir</string>
     <string name="add_balance_title">Saldo actual: %d monedas</string>
     <string name="invalid_amount">Cantidad no válida</string>
@@ -46,6 +48,8 @@
     <string name="format_reset_success">Saldo reiniciado a 0 (tarjeta ya formateada)</string>
     <string name="format_success">Tarjeta formateada</string>
     <string name="format_success_message">Clave %s encontrada: %s\nNueva clave generada: %s</string>
+    <string name="reset_card_success">Tarjeta reiniciada a valores de fábrica</string>
+    <string name="reset_card_no_key">No se pudo autenticar con ninguna clave conocida</string>
 
     <!-- Advanced settings -->
     <string name="advanced_settings">Ajustes avanzados</string>
