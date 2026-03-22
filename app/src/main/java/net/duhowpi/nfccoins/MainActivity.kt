@@ -377,9 +377,17 @@ class MainActivity : AppCompatActivity() {
     // already open before the first NFC tap. A cold ToneGenerator causes the first startTone()
     // to block briefly while the hardware initialises, making the first beep start late while
     // subsequent handler-scheduled beeps fire on time — causing them to collapse together.
+    //
+    // After construction we immediately fire a 1 ms silent tone. Constructing ToneGenerator only
+    // opens the audio session; the DSP rendering pipeline and internal buffers are not fully
+    // flushed until the first startTone() call. The silent fire-and-stop forces that work to
+    // happen now so every subsequent startTone() is instantaneous.
     private fun initToneGenerator() {
         if (toneGenerator != null) return
         try {
+            val tg = ToneGenerator(AudioManager.STREAM_DTMF, 0)
+            tg.startTone(ToneGenerator.TONE_CDMA_LOW_L, 1)
+            tg.stopTone()
             toneGenerator = ToneGenerator(AudioManager.STREAM_DTMF, ToneGenerator.MAX_VOLUME)
         } catch (_: Exception) {}
     }
