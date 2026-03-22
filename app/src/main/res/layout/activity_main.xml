@@ -85,13 +85,16 @@
             android:gravity="center"
             android:layout_marginBottom="32dp" />
 
-        <!-- Hidden zero-height EditText used as keyboard target for custom deduction entry -->
+        <!-- Hidden EditText used as keyboard target for custom deduction entry.
+             Height is 1dp (non-zero) so the IMM can show the keyboard; alpha=0 keeps it invisible. -->
         <EditText
             android:id="@+id/etHiddenInput"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
+            android:layout_height="1dp"
             android:inputType="number"
             android:background="@null"
+            android:alpha="0"
+            android:cursorVisible="false"
             android:importantForAccessibility="no" />
 
         <!-- Toggle coin deduction buttons in a row -->

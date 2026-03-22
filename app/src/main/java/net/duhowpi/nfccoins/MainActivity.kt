@@ -785,7 +785,7 @@ class MainActivity : AppCompatActivity() {
                     handler.removeCallbacks(autoResetRunnable)
                     resetToWaiting()
                 }
-                currentBalance == -1 && !isCustomAmountMode -> {
+                currentBalance == -1 && !isCustomAmountMode && pendingAction == PendingAction.NONE -> {
                     enterCustomAmountMode()
                 }
             }
@@ -856,8 +856,10 @@ class MainActivity : AppCompatActivity() {
         isCustomAmountMode = true
         etHiddenInput.text.clear()
         tvBalance.setText(getString(R.string.balance_initial))
-        etHiddenInput.requestFocus()
-        etHiddenInput.post { showKeyboardFor(etHiddenInput) }
+        etHiddenInput.post {
+            etHiddenInput.requestFocus()
+            showKeyboardFor(etHiddenInput)
+        }
     }
 
     private fun clearHiddenInput() {
