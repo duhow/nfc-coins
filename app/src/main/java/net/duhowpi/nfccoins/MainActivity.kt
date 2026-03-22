@@ -378,17 +378,22 @@ class MainActivity : AppCompatActivity() {
     // to block briefly while the hardware initialises, making the first beep start late while
     // subsequent handler-scheduled beeps fire on time — causing them to collapse together.
     //
-    // After construction we immediately fire a 1 ms silent tone. Constructing ToneGenerator only
-    // opens the audio session; the DSP rendering pipeline and internal buffers are not fully
-    // flushed until the first startTone() call. The silent fire-and-stop forces that work to
-    // happen now so every subsequent startTone() is instantaneous.
+    // Each ToneGenerator has its own internal AudioTrack and native tone thread. That thread is
+    // started by the first startTone() call — not by construction. To warm up the pipeline we
+    // must call startTone() on the exact same instance that will be used for real beeps; warming
+    // a throwaway instance (even at volume=0) does nothing for a separately constructed instance.
+    //
+    // We call startTone() with a 1 ms duration on the real instance immediately after
+    // construction. Because the Android audio output latency is typically 50–200 ms, the 1 ms of
+    // generated audio is flushed before it ever reaches the speaker, so the user hears nothing.
+    // startTone() blocks internally until its native thread has started and AudioTrack is open,
+    // so by the time it returns the instance is fully warm for all subsequent calls.
     private fun initToneGenerator() {
         if (toneGenerator != null) return
         try {
-            val tg = ToneGenerator(AudioManager.STREAM_DTMF, 0)
+            val tg = ToneGenerator(AudioManager.STREAM_DTMF, ToneGenerator.MAX_VOLUME)
+            toneGenerator = tg
             tg.startTone(ToneGenerator.TONE_CDMA_LOW_L, 1)
-            tg.stopTone()
-            toneGenerator = ToneGenerator(AudioManager.STREAM_DTMF, ToneGenerator.MAX_VOLUME)
         } catch (_: Exception) {}
     }
 
