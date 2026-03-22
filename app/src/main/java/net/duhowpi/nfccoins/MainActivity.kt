@@ -4,6 +4,8 @@ import android.app.AlertDialog
 import android.app.PendingIntent
 import android.content.Intent
 import android.graphics.Color
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.MifareClassic
@@ -72,6 +74,7 @@ class MainActivity : AppCompatActivity() {
 
         private const val AUTO_RESET_DELAY_MS = 7000L
         private val FLASH_TOKEN = Any()
+        private val BEEP_TOKEN = Any()
     }
 
     private enum class PendingAction { NONE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
@@ -89,6 +92,7 @@ class MainActivity : AppCompatActivity() {
 
     private var nfcAdapter: NfcAdapter? = null
     private var pendingIntent: PendingIntent? = null
+    private var toneGenerator: ToneGenerator? = null
 
     private var currentBalance: Int = -1
     private var currentTag: Tag? = null
@@ -164,6 +168,13 @@ class MainActivity : AppCompatActivity() {
         nfcAdapter?.disableForegroundDispatch(this)
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        handler.removeCallbacksAndMessages(BEEP_TOKEN)
+        toneGenerator?.release()
+        toneGenerator = null
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleNfcIntent(intent)
@@ -178,6 +189,7 @@ class MainActivity : AppCompatActivity() {
 
         if (!tag.techList.contains(MifareClassic::class.java.name)) {
             tvStatus.text = getString(R.string.unsupported_card)
+            playNfcErrorBeep()
             scheduleAutoReset()
             return
         }
@@ -224,6 +236,7 @@ class MainActivity : AppCompatActivity() {
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
             return
         }
@@ -232,6 +245,7 @@ class MainActivity : AppCompatActivity() {
             if (!mifare.authenticateSectorWithKeyA(sector, cardKey)) {
                 tvStatus.text = getString(R.string.auth_failed)
                 flashBackground(R.color.error_orange)
+                playNfcErrorBeep()
                 scheduleAutoReset()
                 return
             }
@@ -242,10 +256,12 @@ class MainActivity : AppCompatActivity() {
             layoutBeforeAfter.visibility = View.GONE
             tvActualBalance.visibility = View.GONE
             tvStatus.text = getString(R.string.card_read_ok)
+            playSuccessBeep()
             scheduleAutoReset()
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_reading, e.message)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
@@ -258,6 +274,7 @@ class MainActivity : AppCompatActivity() {
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
             return
         }
@@ -266,6 +283,7 @@ class MainActivity : AppCompatActivity() {
             if (!mifare.authenticateSectorWithKeyA(sector, cardKey)) {
                 tvStatus.text = getString(R.string.auth_failed)
                 flashBackground(R.color.error_orange)
+                playNfcErrorBeep()
                 scheduleAutoReset()
                 return
             }
@@ -286,6 +304,7 @@ class MainActivity : AppCompatActivity() {
                 layoutBeforeAfter.visibility = View.GONE
                 tvStatus.text = getString(R.string.insufficient_balance)
                 flashRedBackground()
+                playInsufficientBalanceBeep()
                 scheduleAutoReset()
                 return
             }
@@ -303,11 +322,13 @@ class MainActivity : AppCompatActivity() {
             layoutBeforeAfter.visibility = View.VISIBLE
             tvActualBalance.visibility = View.GONE
             tvStatus.text = getString(R.string.deduct_ok, amount)
+            playSuccessBeep()
             scheduleAutoReset()
 
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
@@ -328,6 +349,37 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun flashRedBackground() = flashBackground(R.color.error_red_dark)
+
+    // -------------------------------------------------------------------------
+    // Beep feedback: 1 beep = success, 2 beeps = NFC error, 3 beeps = no balance
+    // -------------------------------------------------------------------------
+
+    private fun playBeep(count: Int, durationMs: Int = 150, intervalMs: Int = 100) {
+        handler.removeCallbacksAndMessages(BEEP_TOKEN)
+        toneGenerator?.release()
+        toneGenerator = null
+        try {
+            val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, ToneGenerator.MAX_VOLUME)
+            toneGenerator = toneGen
+            var delay = 0L
+            repeat(count) {
+                handler.postDelayed({
+                    try {
+                        toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, durationMs)
+                    } catch (_: Exception) {}
+                }, BEEP_TOKEN, delay)
+                delay += (durationMs + intervalMs).toLong()
+            }
+            handler.postDelayed({
+                toneGen.release()
+                if (toneGenerator === toneGen) toneGenerator = null
+            }, BEEP_TOKEN, delay)
+        } catch (_: Exception) {}
+    }
+
+    private fun playSuccessBeep() = playBeep(1, 300)
+    private fun playNfcErrorBeep() = playBeep(2, 100)
+    private fun playInsufficientBalanceBeep() = playBeep(3, 100)
 
     private fun scheduleAutoReset() {
         handler.removeCallbacks(autoResetRunnable)
@@ -499,6 +551,7 @@ class MainActivity : AppCompatActivity() {
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
             return
         }
@@ -507,6 +560,7 @@ class MainActivity : AppCompatActivity() {
             if (!mifare.authenticateSectorWithKeyA(sector, cardKey)) {
                 tvStatus.text = getString(R.string.card_not_formatted)
                 flashBackground(R.color.error_orange)
+                playNfcErrorBeep()
                 scheduleAutoReset()
                 return
             }
@@ -532,10 +586,12 @@ class MainActivity : AppCompatActivity() {
             layoutBeforeAfter.visibility = View.VISIBLE
             tvStatus.text = getString(R.string.balance_added_ok, pendingAddAmount)
             flashBackground(R.color.success_green)
+            playSuccessBeep()
             scheduleAutoReset()
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
@@ -554,6 +610,7 @@ class MainActivity : AppCompatActivity() {
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
             return
         }
@@ -575,6 +632,7 @@ class MainActivity : AppCompatActivity() {
                 layoutBeforeAfter.visibility = View.VISIBLE
                 tvStatus.text = getString(R.string.format_reset_success)
                 flashBackground(R.color.success_purple_dark)
+                playSuccessBeep()
                 scheduleAutoReset()
                 return
             }
@@ -599,6 +657,7 @@ class MainActivity : AppCompatActivity() {
             if (foundKey == null) {
                 tvStatus.text = getString(R.string.format_no_key_found)
                 flashBackground(R.color.error_orange)
+                playNfcErrorBeep()
                 scheduleAutoReset()
                 return
             }
@@ -612,6 +671,7 @@ class MainActivity : AppCompatActivity() {
             if (!reAuthed) {
                 tvStatus.text = getString(R.string.auth_failed)
                 flashBackground(R.color.error_orange)
+                playNfcErrorBeep()
                 scheduleAutoReset()
                 return
             }
@@ -641,6 +701,7 @@ class MainActivity : AppCompatActivity() {
             layoutBeforeAfter.visibility = View.GONE
             tvStatus.text = getString(R.string.format_success)
             flashBackground(R.color.success_purple_dark)
+            playSuccessBeep()
             scheduleAutoReset()
 
             if (AdvancedSettingsActivity.isDebugEnabled(this)) {
@@ -654,6 +715,7 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
@@ -718,6 +780,7 @@ class MainActivity : AppCompatActivity() {
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
             return
         }
@@ -740,6 +803,7 @@ class MainActivity : AppCompatActivity() {
             if (!authenticated) {
                 tvStatus.text = getString(R.string.reset_card_no_key)
                 flashBackground(R.color.error_orange)
+                playNfcErrorBeep()
                 scheduleAutoReset()
                 return
             }
@@ -765,11 +829,13 @@ class MainActivity : AppCompatActivity() {
             layoutBeforeAfter.visibility = View.GONE
             tvStatus.text = getString(R.string.reset_card_success)
             flashBackground(R.color.success_purple_dark)
+            playSuccessBeep()
             scheduleAutoReset()
 
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
             flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
             scheduleAutoReset()
         } finally {
             runCatching { mifare.close() }
