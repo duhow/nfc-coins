@@ -1,10 +1,13 @@
 package net.duhowpi.nfccoins
 
 import android.content.Context
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
 import android.text.method.HideReturnsTransformationMethod
 import android.text.method.PasswordTransformationMethod
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -26,7 +29,19 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
         const val KEY_SOUND_ENABLED = "sound_enabled"
         const val KEY_VIBRATION_ENABLED = "vibration_enabled"
+        const val KEY_ACTIVE_BUTTON_COLOR = "active_button_color"
         const val DEFAULT_SECTOR = 14
+        val DEFAULT_ACTIVE_BUTTON_COLOR = 0xFF6200EE.toInt()
+
+        val COLOR_OPTIONS = listOf(
+            0xFF6200EE.toInt(), // Purple (default)
+            0xFF2196F3.toInt(), // Blue
+            0xFF4CAF50.toInt(), // Green
+            0xFFF44336.toInt(), // Red
+            0xFFFF9800.toInt(), // Orange
+            0xFF009688.toInt(), // Teal
+            0xFF000000.toInt(), // Black
+        )
 
         fun getTargetSector(context: Context): Int {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -72,6 +87,11 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             return prefs.getBoolean(KEY_VIBRATION_ENABLED, false)
         }
+
+        fun getActiveButtonColor(context: Context): Int {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            return prefs.getInt(KEY_ACTIVE_BUTTON_COLOR, DEFAULT_ACTIVE_BUTTON_COLOR)
+        }
     }
 
     private lateinit var etSector: TextInputEditText
@@ -85,9 +105,11 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private lateinit var cbKeepScreenOn: MaterialCheckBox
     private lateinit var cbSoundEnabled: MaterialCheckBox
     private lateinit var cbVibrationEnabled: MaterialCheckBox
+    private lateinit var colorSelectorLayout: LinearLayout
     private lateinit var btnSaveSettings: MaterialButton
 
     private var keyVisible = false
+    private var selectedActiveColor: Int = DEFAULT_ACTIVE_BUTTON_COLOR
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -107,6 +129,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         cbKeepScreenOn        = findViewById(R.id.cbKeepScreenOn)
         cbSoundEnabled        = findViewById(R.id.cbSoundEnabled)
         cbVibrationEnabled    = findViewById(R.id.cbVibrationEnabled)
+        colorSelectorLayout   = findViewById(R.id.colorSelectorLayout)
         btnSaveSettings       = findViewById(R.id.btnSaveSettings)
 
         loadCurrentSettings()
@@ -131,12 +154,45 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         cbKeepScreenOn.isChecked = isKeepScreenOnEnabled(this)
         cbSoundEnabled.isChecked = isSoundEnabled(this)
         cbVibrationEnabled.isChecked = isVibrationEnabled(this)
+        selectedActiveColor = getActiveButtonColor(this)
 
         // Key is hidden by default
         etStaticKey.transformationMethod = PasswordTransformationMethod.getInstance()
         etStaticKey.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         keyVisible = false
         btnToggleKeyVisibility.setIconResource(R.drawable.ic_eye)
+
+        renderColorSwatches()
+    }
+
+    private fun renderColorSwatches() {
+        colorSelectorLayout.removeAllViews()
+        val density = resources.displayMetrics.density
+        val sizePx = (44 * density).toInt()
+        val marginPx = (8 * density).toInt()
+        val strokeWidthPx = (3 * density).toInt()
+
+        for (color in COLOR_OPTIONS) {
+            val swatch = android.view.View(this)
+            val params = LinearLayout.LayoutParams(sizePx, sizePx).apply {
+                marginEnd = marginPx
+            }
+            swatch.layoutParams = params
+
+            val drawable = GradientDrawable()
+            drawable.shape = GradientDrawable.OVAL
+            drawable.setColor(color)
+            if (color == selectedActiveColor) {
+                drawable.setStroke(strokeWidthPx, Color.BLACK)
+            }
+            swatch.background = drawable
+
+            swatch.setOnClickListener {
+                selectedActiveColor = color
+                renderColorSwatches()
+            }
+            colorSelectorLayout.addView(swatch)
+        }
     }
 
     private fun toggleKeyVisibility() {
@@ -212,6 +268,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             .putBoolean(KEY_KEEP_SCREEN_ON, keepScreenOn)
             .putBoolean(KEY_SOUND_ENABLED, soundEnabled)
             .putBoolean(KEY_VIBRATION_ENABLED, vibrationEnabled)
+            .putInt(KEY_ACTIVE_BUTTON_COLOR, selectedActiveColor)
             .apply()
 
         Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()

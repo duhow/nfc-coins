@@ -159,6 +159,23 @@
             android:layout_height="wrap_content"
             android:text="@string/setting_vibration_enabled"
             android:checked="false"
+            android:layout_marginBottom="8dp" />
+
+        <!-- Active button color -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/setting_active_button_color"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:id="@+id/colorSelectorLayout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
             android:layout_marginBottom="32dp" />
 
         <!-- Save button -->
