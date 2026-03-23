@@ -63,8 +63,8 @@
     <string name="about_message">%1$s es una aplicación para gestionar saldos en tarjetas Mifare Classic mediante NFC.\n\nVersión: %2$s</string>
 
     <!-- Advanced settings -->
-    <string name="advanced_settings">Ajustes avanzados</string>
-    <string name="setting_language">Idioma de la aplicación</string>
+    <string name="advanced_settings">Ajustes</string>
+    <string name="setting_language">Idioma</string>
     <string name="setting_target_sector">Sector a modificar</string>
     <string name="setting_static_key">Clave estática</string>
     <string name="btn_show_key">Mostrar clave</string>
