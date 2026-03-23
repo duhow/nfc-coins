@@ -124,6 +124,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var rootLayout: View
     private lateinit var tvStatus: TextView
     private lateinit var tvBalance: EditText
+    private lateinit var tvMinorIcon: TextView
     private lateinit var tvCardId: TextView
     private lateinit var tvBalanceBefore: TextView
     private lateinit var tvBalanceAfter: TextView
@@ -174,6 +175,7 @@ class MainActivity : AppCompatActivity() {
         rootLayout        = findViewById(R.id.rootLayout)
         tvStatus          = findViewById(R.id.tvStatus)
         tvBalance         = findViewById(R.id.tvBalance)
+        tvMinorIcon       = findViewById(R.id.tvMinorIcon)
         tvCardId          = findViewById(R.id.tvCardId)
         tvBalanceBefore   = findViewById(R.id.tvBalanceBefore)
         tvBalanceAfter    = findViewById(R.id.tvBalanceAfter)
@@ -354,9 +356,11 @@ class MainActivity : AppCompatActivity() {
                 return
             }
             val sectorStart = mifare.sectorToBlock(sector)
+            val blocksInSector = mifare.getBlockCountInSector(sector)
             val counterData = mifare.readBlock(sectorStart + DATA_BLOCK_OFFSET)
             val txBlock1    = mifare.readBlock(sectorStart + TX_BLOCK_1_OFFSET)
             val txBlock2    = mifare.readBlock(sectorStart + TX_BLOCK_2_OFFSET)
+            val trailerData = mifare.readBlock(sectorStart + blocksInSector - 1)
             currentBalance = readValueBlock(counterData) ?: run {
                 tvStatus.text = getString(R.string.error_reading, "invalid value block")
                 flashBackground(R.color.error_orange)
@@ -366,6 +370,7 @@ class MainActivity : AppCompatActivity() {
             }
             val txBlock = TransactionBlock.fromBytes(txBlock1, txBlock2)
             setBalanceDisplay(currentBalance)
+            updateMinorIndicator(trailerData[KEY_LEN + 3].toInt() and 0xFF)
             layoutBeforeAfter.visibility = View.GONE
             tvActualBalance.visibility = View.GONE
             if (!txBlock.isValid(counterData, txBlock1, txBlock2, uid, psk)) {
@@ -414,9 +419,11 @@ class MainActivity : AppCompatActivity() {
                 return
             }
             val sectorStart = mifare.sectorToBlock(sector)
+            val blocksInSector = mifare.getBlockCountInSector(sector)
             val counterData = mifare.readBlock(sectorStart + DATA_BLOCK_OFFSET)
             val txBlock1    = mifare.readBlock(sectorStart + TX_BLOCK_1_OFFSET)
             val txBlock2    = mifare.readBlock(sectorStart + TX_BLOCK_2_OFFSET)
+            val trailerData = mifare.readBlock(sectorStart + blocksInSector - 1)
             val txBlock     = TransactionBlock.fromBytes(txBlock1, txBlock2)
 
             // Anti-tampering: verify checksum before performing any operation.
@@ -497,6 +504,7 @@ class MainActivity : AppCompatActivity() {
 
             currentBalance = newBalance
             setBalanceDisplay(newBalance)
+            updateMinorIndicator(trailerData[KEY_LEN + 3].toInt() and 0xFF)
             tvBalanceBefore.text = formatBalanceDisplay(balance)
             tvBalanceAfter.text = formatBalanceDisplay(newBalance)
             layoutBeforeAfter.visibility = View.VISIBLE
@@ -708,6 +716,7 @@ class MainActivity : AppCompatActivity() {
         resetBalanceToInitial()
         layoutBeforeAfter.visibility = View.GONE
         tvActualBalance.visibility = View.GONE
+        tvMinorIcon.visibility = View.GONE
         layoutTransactionHistory.visibility = View.GONE
         tvTx.forEach { it.visibility = View.GONE }
         tvStatus.text = getString(R.string.waiting_card)
@@ -1034,6 +1043,7 @@ class MainActivity : AppCompatActivity() {
 
             currentBalance = newBalance
             setBalanceDisplay(newBalance)
+            updateMinorIndicator(ageByte)
             tvBalanceBefore.text = formatBalanceDisplay(oldBalance)
             tvBalanceAfter.text = formatBalanceDisplay(newBalance)
             layoutBeforeAfter.visibility = View.VISIBLE
@@ -1390,6 +1400,21 @@ class MainActivity : AppCompatActivity() {
      * before delegating to [setBalanceText].
      */
     private fun setBalanceDisplay(value: Int) = setBalanceText(formatBalanceDisplay(value))
+
+    /**
+     * Shows or hides the minor-age indicator icon next to the balance display.
+     *
+     * [ageByte] is the GPB byte stored in the sector trailer, where the birth year is
+     * encoded as `birthYear - 1900`. The icon is shown when the computed age is below the
+     * configured legal adult age and the byte represents a plausible birth year.
+     */
+    private fun updateMinorIndicator(ageByte: Int) {
+        val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+        val birthYear = 1900 + ageByte
+        val age = currentYear - birthYear
+        val legalAge = AdvancedSettingsActivity.getLegalAge(this)
+        tvMinorIcon.visibility = if (age in 0 until legalAge) View.VISIBLE else View.GONE
+    }
 
     /**
      * Resets the balance display to the initial "--" state and allows
