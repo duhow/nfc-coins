@@ -1,9 +1,10 @@
 package net.duhowpi.nfccoins
 
-import android.app.AlertDialog
+import androidx.appcompat.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.graphics.Color
 import android.media.AudioManager
@@ -515,6 +516,13 @@ class MainActivity : AppCompatActivity() {
     private fun applyThemeColor() {
         val color = AdvancedSettingsActivity.getThemeColor(this)
         val textOnColor = AdvancedSettingsActivity.contrastColor(color)
+        val rippleTint = ColorStateList.valueOf(AdvancedSettingsActivity.rippleColor(color))
+
+        // Action bar: surface/window background color so topbar is unified with content body
+        val ta = obtainStyledAttributes(intArrayOf(android.R.attr.colorBackground))
+        val bgColor = ta.getColor(0, Color.WHITE)
+        ta.recycle()
+        supportActionBar?.setBackgroundDrawable(ColorDrawable(bgColor))
 
         // Toggle buttons: opaque fill when checked, transparent when unchecked
         val bgTint = ColorStateList(
@@ -535,14 +543,19 @@ class MainActivity : AppCompatActivity() {
             child.backgroundTintList = bgTint
             child.setTextColor(textTint)
             child.strokeColor = strokeTint
+            child.rippleColor = rippleTint
         }
     }
 
-    private fun applyThemeToDialog(dialog: android.app.AlertDialog) {
+    private fun applyThemeToDialog(dialog: AlertDialog) {
         val color = AdvancedSettingsActivity.getThemeColor(this)
-        dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)?.setTextColor(color)
-        dialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE)?.setTextColor(color)
-        dialog.getButton(android.app.AlertDialog.BUTTON_NEUTRAL)?.setTextColor(color)
+        val rippleTint = ColorStateList.valueOf(AdvancedSettingsActivity.rippleColor(color))
+        listOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL)
+            .forEach { which ->
+                val btn = dialog.getButton(which) ?: return@forEach
+                btn.setTextColor(color)
+                (btn as? com.google.android.material.button.MaterialButton)?.rippleColor = rippleTint
+            }
     }
 
     // -------------------------------------------------------------------------

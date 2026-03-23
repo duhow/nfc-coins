@@ -1,7 +1,9 @@
 package net.duhowpi.nfccoins
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
@@ -12,9 +14,11 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.CompoundButtonCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import java.security.SecureRandom
 
 class AdvancedSettingsActivity : AppCompatActivity() {
@@ -104,10 +108,19 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             val luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
             return if (luminance > 0.35) Color.BLACK else Color.WHITE
         }
+
+        /**
+         * Returns [color] with [alpha] (0–255) applied, used for ripple overlays on buttons
+         * so the press highlight matches the theme color at reduced opacity.
+         */
+        fun rippleColor(color: Int, alpha: Int = 50): Int =
+            Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
     }
 
     private lateinit var etSector: TextInputEditText
+    private lateinit var tilSector: TextInputLayout
     private lateinit var etStaticKey: TextInputEditText
+    private lateinit var tilStaticKey: TextInputLayout
     private lateinit var btnToggleKeyVisibility: MaterialButton
     private lateinit var btnGenerateKey: MaterialButton
     private lateinit var cbDynamicKey: MaterialCheckBox
@@ -133,7 +146,9 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         supportActionBar?.title = getString(R.string.advanced_settings)
 
         etSector               = findViewById(R.id.etSector)
+        tilSector              = findViewById(R.id.tilSector)
         etStaticKey            = findViewById(R.id.etStaticKey)
+        tilStaticKey           = findViewById(R.id.tilStaticKey)
         btnToggleKeyVisibility = findViewById(R.id.btnToggleKeyVisibility)
         btnGenerateKey         = findViewById(R.id.btnGenerateKey)
         cbDynamicKey           = findViewById(R.id.cbDynamicKey)
@@ -161,11 +176,45 @@ class AdvancedSettingsActivity : AppCompatActivity() {
 
     private fun applyThemeToButtons() {
         val color = selectedThemeColor
-        val tintList = android.content.res.ColorStateList.valueOf(color)
+        val tintList = ColorStateList.valueOf(color)
+        val rippleTint = ColorStateList.valueOf(rippleColor(color))
+
+        // Action bar: surface/window background color (not the theme color) so topbar is unified
+        val ta = obtainStyledAttributes(intArrayOf(android.R.attr.colorBackground))
+        val bgColor = ta.getColor(0, Color.WHITE)
+        ta.recycle()
+        supportActionBar?.setBackgroundDrawable(ColorDrawable(bgColor))
+
+        // Icon-only buttons: icon tint + ripple
         btnToggleKeyVisibility.iconTint = tintList
+        btnToggleKeyVisibility.rippleColor = rippleTint
         btnGenerateKey.iconTint = tintList
+        btnGenerateKey.rippleColor = rippleTint
+
+        // Save button: filled background + contrast text + ripple
         btnSaveSettings.backgroundTintList = tintList
         btnSaveSettings.setTextColor(contrastColor(color))
+        btnSaveSettings.rippleColor = ColorStateList.valueOf(rippleColor(color, alpha = 80))
+
+        // Checkboxes: checked = theme color, unchecked = default grey
+        val checkboxTint = ColorStateList(
+            arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+            intArrayOf(color, Color.GRAY)
+        )
+        for (cb in listOf(cbDynamicKey, cbFlashEnabled, cbVerifyIntegrity,
+                          cbDebugEnabled, cbKeepScreenOn, cbSoundEnabled, cbVibrationEnabled)) {
+            CompoundButtonCompat.setButtonTintList(cb, checkboxTint)
+        }
+
+        // TextInputLayouts: box stroke and floating label when focused
+        val focusedColorList = ColorStateList(
+            arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
+            intArrayOf(color, Color.GRAY)
+        )
+        for (til in listOf(tilSector, tilStaticKey)) {
+            til.setBoxStrokeColorStateList(focusedColorList)
+            til.setHintTextColor(focusedColorList)
+        }
     }
 
     private fun loadCurrentSettings() {
@@ -277,9 +326,13 @@ class AdvancedSettingsActivity : AppCompatActivity() {
 
     private fun applyThemeToDialogButtons(dialog: AlertDialog) {
         val color = selectedThemeColor
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(color)
-        dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(color)
-        dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setTextColor(color)
+        val rippleTint = ColorStateList.valueOf(rippleColor(color))
+        listOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL)
+            .forEach { which ->
+                val btn = dialog.getButton(which) ?: return@forEach
+                btn.setTextColor(color)
+                (btn as? MaterialButton)?.rippleColor = rippleTint
+            }
     }
 
     private fun toggleKeyVisibility() {
