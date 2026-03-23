@@ -105,7 +105,7 @@ class MainActivity : AppCompatActivity() {
         private val toneGeneratorLock = Any()
     }
 
-    private enum class PendingAction { NONE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
+    private enum class PendingAction { NONE, WITHDRAW_BALANCE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
 
     private lateinit var rootLayout: View
     private lateinit var tvStatus: TextView
@@ -286,20 +286,24 @@ class MainActivity : AppCompatActivity() {
                 pendingAction = PendingAction.NONE
                 resetCard(tag)
             }
-            PendingAction.NONE -> {
+            PendingAction.WITHDRAW_BALANCE -> {
+                // Do not clear pendingAction here; readAndDeduct manages state depending on
+                // success/failure and whether a toggle button or custom amount is active.
                 val cardKey = deriveCardKey(uid)
                 when {
-                    toggleGroup.checkedButtonId == R.id.btnDeduct1 -> readAndDeduct(tag, cardKey, 1)
-                    toggleGroup.checkedButtonId == R.id.btnDeduct2 -> readAndDeduct(tag, cardKey, 2)
+                    toggleGroup.checkedButtonId == R.id.btnDeduct1 -> readAndDeduct(tag, cardKey, 1, isButtonMode = true)
+                    toggleGroup.checkedButtonId == R.id.btnDeduct2 -> readAndDeduct(tag, cardKey, 2, isButtonMode = true)
                     customDeductAmount > 0 -> {
-                        val amount = customDeductAmount
-                        customDeductAmount = 0
                         isCustomAmountMode = false
                         clearHiddenInput()
-                        readAndDeduct(tag, cardKey, amount, isCustomAmount = true)
+                        readAndDeduct(tag, cardKey, customDeductAmount, isCustomAmount = true)
                     }
-                    else -> readAndShowBalance(tag, cardKey)
+                    else -> setPendingAction(PendingAction.NONE)
                 }
+            }
+            PendingAction.NONE -> {
+                val cardKey = deriveCardKey(uid)
+                readAndShowBalance(tag, cardKey)
             }
         }
     }
@@ -370,7 +374,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Modo con botón activo: descuenta monedas y muestra saldo inicial → final en grande. */
-    private fun readAndDeduct(tag: Tag, cardKey: ByteArray, amount: Int, isCustomAmount: Boolean = false) {
+    private fun readAndDeduct(tag: Tag, cardKey: ByteArray, amount: Int, isCustomAmount: Boolean = false, isButtonMode: Boolean = false) {
         val sector = AdvancedSettingsActivity.getTargetSector(this)
         val uid = tag.id
         val psk = AdvancedSettingsActivity.getStaticKey(this)
@@ -378,7 +382,7 @@ class MainActivity : AppCompatActivity() {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
             playNfcErrorBeep()
-            scheduleAutoReset()
+            // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
             return
         }
         try {
@@ -387,7 +391,7 @@ class MainActivity : AppCompatActivity() {
                 tvStatus.text = getString(R.string.auth_failed)
                 flashBackground(R.color.error_orange)
                 playNfcErrorBeep()
-                scheduleAutoReset()
+                // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                 return
             }
             val sectorStart = mifare.sectorToBlock(sector)
@@ -406,7 +410,7 @@ class MainActivity : AppCompatActivity() {
                     mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, pw.txBlock2)
                     pendingWrite = null
                     tvStatus.text = getString(R.string.write_retried)
-                    scheduleAutoReset()
+                    // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                     return
                 }
                 if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
@@ -415,7 +419,7 @@ class MainActivity : AppCompatActivity() {
                     showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
                     flashRedBackground()
                     playNfcErrorBeep()
-                    scheduleAutoReset()
+                    // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                     return
                 }
                 // Integrity check disabled: invalid checksum is ignored and the transaction
@@ -427,7 +431,7 @@ class MainActivity : AppCompatActivity() {
                 tvStatus.text = getString(R.string.error_reading, "invalid value block")
                 flashBackground(R.color.error_orange)
                 playNfcErrorBeep()
-                scheduleAutoReset()
+                // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                 return
             }
 
@@ -447,7 +451,7 @@ class MainActivity : AppCompatActivity() {
                 showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
                 flashRedBackground()
                 playInsufficientBalanceBeep()
-                scheduleAutoReset()
+                // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                 return
             }
 
@@ -482,13 +486,20 @@ class MainActivity : AppCompatActivity() {
             showTransactionHistory(updatedTxBlock)
             showDebugChecksums(newCounterBlock, newTxBlock1, newTxBlock2, uid, psk)
             playSuccessBeep()
-            scheduleAutoReset()
+            if (isButtonMode) {
+                // Button remains active: keep WITHDRAW_BALANCE state for additional transactions.
+                // No auto-reset scheduled; the user can tap another card immediately.
+            } else {
+                // Custom-amount is a one-shot transaction: clear it and schedule a full reset.
+                customDeductAmount = 0
+                scheduleAutoReset()
+            }
 
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
             flashBackground(R.color.error_orange)
             playNfcErrorBeep()
-            scheduleAutoReset()
+            // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
         } finally {
             runCatching { mifare.close() }
         }
@@ -642,17 +653,18 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Sets pendingAction and manages the auto-reset timer accordingly.
-     * For ADD_BALANCE the timer is cancelled so the state persists until the user taps the
-     * balance display or a deduction button.
-     * For other non-NONE actions the existing timer is cancelled (via scheduleAutoReset, which
-     * always removes the callback before re-posting) and a fresh 7-second countdown is started,
-     * preventing stale timers from clearing the new state.
+     * For WITHDRAW_BALANCE and ADD_BALANCE the timer is cancelled so the state persists until
+     * the user taps the card, cancels via UI, or selects a different action.
+     * For other non-NONE actions (FORMAT_CARD, RESET_CARD) the existing timer is cancelled
+     * (via scheduleAutoReset, which always removes the callback before re-posting) and a fresh
+     * 7-second countdown is started, preventing stale timers from clearing the new state.
      * For NONE the timer is simply removed (full reset is handled by resetToWaiting).
      */
     private fun setPendingAction(action: PendingAction) {
         pendingAction = action
         when (action) {
             PendingAction.NONE -> handler.removeCallbacks(autoResetRunnable)
+            PendingAction.WITHDRAW_BALANCE -> handler.removeCallbacks(autoResetRunnable)
             PendingAction.ADD_BALANCE -> handler.removeCallbacks(autoResetRunnable)
             else -> scheduleAutoReset() // removes any existing callback before posting the new one
         }
@@ -720,10 +732,12 @@ class MainActivity : AppCompatActivity() {
                 when (which) {
                     0 -> showAddAmountDialog()
                     1 -> {
+                        toggleGroup.clearChecked()
                         setPendingAction(PendingAction.FORMAT_CARD)
                         tvStatus.text = getString(R.string.tap_card_to_format)
                     }
                     2 -> {
+                        toggleGroup.clearChecked()
                         setPendingAction(PendingAction.RESET_CARD)
                         tvStatus.text = getString(R.string.tap_card_to_reset)
                     }
@@ -803,6 +817,7 @@ class MainActivity : AppCompatActivity() {
                     return@setPositiveButton
                 }
                 pendingAddAmount = amount
+                toggleGroup.clearChecked()
                 setPendingAction(PendingAction.ADD_BALANCE)
                 setBalanceText("+$amount")
                 tvStatus.text = getString(R.string.tap_card_to_add)
@@ -1252,6 +1267,13 @@ class MainActivity : AppCompatActivity() {
                     // Tapping the balance display while waiting to add balance cancels the operation.
                     cancelAddBalance()
                 }
+                pendingAction == PendingAction.WITHDRAW_BALANCE && customDeductAmount > 0 -> {
+                    // Tapping the balance display while waiting to withdraw with a custom amount
+                    // cancels the operation and returns to idle.
+                    setPendingAction(PendingAction.NONE)
+                    resetBalanceToInitial()
+                    tvStatus.text = getString(R.string.waiting_card)
+                }
                 isCustomAmountMode -> {
                     // Keyboard was dismissed (e.g. via Back) without etHiddenInput losing focus,
                     // so isCustomAmountMode stayed true but the IME is hidden. Reopen it.
@@ -1295,7 +1317,14 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 customDeductAmount = etHiddenInput.text.toString().toIntOrNull() ?: 0
-                if (customDeductAmount > 0) toggleGroup.clearChecked()
+                if (customDeductAmount > 0) {
+                    toggleGroup.clearChecked()
+                    setPendingAction(PendingAction.WITHDRAW_BALANCE)
+                    tvStatus.text = getString(R.string.tap_card_to_deduct)
+                } else {
+                    setPendingAction(PendingAction.NONE)
+                    tvStatus.text = getString(R.string.waiting_card)
+                }
             }
         })
 
@@ -1305,9 +1334,10 @@ class MainActivity : AppCompatActivity() {
                 val amount = etHiddenInput.text.toString().toIntOrNull() ?: 0
                 clearHiddenInput()
                 if (amount > 0) {
-                    // Keep the typed value visible and update status
+                    // Keep the typed value visible and transition to withdraw state
                     customDeductAmount = amount
                     tvBalance.setText(amount.toString())
+                    setPendingAction(PendingAction.WITHDRAW_BALANCE)
                     tvStatus.text = getString(R.string.tap_card_to_deduct)
                 } else {
                     resetBalanceToInitial()
@@ -1315,13 +1345,32 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Selecting a fixed-deduction toggle button clears any custom deduction amount or pending add-balance action
+        // Selecting a fixed-deduction toggle button enters WITHDRAW_BALANCE; deselecting all
+        // buttons (with no custom amount pending) returns to NONE.
         toggleGroup.addOnButtonCheckedListener { _, _, isChecked ->
             if (isChecked) {
                 if (pendingAction == PendingAction.ADD_BALANCE) {
                     cancelAddBalance()
                 } else if (customDeductAmount > 0) {
                     resetBalanceToInitial()
+                }
+                setPendingAction(PendingAction.WITHDRAW_BALANCE)
+                tvStatus.text = getString(R.string.tap_card_to_deduct)
+            } else {
+                // Defer the check: when switching between buttons the unchecked event fires
+                // before the newly-selected button's checked event, so we wait until both
+                // events have been delivered before deciding whether to revert to NONE.
+                handler.post {
+                    if (toggleGroup.checkedButtonId == View.NO_ID
+                        && customDeductAmount == 0
+                        && pendingAction == PendingAction.WITHDRAW_BALANCE) {
+                        if (currentBalance >= 0) {
+                            resetToWaiting()
+                        } else {
+                            setPendingAction(PendingAction.NONE)
+                            tvStatus.text = getString(R.string.waiting_card)
+                        }
+                    }
                 }
             }
         }
