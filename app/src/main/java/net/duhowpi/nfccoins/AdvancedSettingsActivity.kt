@@ -43,11 +43,28 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         const val KEY_DECIMAL_MODE = "decimal_mode"
         const val KEY_LEGAL_AGE = "legal_age"
         const val KEY_LANGUAGE = "language"
-        const val LANGUAGE_EN = "en"
-        const val LANGUAGE_ES = "es"
-        val SUPPORTED_LANGUAGES = listOf(LANGUAGE_EN, LANGUAGE_ES)
-        /** Display name (always in native language) paired with its BCP-47 language code. */
-        val LANGUAGE_ENTRIES = listOf("English" to LANGUAGE_EN, "Español" to LANGUAGE_ES)
+        /** Default language code used when no preference has been saved yet. */
+        const val DEFAULT_LANGUAGE = "en"
+
+        /**
+         * Returns the list of supported languages as (displayName, code) pairs by reading
+         * `R.array.language_names` and `R.array.language_codes` from resources.
+         * Adding a new language only requires updating those arrays in `res/values/arrays.xml`
+         * — no source-code change is needed.
+         */
+        fun getLanguageEntries(context: Context): List<Pair<String, String>> {
+            val codes = context.resources.getStringArray(R.array.language_codes)
+            val names = context.resources.getStringArray(R.array.language_names)
+            check(codes.size == names.size) {
+                "language_codes and language_names arrays must have the same number of items " +
+                        "(got ${codes.size} codes vs ${names.size} names)"
+            }
+            return names.zip(codes)
+        }
+
+        fun getSupportedLanguageCodes(context: Context): Array<String> =
+            context.resources.getStringArray(R.array.language_codes)
+
         const val DEFAULT_SECTOR = 14
         val DEFAULT_THEME_COLOR = 0xFF6200EE.toInt()
         const val DEFAULT_LEGAL_AGE = 18
@@ -126,18 +143,22 @@ class AdvancedSettingsActivity : AppCompatActivity() {
 
         fun getLanguage(context: Context): String {
             return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getString(KEY_LANGUAGE, LANGUAGE_EN) ?: LANGUAGE_EN
+                .getString(KEY_LANGUAGE, DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE
         }
 
         /**
          * Returns a context whose resources are configured to use the saved app language.
          * If no language preference has been saved yet, returns [base] unchanged so that
          * the system locale is used until the first launch detection runs.
+         *
+         * Android's resource resolution automatically falls back to the default `values/`
+         * directory (English) for any string not present in the selected locale's folder,
+         * so partial translations are handled transparently.
          */
         fun wrapContextWithLocale(base: Context): Context {
             val prefs = base.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             if (!prefs.contains(KEY_LANGUAGE)) return base
-            val langCode = prefs.getString(KEY_LANGUAGE, LANGUAGE_EN) ?: LANGUAGE_EN
+            val langCode = prefs.getString(KEY_LANGUAGE, DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE
             val locale = Locale(langCode)
             Locale.setDefault(locale)
             val config = Configuration(base.resources.configuration)
@@ -283,9 +304,10 @@ class AdvancedSettingsActivity : AppCompatActivity() {
 
     private fun loadCurrentSettings() {
         val currentLangCode = getLanguage(this)
-        val langNames = LANGUAGE_ENTRIES.map { it.first }
-        val selectedLangName = LANGUAGE_ENTRIES.firstOrNull { it.second == currentLangCode }?.first
-            ?: langNames.firstOrNull() ?: "English"
+        val langEntries = getLanguageEntries(this)
+        val langNames = langEntries.map { it.first }
+        val selectedLangName = langEntries.firstOrNull { it.second == currentLangCode }?.first
+            ?: langEntries.firstOrNull()?.first
         val langAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, langNames)
         actvLanguage.setAdapter(langAdapter)
         actvLanguage.setText(selectedLangName, false)
@@ -454,8 +476,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
 
     private fun saveSettings() {
         val selectedLangName = actvLanguage.text?.toString() ?: ""
-        val newLangCode = LANGUAGE_ENTRIES.firstOrNull { it.first == selectedLangName }?.second
-            ?: LANGUAGE_EN
+        val newLangCode = getLanguageEntries(this).firstOrNull { it.first == selectedLangName }?.second
+            ?: DEFAULT_LANGUAGE
         val oldLangCode = getLanguage(this)
 
         val sectorText = etSector.text?.toString()?.trim() ?: ""

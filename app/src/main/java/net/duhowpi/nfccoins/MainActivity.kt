@@ -567,14 +567,15 @@ class MainActivity : AppCompatActivity() {
         val prefs = getSharedPreferences(AdvancedSettingsActivity.PREFS_NAME, Context.MODE_PRIVATE)
         if (!prefs.contains(AdvancedSettingsActivity.KEY_LANGUAGE)) {
             val systemLang = Locale.getDefault().language
-            val detectedLang = if (systemLang in AdvancedSettingsActivity.SUPPORTED_LANGUAGES) {
+            val supportedCodes = AdvancedSettingsActivity.getSupportedLanguageCodes(this)
+            val detectedLang = if (systemLang in supportedCodes) {
                 systemLang
             } else {
-                AdvancedSettingsActivity.LANGUAGE_EN
+                AdvancedSettingsActivity.DEFAULT_LANGUAGE
             }
             prefs.edit().putString(AdvancedSettingsActivity.KEY_LANGUAGE, detectedLang).apply()
             // attachBaseContext defaulted to English (no pref existed yet); recreate if needed.
-            if (detectedLang != AdvancedSettingsActivity.LANGUAGE_EN) {
+            if (detectedLang != AdvancedSettingsActivity.DEFAULT_LANGUAGE) {
                 recreate()
             }
         }
