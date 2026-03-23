@@ -184,11 +184,15 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         val bgColor = ta.getColor(0, Color.WHITE)
         ta.recycle()
         supportActionBar?.setBackgroundDrawable(ColorDrawable(bgColor))
+        window.statusBarColor = bgColor
 
-        // Icon-only buttons: icon tint + ripple
-        btnToggleKeyVisibility.iconTint = tintList
+        // Icon-only buttons: filled with theme color, icon in contrast color for legibility
+        val contrastTint = ColorStateList.valueOf(contrastColor(color))
+        btnToggleKeyVisibility.backgroundTintList = tintList
+        btnToggleKeyVisibility.iconTint = contrastTint
         btnToggleKeyVisibility.rippleColor = rippleTint
-        btnGenerateKey.iconTint = tintList
+        btnGenerateKey.backgroundTintList = tintList
+        btnGenerateKey.iconTint = contrastTint
         btnGenerateKey.rippleColor = rippleTint
 
         // Save button: filled background + contrast text + ripple

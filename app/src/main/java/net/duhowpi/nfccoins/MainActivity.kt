@@ -523,6 +523,7 @@ class MainActivity : AppCompatActivity() {
         val bgColor = ta.getColor(0, Color.WHITE)
         ta.recycle()
         supportActionBar?.setBackgroundDrawable(ColorDrawable(bgColor))
+        window.statusBarColor = bgColor
 
         // Toggle buttons: opaque fill when checked, transparent when unchecked
         val bgTint = ColorStateList(
