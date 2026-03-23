@@ -55,6 +55,7 @@
     <string name="format_recarga_unica">Recarga única</string>
     <string name="format_limite_edad">Límite de edad</string>
     <string name="format_limite_edad_hint">Edad o año de nacimiento</string>
+    <string name="single_recharge_already_used">Recarga única ya realizada. No se permiten más recargas.</string>
 
     <!-- About -->
     <string name="about">Acerca de</string>
