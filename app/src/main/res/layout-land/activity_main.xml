@@ -125,7 +125,7 @@
             android:layout_marginStart="8dp"
             android:layout_marginEnd="8dp" />
 
-        <!-- Right panel: toggle coin deduction buttons -->
+        <!-- Right panel: toggle coin deduction buttons + transaction history -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
@@ -161,6 +161,63 @@
                     android:textStyle="bold" />
 
             </com.google.android.material.button.MaterialButtonToggleGroup>
+
+            <!-- Transaction history (shown after reading a card) -->
+            <LinearLayout
+                android:id="@+id/layoutTransactionHistory"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="16dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/tx_history_label"
+                    android:textSize="12sp"
+                    android:textAllCaps="true"
+                    android:alpha="0.6"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:id="@+id/tvTx0"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tvTx1"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tvTx2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tvTx3"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tvTxDebug"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="11sp"
+                    android:alpha="0.7"
+                    android:layout_marginTop="4dp"
+                    android:visibility="gone" />
+
+            </LinearLayout>
 
         </LinearLayout>
 
