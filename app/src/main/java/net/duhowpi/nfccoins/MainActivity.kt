@@ -849,13 +849,7 @@ class MainActivity : AppCompatActivity() {
         return (birthYear - 1900).coerceIn(0, 255)
     }
 
-    private fun getCardPrefs() = getSharedPreferences(PREFS_CARD_SETTINGS, android.content.Context.MODE_PRIVATE)
-
-    private fun isRecargaUnicaEnabled(uidHex: String): Boolean =
-        getCardPrefs().getBoolean("$PREF_KEY_RECARGA_UNICA$uidHex", false)
-
-    private fun getCardEdadByte(uidHex: String): Int =
-        getCardPrefs().getInt("$PREF_KEY_EDAD_BYTE$uidHex", DEFAULT_USER_BYTE)
+    private val cardPrefs by lazy { getSharedPreferences(PREFS_CARD_SETTINGS, MODE_PRIVATE) }
 
     /**
      * Enters inline add-balance mode: disables the toggle buttons, shows "+0" in the balance
@@ -988,17 +982,22 @@ class MainActivity : AppCompatActivity() {
             // Si está habilitada la Recarga única, actualizar los bits de acceso para bloquear
             // futuros incrementos en el bloque de saldo (bloque 0).
             val uidHex = uid.toHex()
-            if (isRecargaUnicaEnabled(uidHex)) {
-                val edadByte = getCardEdadByte(uidHex)
+            if (cardPrefs.getBoolean("$PREF_KEY_RECARGA_UNICA$uidHex", false)) {
+                val edadByte = cardPrefs.getInt("$PREF_KEY_EDAD_BYTE$uidHex", DEFAULT_USER_BYTE)
                 val blocksInSector = mifare.getBlockCountInSector(sector)
                 val sectorTrailerIdx = sectorStart + blocksInSector - 1
                 val restrictedTrailer = ByteArray(MifareClassic.BLOCK_SIZE)
                 System.arraycopy(cardKey, 0, restrictedTrailer, 0, KEY_LEN)
-                val restrictedBits = ACCESS_BITS_RESTRICTED_CTRL + byteArrayOf(edadByte.toByte())
+                val restrictedBits = ByteArray(4)
+                System.arraycopy(ACCESS_BITS_RESTRICTED_CTRL, 0, restrictedBits, 0, ACCESS_BITS_RESTRICTED_CTRL.size)
+                restrictedBits[3] = edadByte.toByte()
                 System.arraycopy(restrictedBits, 0, restrictedTrailer, KEY_LEN, restrictedBits.size)
                 System.arraycopy(cardKey, 0, restrictedTrailer, KEY_LEN + restrictedBits.size, KEY_LEN)
                 mifare.writeBlock(sectorTrailerIdx, restrictedTrailer)
-                getCardPrefs().edit().remove("$PREF_KEY_RECARGA_UNICA$uidHex").apply()
+                cardPrefs.edit()
+                    .remove("$PREF_KEY_RECARGA_UNICA$uidHex")
+                    .remove("$PREF_KEY_EDAD_BYTE$uidHex")
+                    .apply()
             }
 
             currentBalance = newBalance
@@ -1136,7 +1135,7 @@ class MainActivity : AppCompatActivity() {
 
             // Guardar opciones de formato por UID para usarlas en la primera recarga
             val uidHex = uid.toHex()
-            getCardPrefs().edit()
+            cardPrefs.edit()
                 .putBoolean("$PREF_KEY_RECARGA_UNICA$uidHex", pendingRecargaUnica)
                 .putInt("$PREF_KEY_EDAD_BYTE$uidHex", pendingEdadByte)
                 .apply()
