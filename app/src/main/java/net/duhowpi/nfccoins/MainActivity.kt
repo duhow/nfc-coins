@@ -105,7 +105,7 @@ class MainActivity : AppCompatActivity() {
         private val toneGeneratorLock = Any()
     }
 
-    private enum class PendingAction { NONE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
+    private enum class PendingAction { NONE, WITHDRAW_BALANCE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
 
     private lateinit var rootLayout: View
     private lateinit var tvStatus: TextView
@@ -286,7 +286,8 @@ class MainActivity : AppCompatActivity() {
                 pendingAction = PendingAction.NONE
                 resetCard(tag)
             }
-            PendingAction.NONE -> {
+            PendingAction.WITHDRAW_BALANCE -> {
+                pendingAction = PendingAction.NONE
                 val cardKey = deriveCardKey(uid)
                 when {
                     toggleGroup.checkedButtonId == R.id.btnDeduct1 -> readAndDeduct(tag, cardKey, 1)
@@ -300,6 +301,10 @@ class MainActivity : AppCompatActivity() {
                     }
                     else -> readAndShowBalance(tag, cardKey)
                 }
+            }
+            PendingAction.NONE -> {
+                val cardKey = deriveCardKey(uid)
+                readAndShowBalance(tag, cardKey)
             }
         }
     }
@@ -642,17 +647,18 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Sets pendingAction and manages the auto-reset timer accordingly.
-     * For ADD_BALANCE the timer is cancelled so the state persists until the user taps the
-     * balance display or a deduction button.
-     * For other non-NONE actions the existing timer is cancelled (via scheduleAutoReset, which
-     * always removes the callback before re-posting) and a fresh 7-second countdown is started,
-     * preventing stale timers from clearing the new state.
+     * For WITHDRAW_BALANCE and ADD_BALANCE the timer is cancelled so the state persists until
+     * the user taps the card, cancels via UI, or selects a different action.
+     * For other non-NONE actions (FORMAT_CARD, RESET_CARD) the existing timer is cancelled
+     * (via scheduleAutoReset, which always removes the callback before re-posting) and a fresh
+     * 7-second countdown is started, preventing stale timers from clearing the new state.
      * For NONE the timer is simply removed (full reset is handled by resetToWaiting).
      */
     private fun setPendingAction(action: PendingAction) {
         pendingAction = action
         when (action) {
             PendingAction.NONE -> handler.removeCallbacks(autoResetRunnable)
+            PendingAction.WITHDRAW_BALANCE -> handler.removeCallbacks(autoResetRunnable)
             PendingAction.ADD_BALANCE -> handler.removeCallbacks(autoResetRunnable)
             else -> scheduleAutoReset() // removes any existing callback before posting the new one
         }
@@ -1252,6 +1258,13 @@ class MainActivity : AppCompatActivity() {
                     // Tapping the balance display while waiting to add balance cancels the operation.
                     cancelAddBalance()
                 }
+                pendingAction == PendingAction.WITHDRAW_BALANCE && customDeductAmount > 0 -> {
+                    // Tapping the balance display while waiting to withdraw with a custom amount
+                    // cancels the operation and returns to idle.
+                    setPendingAction(PendingAction.NONE)
+                    resetBalanceToInitial()
+                    tvStatus.text = getString(R.string.waiting_card)
+                }
                 isCustomAmountMode -> {
                     // Keyboard was dismissed (e.g. via Back) without etHiddenInput losing focus,
                     // so isCustomAmountMode stayed true but the IME is hidden. Reopen it.
@@ -1305,9 +1318,10 @@ class MainActivity : AppCompatActivity() {
                 val amount = etHiddenInput.text.toString().toIntOrNull() ?: 0
                 clearHiddenInput()
                 if (amount > 0) {
-                    // Keep the typed value visible and update status
+                    // Keep the typed value visible and transition to withdraw state
                     customDeductAmount = amount
                     tvBalance.setText(amount.toString())
+                    setPendingAction(PendingAction.WITHDRAW_BALANCE)
                     tvStatus.text = getString(R.string.tap_card_to_deduct)
                 } else {
                     resetBalanceToInitial()
@@ -1315,13 +1329,28 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Selecting a fixed-deduction toggle button clears any custom deduction amount or pending add-balance action
+        // Selecting a fixed-deduction toggle button enters WITHDRAW_BALANCE; deselecting all
+        // buttons (with no custom amount pending) returns to NONE.
         toggleGroup.addOnButtonCheckedListener { _, _, isChecked ->
             if (isChecked) {
                 if (pendingAction == PendingAction.ADD_BALANCE) {
                     cancelAddBalance()
                 } else if (customDeductAmount > 0) {
                     resetBalanceToInitial()
+                }
+                setPendingAction(PendingAction.WITHDRAW_BALANCE)
+                tvStatus.text = getString(R.string.tap_card_to_deduct)
+            } else {
+                // Defer the check: when switching between buttons the unchecked event fires
+                // before the newly-selected button's checked event, so we wait until both
+                // events have been delivered before deciding whether to revert to NONE.
+                handler.post {
+                    if (toggleGroup.checkedButtonId == View.NO_ID
+                        && customDeductAmount == 0
+                        && pendingAction == PendingAction.WITHDRAW_BALANCE) {
+                        setPendingAction(PendingAction.NONE)
+                        tvStatus.text = getString(R.string.waiting_card)
+                    }
                 }
             }
         }
