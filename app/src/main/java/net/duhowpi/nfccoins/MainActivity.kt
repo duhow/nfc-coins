@@ -19,7 +19,6 @@ import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.text.Editable
-import android.text.InputFilter
 import android.text.InputType
 import android.text.TextWatcher
 import android.view.Menu
@@ -815,12 +814,19 @@ class MainActivity : AppCompatActivity() {
         val editAge = EditText(this).apply {
             hint = getString(R.string.format_limite_edad_hint)
             inputType = InputType.TYPE_CLASS_NUMBER
-            filters = arrayOf(InputFilter { source, start, end, dest, dstart, dend ->
-                val newText = dest.toString().substring(0, dstart) +
-                    source.subSequence(start, end) +
-                    dest.toString().substring(dend)
-                val value = newText.toIntOrNull()
-                if (value != null && value > currentYear) "" else null
+            addTextChangedListener(object : TextWatcher {
+                private var updating = false
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: Editable?) {
+                    if (updating) return
+                    val value = s?.toString()?.toIntOrNull() ?: return
+                    if (value > currentYear) {
+                        updating = true
+                        s?.replace(0, s.length, currentYear.toString())
+                        updating = false
+                    }
+                }
             })
         }
 
