@@ -32,9 +32,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
         const val KEY_SOUND_ENABLED = "sound_enabled"
         const val KEY_VIBRATION_ENABLED = "vibration_enabled"
-        // Key string kept as "active_button_color" for backward compatibility —
-        // existing saved preferences will continue to work without migration
-        const val KEY_THEME_COLOR = "active_button_color"
+        const val KEY_THEME_COLOR = "theme_color"
         const val DEFAULT_SECTOR = 14
         val DEFAULT_THEME_COLOR = 0xFF6200EE.toInt()
 
