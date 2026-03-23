@@ -99,7 +99,7 @@ class MainActivity : AppCompatActivity() {
         // Primeros 3 bytes de bits de acceso restringidos para Recarga única:
         // Bloque 0: condición 001 (lectura A|B, sin escritura, sin incremento, decremento A|B)
         // Bloques 1,2: condición 000 (acceso completo); Trailer: condición 001 (igual que estándar)
-        private val ACCESS_BITS_RESTRICTED_CTRL = byteArrayOf(0xFF.toByte(), 0x06.toByte(), 0x90.toByte())
+        private val ACCESS_BITS_RESTRICTED_CTRL = hexKey(0xFF, 0x06, 0x90)
 
         // Clave de fábrica Mifare Classic (todos los bytes a 0xFF)
         private val FACTORY_KEY = hexKey(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF)
