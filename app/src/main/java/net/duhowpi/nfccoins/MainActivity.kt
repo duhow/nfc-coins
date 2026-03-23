@@ -530,7 +530,6 @@ class MainActivity : AppCompatActivity() {
             try {
                 val tg = ToneGenerator(AudioManager.STREAM_DTMF, ToneGenerator.MAX_VOLUME)
                 sharedToneGenerator = tg
-                tg.startTone(ToneGenerator.TONE_CDMA_LOW_L, 1)
             } catch (_: Exception) {}
         }
     }
