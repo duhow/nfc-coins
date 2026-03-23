@@ -97,6 +97,10 @@ class MainActivity : AppCompatActivity() {
         private const val VIBRATE_DURATION_MS = 200L
         private val FLASH_TOKEN = Any()
         private val BEEP_TOKEN = Any()
+        // Keep one ToneGenerator across Activity recreation (e.g. rotation) to avoid
+        // audible click/pop when a fresh audio session is opened again.
+        private var sharedToneGenerator: ToneGenerator? = null
+        private val toneGeneratorLock = Any()
     }
 
     private enum class PendingAction { NONE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
@@ -116,7 +120,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvTxDebug: TextView
 
     private var nfcAdapter: NfcAdapter? = null
-    private var toneGenerator: ToneGenerator? = null
 
     private var currentBalance: Int = -1
     private var currentTag: Tag? = null
@@ -234,8 +237,12 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         handler.removeCallbacksAndMessages(BEEP_TOKEN)
-        toneGenerator?.release()
-        toneGenerator = null
+        if (isFinishing) {
+            synchronized(toneGeneratorLock) {
+                sharedToneGenerator?.release()
+                sharedToneGenerator = null
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -511,30 +518,25 @@ class MainActivity : AppCompatActivity() {
     // started by the first startTone() call — not by construction. To warm up the pipeline we
     // must call startTone() on the exact same instance that will be used for real beeps; warming
     // a throwaway instance (even at volume=0) does nothing for a separately constructed instance.
-    //
-    // We call startTone() with a 1 ms duration on the real instance immediately after
-    // construction. Because the Android audio output latency is typically 50–200 ms, the 1 ms of
-    // generated audio is flushed before it ever reaches the speaker, so the user hears nothing.
-    // startTone() blocks internally until its native thread has started and AudioTrack is open,
-    // so by the time it returns the instance is fully warm for all subsequent calls.
     private fun initToneGenerator() {
-        if (toneGenerator != null) return
-        try {
-            val tg = ToneGenerator(AudioManager.STREAM_DTMF, ToneGenerator.MAX_VOLUME)
-            toneGenerator = tg
-            tg.startTone(ToneGenerator.TONE_CDMA_LOW_L, 1)
-        } catch (_: Exception) {}
+        synchronized(toneGeneratorLock) {
+            if (sharedToneGenerator != null) return
+            try {
+                val tg = ToneGenerator(AudioManager.STREAM_DTMF, ToneGenerator.MAX_VOLUME)
+                sharedToneGenerator = tg
+            } catch (_: Exception) {}
+        }
     }
 
-    // Reuses the single ToneGenerator created in initToneGenerator() for the lifetime of the
-    // activity. startTone() stops any in-progress tone before playing the new one, so no explicit
-    // teardown is needed between calls.
+    // Reuses the single ToneGenerator created in initToneGenerator(). The instance is shared
+    // across activity recreation (rotation), and startTone() stops any in-progress tone before
+    // playing the new one, so no explicit teardown is needed between calls.
     private fun playBeep(count: Int, toneType: Int, durationMs: Int, intervalMs: Int = 100) {
         handler.removeCallbacksAndMessages(BEEP_TOKEN)
         if (count <= 0) return
         if (!AdvancedSettingsActivity.isSoundEnabled(this)) return
         initToneGenerator()
-        val toneGen = toneGenerator ?: return
+        val toneGen = synchronized(toneGeneratorLock) { sharedToneGenerator } ?: return
         playBeepChain(toneGen, count, toneType, durationMs, intervalMs)
     }
 
@@ -548,7 +550,9 @@ class MainActivity : AppCompatActivity() {
         if (!started) {
             // ToneGenerator has become invalid (e.g. audio system interrupted); discard and
             // recreate it immediately so the next beep call finds a warm instance.
-            toneGenerator = null
+            synchronized(toneGeneratorLock) {
+                sharedToneGenerator = null
+            }
             initToneGenerator()
             return
         }
