@@ -815,6 +815,7 @@ class MainActivity : AppCompatActivity() {
                     return@setPositiveButton
                 }
                 pendingAddAmount = amount
+                toggleGroup.clearChecked()
                 setPendingAction(PendingAction.ADD_BALANCE)
                 setBalanceText("+$amount")
                 tvStatus.text = getString(R.string.tap_card_to_add)
