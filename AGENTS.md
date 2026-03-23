@@ -2,7 +2,7 @@
 
 ## Commits
 
-Use Conventional Commits. Common types are feat, fix, chore, refactor, perf, ci, docs.
+Use Conventional Commits in PR title. Common types are feat, fix, chore, refactor, perf, ci, docs.
 If using scope, limit scope to two-word max, connected with dash.
 Check historic commits to avoid making up new scopes every time.
 
