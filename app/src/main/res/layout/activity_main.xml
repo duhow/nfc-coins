@@ -98,7 +98,7 @@
 
         <!-- Hidden EditText used as keyboard target for custom deduction entry.
              Height is 1dp (non-zero) so the IMM can show the keyboard; alpha=0 keeps it invisible. -->
-        <EditText
+        <net.duhowpi.nfccoins.BackspaceEditText
             android:id="@+id/etHiddenInput"
             android:layout_width="match_parent"
             android:layout_height="1dp"

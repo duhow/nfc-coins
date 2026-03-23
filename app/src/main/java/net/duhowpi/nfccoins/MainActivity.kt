@@ -103,6 +103,9 @@ class MainActivity : AppCompatActivity() {
         // audible click/pop when a fresh audio session is opened again.
         private var sharedToneGenerator: ToneGenerator? = null
         private val toneGeneratorLock = Any()
+        // Delay (ms) to allow the window to regain IME focus after a dialog closes,
+        // so that showSoftInput succeeds on the first attempt.
+        private const val IME_FOCUS_DELAY_MS = 200L
     }
 
     private enum class PendingAction { NONE, WITHDRAW_BALANCE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
@@ -116,7 +119,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvActualBalance: TextView
     private lateinit var layoutBeforeAfter: LinearLayout
     private lateinit var toggleGroup: MaterialButtonToggleGroup
-    private lateinit var etHiddenInput: EditText
+    private lateinit var etHiddenInput: BackspaceEditText
     private lateinit var layoutTransactionHistory: LinearLayout
     private lateinit var tvTx: Array<TextView>
     private lateinit var tvTxDebug: TextView
@@ -775,10 +778,10 @@ class MainActivity : AppCompatActivity() {
         tvTx.forEach { it.visibility = View.GONE }
         setPendingAction(PendingAction.NONE)
         tvStatus.text = getString(R.string.tap_card_to_add)
-        etHiddenInput.post {
+        etHiddenInput.postDelayed({
             etHiddenInput.requestFocus()
             showKeyboardFor(etHiddenInput)
-        }
+        }, IME_FOCUS_DELAY_MS)
     }
 
     /**
@@ -1232,6 +1235,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Mirror hidden-input digits into tvBalance while typing.
+        etHiddenInput.onBackspaceWhenEmpty = {
+            if (isAddBalanceMode) cancelAddBalance()
+        }
         etHiddenInput.addTextChangedListener(object : TextWatcher {
             private var isUpdating = false
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
