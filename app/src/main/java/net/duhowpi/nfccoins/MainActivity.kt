@@ -299,7 +299,6 @@ class MainActivity : AppCompatActivity() {
                         clearHiddenInput()
                         readAndDeduct(tag, cardKey, amount, isCustomAmount = true)
                     }
-                    else -> readAndShowBalance(tag, cardKey)
                 }
             }
             PendingAction.NONE -> {
