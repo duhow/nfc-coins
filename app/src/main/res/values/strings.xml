@@ -19,6 +19,7 @@
     <string name="no_card">No hay tarjeta. Acércala de nuevo.</string>
     <string name="insufficient_balance">Saldo insuficiente</string>
     <string name="deduct_ok">Descontadas %d moneda(s) correctamente</string>
+    <string name="deduct_ok_decimal">Descontadas %s correctamente</string>
     <string name="error_get_mifare">Error: no se pudo acceder a la tarjeta Mifare</string>
     <string name="error_reading">Error de lectura: %s</string>
     <string name="error_writing">Error de escritura: %s</string>
@@ -46,6 +47,7 @@
     <string name="invalid_amount">Cantidad no válida</string>
     <string name="balance_too_high">El saldo máximo es 65535 monedas</string>
     <string name="balance_added_ok">Se añadieron %d moneda(s) correctamente</string>
+    <string name="balance_added_ok_decimal">Se añadieron %s correctamente</string>
     <string name="card_not_formatted">Tarjeta no formateada. Usa \'Formatear tarjeta nueva\' primero.</string>
     <string name="format_no_key_found">No se encontró ninguna clave estándar. La tarjeta puede estar ya personalizada.</string>
     <string name="format_reset_success">Saldo reiniciado a 0 (tarjeta ya formateada)</string>
@@ -79,6 +81,7 @@
     <string name="setting_keep_screen_on">Mantener pantalla encendida</string>
     <string name="setting_sound_enabled">Activar sonido</string>
     <string name="setting_vibration_enabled">Activar vibración</string>
+    <string name="setting_decimal_mode">Modo decimal (valores ×100, mostrar 2 decimales)</string>
     <string name="setting_theme_color">Color de tema</string>
     <string name="color_pick_title">Color personalizado</string>
     <string name="color_custom_swatch">Seleccionar color personalizado</string>

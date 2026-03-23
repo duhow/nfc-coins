@@ -35,6 +35,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         const val KEY_SOUND_ENABLED = "sound_enabled"
         const val KEY_VIBRATION_ENABLED = "vibration_enabled"
         const val KEY_THEME_COLOR = "theme_color"
+        const val KEY_DECIMAL_MODE = "decimal_mode"
         const val DEFAULT_SECTOR = 14
         val DEFAULT_THEME_COLOR = 0xFF6200EE.toInt()
 
@@ -100,6 +101,11 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             return prefs.getInt(KEY_THEME_COLOR, DEFAULT_THEME_COLOR)
         }
 
+        fun isDecimalModeEnabled(context: Context): Boolean {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            return prefs.getBoolean(KEY_DECIMAL_MODE, false)
+        }
+
         /** Returns black or white, whichever contrasts better with [color]. */
         fun contrastColor(color: Int): Int {
             val r = Color.red(color) / 255.0
@@ -130,6 +136,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private lateinit var cbKeepScreenOn: MaterialCheckBox
     private lateinit var cbSoundEnabled: MaterialCheckBox
     private lateinit var cbVibrationEnabled: MaterialCheckBox
+    private lateinit var cbDecimalMode: MaterialCheckBox
     private lateinit var colorSelectorLayout: LinearLayout
     private lateinit var btnSaveSettings: MaterialButton
 
@@ -158,6 +165,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         cbKeepScreenOn         = findViewById(R.id.cbKeepScreenOn)
         cbSoundEnabled         = findViewById(R.id.cbSoundEnabled)
         cbVibrationEnabled     = findViewById(R.id.cbVibrationEnabled)
+        cbDecimalMode          = findViewById(R.id.cbDecimalMode)
         colorSelectorLayout    = findViewById(R.id.colorSelectorLayout)
         btnSaveSettings        = findViewById(R.id.btnSaveSettings)
 
@@ -206,7 +214,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             intArrayOf(color, Color.GRAY)
         )
         for (cb in listOf(cbDynamicKey, cbFlashEnabled, cbVerifyIntegrity,
-                          cbDebugEnabled, cbKeepScreenOn, cbSoundEnabled, cbVibrationEnabled)) {
+                          cbDebugEnabled, cbKeepScreenOn, cbSoundEnabled, cbVibrationEnabled,
+                          cbDecimalMode)) {
             CompoundButtonCompat.setButtonTintList(cb, checkboxTint)
         }
 
@@ -231,6 +240,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         cbKeepScreenOn.isChecked = isKeepScreenOnEnabled(this)
         cbSoundEnabled.isChecked = isSoundEnabled(this)
         cbVibrationEnabled.isChecked = isVibrationEnabled(this)
+        cbDecimalMode.isChecked = isDecimalModeEnabled(this)
         selectedThemeColor = getThemeColor(this)
 
         // Key is hidden by default
@@ -402,6 +412,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         val keepScreenOn = cbKeepScreenOn.isChecked
         val soundEnabled = cbSoundEnabled.isChecked
         val vibrationEnabled = cbVibrationEnabled.isChecked
+        val decimalMode = cbDecimalMode.isChecked
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
@@ -414,6 +425,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             .putBoolean(KEY_KEEP_SCREEN_ON, keepScreenOn)
             .putBoolean(KEY_SOUND_ENABLED, soundEnabled)
             .putBoolean(KEY_VIBRATION_ENABLED, vibrationEnabled)
+            .putBoolean(KEY_DECIMAL_MODE, decimalMode)
             .putInt(KEY_THEME_COLOR, selectedThemeColor)
             .apply()
 
