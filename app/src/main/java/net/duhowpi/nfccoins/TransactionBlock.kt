@@ -132,6 +132,26 @@ class TransactionBlock(
     }
 
     /**
+     * Returns the (storedChecksum, computedChecksum) pair for debugging.
+     * [storedChecksum] is the 4-byte value embedded in [block1]+[block2];
+     * [computedChecksum] is freshly calculated from the given inputs.
+     */
+    fun extractChecksums(
+        counterBlock: ByteArray,
+        block1: ByteArray,
+        block2: ByteArray,
+        uid: ByteArray,
+        psk: String
+    ): Pair<ByteArray, ByteArray> {
+        require(block1.size == 16 && block2.size == 16)
+        val data = block1 + block2
+        val payload = data.copyOfRange(0, TX_PAYLOAD_SIZE)
+        val stored = data.copyOfRange(TX_PAYLOAD_SIZE, TOTAL_SIZE)
+        val computed = computeChecksum(counterBlock, payload, uid, psk)
+        return stored to computed
+    }
+
+    /**
      * Returns `true` when the checksum stored in [block1]+[block2] matches the expected value
      * computed from [counterBlock], the card [uid], and the application [psk].
      */

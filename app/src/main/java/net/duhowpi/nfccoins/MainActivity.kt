@@ -111,6 +111,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etHiddenInput: EditText
     private lateinit var layoutTransactionHistory: LinearLayout
     private lateinit var tvTx: Array<TextView>
+    private lateinit var tvTxDebug: TextView
 
     private var nfcAdapter: NfcAdapter? = null
     private var toneGenerator: ToneGenerator? = null
@@ -161,6 +162,7 @@ class MainActivity : AppCompatActivity() {
             findViewById(R.id.tvTx2),
             findViewById(R.id.tvTx3)
         )
+        tvTxDebug = findViewById(R.id.tvTxDebug)
 
         setupBalanceEditText()
 
@@ -293,6 +295,8 @@ class MainActivity : AppCompatActivity() {
     /** Modo sin botón activo: solo muestra el saldo en grande. */
     private fun readAndShowBalance(tag: Tag, cardKey: ByteArray) {
         val sector = AdvancedSettingsActivity.getTargetSector(this)
+        val uid = tag.id
+        val psk = AdvancedSettingsActivity.getStaticKey(this)
         val mifare = MifareClassic.get(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
@@ -320,12 +324,22 @@ class MainActivity : AppCompatActivity() {
                 scheduleAutoReset()
                 return
             }
+            val txBlock = TransactionBlock.fromBytes(txBlock1, txBlock2)
             setBalanceText(currentBalance.toString())
             layoutBeforeAfter.visibility = View.GONE
             tvActualBalance.visibility = View.GONE
+            if (!txBlock.isValid(counterData, txBlock1, txBlock2, uid, psk)) {
+                tvStatus.text = getString(R.string.card_tampered)
+                showTransactionHistory(txBlock)
+                showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
+                flashRedBackground()
+                playNfcErrorBeep()
+                scheduleAutoReset()
+                return
+            }
             tvStatus.text = getString(R.string.card_read_ok)
-            val txBlock = TransactionBlock.fromBytes(txBlock1, txBlock2)
             showTransactionHistory(txBlock)
+            showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
             playSuccessBeep()
             scheduleAutoReset()
         } catch (e: Exception) {
@@ -379,6 +393,8 @@ class MainActivity : AppCompatActivity() {
                     return
                 }
                 tvStatus.text = getString(R.string.card_tampered)
+                showTransactionHistory(txBlock)
+                showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
                 flashRedBackground()
                 playNfcErrorBeep()
                 scheduleAutoReset()
@@ -407,6 +423,7 @@ class MainActivity : AppCompatActivity() {
                 layoutBeforeAfter.visibility = View.GONE
                 tvStatus.text = getString(R.string.insufficient_balance)
                 showTransactionHistory(txBlock)
+                showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
                 flashRedBackground()
                 playInsufficientBalanceBeep()
                 scheduleAutoReset()
@@ -442,6 +459,7 @@ class MainActivity : AppCompatActivity() {
             tvActualBalance.visibility = View.GONE
             tvStatus.text = getString(R.string.deduct_ok, amount)
             showTransactionHistory(updatedTxBlock)
+            showDebugChecksums(newCounterBlock, newTxBlock1, newTxBlock2, uid, psk)
             playSuccessBeep()
             scheduleAutoReset()
 
@@ -764,6 +782,8 @@ class MainActivity : AppCompatActivity() {
                     return
                 }
                 tvStatus.text = getString(R.string.card_tampered)
+                showTransactionHistory(txBlock)
+                showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
                 flashRedBackground()
                 playNfcErrorBeep()
                 scheduleAutoReset()
@@ -811,6 +831,7 @@ class MainActivity : AppCompatActivity() {
             layoutBeforeAfter.visibility = View.VISIBLE
             tvStatus.text = getString(R.string.balance_added_ok, pendingAddAmount)
             showTransactionHistory(updatedTxBlock)
+            showDebugChecksums(newCounterBlock, newTxBlock1, newTxBlock2, uid, psk)
             flashBackground(R.color.success_green)
             playSuccessBeep()
             scheduleAutoReset()
@@ -866,6 +887,7 @@ class MainActivity : AppCompatActivity() {
                 tvBalanceAfter.text = "0"
                 layoutBeforeAfter.visibility = View.VISIBLE
                 showTransactionHistory(freshTxBlock)
+                showDebugChecksums(zeroValueBlock, txB1, txB2, uid, psk)
                 tvStatus.text = getString(R.string.format_reset_success)
                 flashBackground(R.color.success_purple_dark)
                 playSuccessBeep()
@@ -940,6 +962,7 @@ class MainActivity : AppCompatActivity() {
             setBalanceText("0")
             layoutBeforeAfter.visibility = View.GONE
             showTransactionHistory(freshTxBlock)
+            showDebugChecksums(zeroValueBlock, txB1, txB2, uid, psk)
             tvStatus.text = getString(R.string.format_success)
             flashBackground(R.color.success_purple_dark)
             playSuccessBeep()
@@ -1289,6 +1312,7 @@ class MainActivity : AppCompatActivity() {
      * the date (dd/MM) is prepended.
      */
     private fun showTransactionHistory(txBlock: TransactionBlock) {
+        tvTxDebug.visibility = View.GONE
         if (txBlock.initTimestamp <= 0L && txBlock.transactions.isEmpty()) {
             layoutTransactionHistory.visibility = View.GONE
             return
@@ -1326,4 +1350,26 @@ class MainActivity : AppCompatActivity() {
 
     private fun ByteArray.toHex(): String =
         joinToString("") { "%02X".format(it) }
+
+    /**
+     * When debug mode is enabled, computes both the stored and expected checksums from the
+     * given raw card blocks and displays them in [tvTxDebug] at the bottom of the
+     * transaction history section.
+     */
+    private fun showDebugChecksums(
+        counterData: ByteArray,
+        txBlock1: ByteArray,
+        txBlock2: ByteArray,
+        uid: ByteArray,
+        psk: String
+    ) {
+        if (!AdvancedSettingsActivity.isDebugEnabled(this)) {
+            tvTxDebug.visibility = View.GONE
+            return
+        }
+        val (stored, computed) = TransactionBlock.extractChecksums(counterData, txBlock1, txBlock2, uid, psk)
+        tvTxDebug.text = getString(R.string.tx_debug_checksum, stored.toHex(), computed.toHex())
+        layoutTransactionHistory.visibility = View.VISIBLE
+        tvTxDebug.visibility = View.VISIBLE
+    }
 }

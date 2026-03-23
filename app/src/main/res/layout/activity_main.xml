@@ -182,6 +182,15 @@
                 android:textSize="13sp"
                 android:visibility="gone" />
 
+            <TextView
+                android:id="@+id/tvTxDebug"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="11sp"
+                android:alpha="0.7"
+                android:layout_marginTop="4dp"
+                android:visibility="gone" />
+
         </LinearLayout>
 
     </LinearLayout>
