@@ -1,16 +1,24 @@
 package net.duhowpi.nfccoins
 
 import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
 import android.text.method.HideReturnsTransformationMethod
 import android.text.method.PasswordTransformationMethod
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.CompoundButtonCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import java.security.SecureRandom
 
 class AdvancedSettingsActivity : AppCompatActivity() {
@@ -26,7 +34,21 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
         const val KEY_SOUND_ENABLED = "sound_enabled"
         const val KEY_VIBRATION_ENABLED = "vibration_enabled"
+        const val KEY_THEME_COLOR = "theme_color"
         const val DEFAULT_SECTOR = 14
+        val DEFAULT_THEME_COLOR = 0xFF6200EE.toInt()
+
+        private const val SWATCH_NORMAL_TEXT_SP = 14f
+        private const val SWATCH_SELECTED_TEXT_SP = 18f
+
+        val COLOR_OPTIONS = listOf(
+            0xFF6200EE.toInt(), // Purple (default)
+            0xFF2196F3.toInt(), // Blue
+            0xFF4CAF50.toInt(), // Green
+            0xFFF44336.toInt(), // Red
+            0xFFFF9800.toInt(), // Orange
+            0xFF009688.toInt(), // Teal
+        )
 
         fun getTargetSector(context: Context): Int {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -72,10 +94,33 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             return prefs.getBoolean(KEY_VIBRATION_ENABLED, false)
         }
+
+        fun getThemeColor(context: Context): Int {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            return prefs.getInt(KEY_THEME_COLOR, DEFAULT_THEME_COLOR)
+        }
+
+        /** Returns black or white, whichever contrasts better with [color]. */
+        fun contrastColor(color: Int): Int {
+            val r = Color.red(color) / 255.0
+            val g = Color.green(color) / 255.0
+            val b = Color.blue(color) / 255.0
+            val luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+            return if (luminance > 0.35) Color.BLACK else Color.WHITE
+        }
+
+        /**
+         * Returns [color] with [alpha] (0–255) applied, used for ripple overlays on buttons
+         * so the press highlight matches the theme color at reduced opacity.
+         */
+        fun rippleColor(color: Int, alpha: Int = 50): Int =
+            Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
     }
 
     private lateinit var etSector: TextInputEditText
+    private lateinit var tilSector: TextInputLayout
     private lateinit var etStaticKey: TextInputEditText
+    private lateinit var tilStaticKey: TextInputLayout
     private lateinit var btnToggleKeyVisibility: MaterialButton
     private lateinit var btnGenerateKey: MaterialButton
     private lateinit var cbDynamicKey: MaterialCheckBox
@@ -85,9 +130,13 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private lateinit var cbKeepScreenOn: MaterialCheckBox
     private lateinit var cbSoundEnabled: MaterialCheckBox
     private lateinit var cbVibrationEnabled: MaterialCheckBox
+    private lateinit var colorSelectorLayout: LinearLayout
     private lateinit var btnSaveSettings: MaterialButton
 
     private var keyVisible = false
+    private var selectedThemeColor: Int = DEFAULT_THEME_COLOR
+
+    private val isCustomColor get() = selectedThemeColor !in COLOR_OPTIONS
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -96,20 +145,24 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = getString(R.string.advanced_settings)
 
-        etSector              = findViewById(R.id.etSector)
-        etStaticKey           = findViewById(R.id.etStaticKey)
+        etSector               = findViewById(R.id.etSector)
+        tilSector              = findViewById(R.id.tilSector)
+        etStaticKey            = findViewById(R.id.etStaticKey)
+        tilStaticKey           = findViewById(R.id.tilStaticKey)
         btnToggleKeyVisibility = findViewById(R.id.btnToggleKeyVisibility)
-        btnGenerateKey        = findViewById(R.id.btnGenerateKey)
-        cbDynamicKey          = findViewById(R.id.cbDynamicKey)
-        cbFlashEnabled        = findViewById(R.id.cbFlashEnabled)
-        cbVerifyIntegrity     = findViewById(R.id.cbVerifyIntegrity)
-        cbDebugEnabled        = findViewById(R.id.cbDebugEnabled)
-        cbKeepScreenOn        = findViewById(R.id.cbKeepScreenOn)
-        cbSoundEnabled        = findViewById(R.id.cbSoundEnabled)
-        cbVibrationEnabled    = findViewById(R.id.cbVibrationEnabled)
-        btnSaveSettings       = findViewById(R.id.btnSaveSettings)
+        btnGenerateKey         = findViewById(R.id.btnGenerateKey)
+        cbDynamicKey           = findViewById(R.id.cbDynamicKey)
+        cbFlashEnabled         = findViewById(R.id.cbFlashEnabled)
+        cbVerifyIntegrity      = findViewById(R.id.cbVerifyIntegrity)
+        cbDebugEnabled         = findViewById(R.id.cbDebugEnabled)
+        cbKeepScreenOn         = findViewById(R.id.cbKeepScreenOn)
+        cbSoundEnabled         = findViewById(R.id.cbSoundEnabled)
+        cbVibrationEnabled     = findViewById(R.id.cbVibrationEnabled)
+        colorSelectorLayout    = findViewById(R.id.colorSelectorLayout)
+        btnSaveSettings        = findViewById(R.id.btnSaveSettings)
 
         loadCurrentSettings()
+        applyThemeToButtons()
 
         btnToggleKeyVisibility.setOnClickListener { toggleKeyVisibility() }
         btnGenerateKey.setOnClickListener { confirmGenerateKey() }
@@ -119,6 +172,53 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     override fun onSupportNavigateUp(): Boolean {
         finish()
         return true
+    }
+
+    private fun applyThemeToButtons() {
+        val color = selectedThemeColor
+        val tintList = ColorStateList.valueOf(color)
+        val rippleTint = ColorStateList.valueOf(rippleColor(color))
+
+        // Action bar: surface/window background color (not the theme color) so topbar is unified
+        val ta = obtainStyledAttributes(intArrayOf(android.R.attr.colorBackground))
+        val bgColor = ta.getColor(0, Color.WHITE)
+        ta.recycle()
+        supportActionBar?.setBackgroundDrawable(ColorDrawable(bgColor))
+        window.statusBarColor = bgColor
+
+        // Icon-only buttons: filled with theme color, icon in contrast color for legibility
+        val contrastTint = ColorStateList.valueOf(contrastColor(color))
+        btnToggleKeyVisibility.backgroundTintList = tintList
+        btnToggleKeyVisibility.iconTint = contrastTint
+        btnToggleKeyVisibility.rippleColor = rippleTint
+        btnGenerateKey.backgroundTintList = tintList
+        btnGenerateKey.iconTint = contrastTint
+        btnGenerateKey.rippleColor = rippleTint
+
+        // Save button: filled background + contrast text + ripple
+        btnSaveSettings.backgroundTintList = tintList
+        btnSaveSettings.setTextColor(contrastColor(color))
+        btnSaveSettings.rippleColor = ColorStateList.valueOf(rippleColor(color, alpha = 80))
+
+        // Checkboxes: checked = theme color, unchecked = default grey
+        val checkboxTint = ColorStateList(
+            arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+            intArrayOf(color, Color.GRAY)
+        )
+        for (cb in listOf(cbDynamicKey, cbFlashEnabled, cbVerifyIntegrity,
+                          cbDebugEnabled, cbKeepScreenOn, cbSoundEnabled, cbVibrationEnabled)) {
+            CompoundButtonCompat.setButtonTintList(cb, checkboxTint)
+        }
+
+        // TextInputLayouts: box stroke and floating label when focused
+        val focusedColorList = ColorStateList(
+            arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
+            intArrayOf(color, Color.GRAY)
+        )
+        for (til in listOf(tilSector, tilStaticKey)) {
+            til.setBoxStrokeColorStateList(focusedColorList)
+            til.setHintTextColor(focusedColorList)
+        }
     }
 
     private fun loadCurrentSettings() {
@@ -131,12 +231,112 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         cbKeepScreenOn.isChecked = isKeepScreenOnEnabled(this)
         cbSoundEnabled.isChecked = isSoundEnabled(this)
         cbVibrationEnabled.isChecked = isVibrationEnabled(this)
+        selectedThemeColor = getThemeColor(this)
 
         // Key is hidden by default
         etStaticKey.transformationMethod = PasswordTransformationMethod.getInstance()
         etStaticKey.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         keyVisible = false
         btnToggleKeyVisibility.setIconResource(R.drawable.ic_eye)
+
+        renderColorSwatches()
+    }
+
+    private fun renderColorSwatches() {
+        colorSelectorLayout.removeAllViews()
+        val density = resources.displayMetrics.density
+        val selectedSizePx = (44 * density).toInt()
+        val normalSizePx = (28 * density).toInt()
+        val marginPx = (8 * density).toInt()
+        val strokeWidthPx = (3 * density).toInt()
+
+        for (color in COLOR_OPTIONS) {
+            val isSelected = color == selectedThemeColor
+            val sizePx = if (isSelected) selectedSizePx else normalSizePx
+
+            val swatch = android.view.View(this)
+            val params = LinearLayout.LayoutParams(sizePx, sizePx).apply {
+                marginEnd = marginPx
+                gravity = android.view.Gravity.CENTER_VERTICAL
+            }
+            swatch.layoutParams = params
+
+            val drawable = GradientDrawable()
+            drawable.shape = GradientDrawable.OVAL
+            drawable.setColor(color)
+            if (isSelected) {
+                drawable.setStroke(strokeWidthPx, Color.BLACK)
+            }
+            swatch.background = drawable
+
+            swatch.setOnClickListener {
+                selectedThemeColor = color
+                applyThemeToButtons()
+                renderColorSwatches()
+            }
+            colorSelectorLayout.addView(swatch)
+        }
+
+        // "+" swatch for custom color
+        val customIsSelected = isCustomColor
+        val sizePx = if (customIsSelected) selectedSizePx else normalSizePx
+
+        val customSwatch = TextView(this)
+        val params = LinearLayout.LayoutParams(sizePx, sizePx).apply {
+            marginEnd = marginPx
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        customSwatch.layoutParams = params
+        customSwatch.gravity = android.view.Gravity.CENTER
+        customSwatch.setPadding(0, 0, 0, 0)
+
+        val drawable = GradientDrawable()
+        drawable.shape = GradientDrawable.OVAL
+        if (customIsSelected) {
+            drawable.setColor(selectedThemeColor)
+            drawable.setStroke(strokeWidthPx, Color.BLACK)
+        } else {
+            drawable.setColor(Color.LTGRAY)
+            customSwatch.text = "+"
+            customSwatch.setTextColor(Color.DKGRAY)
+            customSwatch.textSize = SWATCH_NORMAL_TEXT_SP
+        }
+        customSwatch.background = drawable
+        customSwatch.contentDescription = getString(R.string.color_custom_swatch)
+
+        customSwatch.setOnClickListener { showCustomColorPicker() }
+        colorSelectorLayout.addView(customSwatch)
+    }
+
+    private fun showCustomColorPicker() {
+        val wheel = ColorWheelView(this)
+        if (isCustomColor) {
+            wheel.setColor(selectedThemeColor)
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(getString(R.string.color_pick_title))
+            .setView(wheel)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                selectedThemeColor = wheel.getColor()
+                applyThemeToButtons()
+                renderColorSwatches()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+
+        applyThemeToDialogButtons(dialog)
+    }
+
+    private fun applyThemeToDialogButtons(dialog: AlertDialog) {
+        val color = selectedThemeColor
+        val rippleTint = ColorStateList.valueOf(rippleColor(color))
+        listOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL)
+            .forEach { which ->
+                val btn = dialog.getButton(which) ?: return@forEach
+                btn.setTextColor(color)
+                (btn as? MaterialButton)?.rippleColor = rippleTint
+            }
     }
 
     private fun toggleKeyVisibility() {
@@ -157,12 +357,14 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     }
 
     private fun confirmGenerateKey() {
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.generate_key_confirm_title)
             .setMessage(R.string.generate_key_confirm_message)
             .setPositiveButton(android.R.string.ok) { _, _ -> generateRandomKey() }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+
+        applyThemeToDialogButtons(dialog)
     }
 
     private fun generateRandomKey() {
@@ -212,6 +414,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             .putBoolean(KEY_KEEP_SCREEN_ON, keepScreenOn)
             .putBoolean(KEY_SOUND_ENABLED, soundEnabled)
             .putBoolean(KEY_VIBRATION_ENABLED, vibrationEnabled)
+            .putInt(KEY_THEME_COLOR, selectedThemeColor)
             .apply()
 
         Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()

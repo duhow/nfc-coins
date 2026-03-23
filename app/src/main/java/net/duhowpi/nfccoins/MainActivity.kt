@@ -1,8 +1,10 @@
 package net.duhowpi.nfccoins
 
-import android.app.AlertDialog
+import androidx.appcompat.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.graphics.Color
 import android.media.AudioManager
@@ -170,6 +172,7 @@ class MainActivity : AppCompatActivity() {
         tvTxDebug = findViewById(R.id.tvTxDebug)
 
         setupBalanceEditText()
+        applyThemeColor()
 
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         if (nfcAdapter == null) {
@@ -227,6 +230,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
+        applyThemeColor()
     }
 
     override fun onPause() {
@@ -506,6 +510,56 @@ class MainActivity : AppCompatActivity() {
     private fun flashRedBackground() = flashBackground(R.color.error_red_dark)
 
     // -------------------------------------------------------------------------
+    // Theme color
+    // -------------------------------------------------------------------------
+
+    private fun applyThemeColor() {
+        val color = AdvancedSettingsActivity.getThemeColor(this)
+        val textOnColor = AdvancedSettingsActivity.contrastColor(color)
+        val rippleTint = ColorStateList.valueOf(AdvancedSettingsActivity.rippleColor(color))
+
+        // Action bar: surface/window background color so topbar is unified with content body
+        val ta = obtainStyledAttributes(intArrayOf(android.R.attr.colorBackground))
+        val bgColor = ta.getColor(0, Color.WHITE)
+        ta.recycle()
+        supportActionBar?.setBackgroundDrawable(ColorDrawable(bgColor))
+        window.statusBarColor = bgColor
+
+        // Toggle buttons: opaque fill when checked, transparent when unchecked
+        val bgTint = ColorStateList(
+            arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+            intArrayOf(color, Color.TRANSPARENT)
+        )
+        // Text: contrast color (white/black) when checked, theme color when unchecked
+        val textTint = ColorStateList(
+            arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+            intArrayOf(textOnColor, color)
+        )
+        // Stroke: always the theme color
+        val strokeTint = ColorStateList.valueOf(color)
+
+        for (i in 0 until toggleGroup.childCount) {
+            val child = toggleGroup.getChildAt(i) as? com.google.android.material.button.MaterialButton
+                ?: continue
+            child.backgroundTintList = bgTint
+            child.setTextColor(textTint)
+            child.strokeColor = strokeTint
+            child.rippleColor = rippleTint
+        }
+    }
+
+    private fun applyThemeToDialog(dialog: AlertDialog) {
+        val color = AdvancedSettingsActivity.getThemeColor(this)
+        val rippleTint = ColorStateList.valueOf(AdvancedSettingsActivity.rippleColor(color))
+        listOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL)
+            .forEach { which ->
+                val btn = dialog.getButton(which) ?: return@forEach
+                btn.setTextColor(color)
+                (btn as? com.google.android.material.button.MaterialButton)?.rippleColor = rippleTint
+            }
+    }
+
+    // -------------------------------------------------------------------------
     // Beep feedback: 1 beep = success, 2 beeps = NFC error, 3 beeps = no balance
     // -------------------------------------------------------------------------
 
@@ -632,7 +686,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showAboutDialog() {
         val appName = getString(R.string.app_name)
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(getString(R.string.about_title, appName))
             .setMessage(getString(R.string.about_message, appName, BuildConfig.VERSION_NAME))
             .setPositiveButton(android.R.string.ok, null)
@@ -643,6 +697,7 @@ class MainActivity : AppCompatActivity() {
                 } catch (_: ActivityNotFoundException) { }
             }
             .show()
+        applyThemeToDialog(dialog)
     }
 
     // -------------------------------------------------------------------------
@@ -653,7 +708,7 @@ class MainActivity : AppCompatActivity() {
         // Cancel any running auto-reset so it doesn't interfere while the user
         // is actively interacting with the dialog.
         handler.removeCallbacks(autoResetRunnable)
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.card_management)
             .setItems(
                 arrayOf(
@@ -678,6 +733,7 @@ class MainActivity : AppCompatActivity() {
                 pendingAction = PendingAction.NONE
             }
             .show()
+        applyThemeToDialog(dialog)
     }
 
     /** Muestra el diálogo para introducir la cantidad a añadir antes de acercar la tarjeta. */
@@ -760,6 +816,7 @@ class MainActivity : AppCompatActivity() {
 
         confirmButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
         confirmButton?.isEnabled = false
+        applyThemeToDialog(dialog)
 
         // Override neutral button click to increment without dismissing the dialog
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener {
@@ -1006,11 +1063,12 @@ class MainActivity : AppCompatActivity() {
             scheduleAutoReset()
 
             if (AdvancedSettingsActivity.isDebugEnabled(this)) {
-                AlertDialog.Builder(this)
+                val debugDialog = AlertDialog.Builder(this)
                     .setTitle(R.string.format_success)
                     .setMessage(getString(R.string.format_success_message, keyType, foundKeyHex, newKeyHex))
                     .setPositiveButton(android.R.string.ok, null)
                     .show()
+                applyThemeToDialog(debugDialog)
             }
 
         } catch (e: Exception) {
