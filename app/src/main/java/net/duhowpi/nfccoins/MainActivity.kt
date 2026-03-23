@@ -784,10 +784,12 @@ class MainActivity : AppCompatActivity() {
         toggleGroup.clearChecked()
         etHiddenInput.text?.clear()
         val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this)
-        etHiddenInput.inputType = if (isDecimalMode) {
-            InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+        if (isDecimalMode) {
+            etHiddenInput.keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789.,")
+            etHiddenInput.setRawInputType(InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
         } else {
-            InputType.TYPE_CLASS_NUMBER
+            etHiddenInput.keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789")
+            etHiddenInput.setRawInputType(InputType.TYPE_CLASS_NUMBER)
         }
         tvBalance.setText("+" + formatBalanceDisplay(0))
         layoutBeforeAfter.visibility = View.GONE
@@ -1184,16 +1186,11 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Formats an integer stored value for display. In decimal mode the value is treated
-     * as cents (e.g. 125 → "1.25"); whole-cent values are shown without the decimal part
-     * (e.g. 100 → "1"). Outside decimal mode it is returned as-is ("125").
+     * as cents (e.g. 125 → "1.25"); outside decimal mode it is returned as-is ("125").
      */
     private fun formatBalanceDisplay(value: Int): String {
         return if (AdvancedSettingsActivity.isDecimalModeEnabled(this)) {
-            if (value % 100 == 0) {
-                (value / 100).toString()
-            } else {
-                "%d.%02d".format(value / 100, Math.abs(value % 100))
-            }
+            "%d.%02d".format(value / 100, Math.abs(value % 100))
         } else {
             value.toString()
         }
@@ -1505,10 +1502,12 @@ class MainActivity : AppCompatActivity() {
         isCustomAmountMode = true
         etHiddenInput.text?.clear()
         tvBalance.setText(getString(R.string.balance_initial))
-        etHiddenInput.inputType = if (AdvancedSettingsActivity.isDecimalModeEnabled(this)) {
-            InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+        if (AdvancedSettingsActivity.isDecimalModeEnabled(this)) {
+            etHiddenInput.keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789.,")
+            etHiddenInput.setRawInputType(InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
         } else {
-            InputType.TYPE_CLASS_NUMBER
+            etHiddenInput.keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789")
+            etHiddenInput.setRawInputType(InputType.TYPE_CLASS_NUMBER)
         }
         etHiddenInput.post {
             etHiddenInput.requestFocus()
