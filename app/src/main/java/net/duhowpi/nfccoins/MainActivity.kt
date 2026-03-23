@@ -1319,6 +1319,9 @@ class MainActivity : AppCompatActivity() {
                     toggleGroup.clearChecked()
                     setPendingAction(PendingAction.WITHDRAW_BALANCE)
                     tvStatus.text = getString(R.string.tap_card_to_deduct)
+                } else {
+                    setPendingAction(PendingAction.NONE)
+                    tvStatus.text = getString(R.string.waiting_card)
                 }
             }
         })
