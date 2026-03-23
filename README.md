@@ -117,6 +117,18 @@ NFC Coins uses these to guarantee that a power loss or card removal during a tra
 
 ---
 
+## ⚠️ Disclaimer
+
+This software is provided **as-is**, without any warranty of any kind. The author accepts no responsibility for:
+
+- **Data loss** — including loss of balance or transaction history stored on NFC cards
+- **Card access loss** — including cards becoming permanently unreadable due to key changes or incorrect formatting
+- **Any other damage** — direct or indirect, arising from the use or misuse of this software
+
+Always **test on spare cards** before deploying to production. **Back up your PSK** — losing it means losing access to every card formatted with it. Use this software at your own risk.
+
+---
+
 ## 📄 License
 
 This project is licensed under the **MIT License**. See the [`LICENSE`](LICENSE) file for details.
