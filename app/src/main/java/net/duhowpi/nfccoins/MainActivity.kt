@@ -770,7 +770,7 @@ class MainActivity : AppCompatActivity() {
         pendingAddAmount = 0
         currentBalance = -1
         toggleGroup.clearChecked()
-        etHiddenInput.text.clear()
+        etHiddenInput.text?.clear()
         tvBalance.setText("+0")
         layoutBeforeAfter.visibility = View.GONE
         tvActualBalance.visibility = View.GONE
@@ -1359,7 +1359,7 @@ class MainActivity : AppCompatActivity() {
     /** Focuses the hidden input and opens the numeric keyboard for custom deduction entry. */
     private fun enterCustomAmountMode() {
         isCustomAmountMode = true
-        etHiddenInput.text.clear()
+        etHiddenInput.text?.clear()
         tvBalance.setText(getString(R.string.balance_initial))
         etHiddenInput.post {
             etHiddenInput.requestFocus()
@@ -1368,7 +1368,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun clearHiddenInput() {
-        etHiddenInput.text.clear()
+        etHiddenInput.text?.clear()
         hideKeyboardFrom(etHiddenInput)
     }
 
