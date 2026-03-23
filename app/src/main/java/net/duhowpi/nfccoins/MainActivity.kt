@@ -739,11 +739,13 @@ class MainActivity : AppCompatActivity() {
                 when (which) {
                     0 -> enterAddBalanceModeInline()
                     1 -> {
+                        cancelAddBalance()
                         toggleGroup.clearChecked()
                         setPendingAction(PendingAction.FORMAT_CARD)
                         tvStatus.text = getString(R.string.tap_card_to_format)
                     }
                     2 -> {
+                        cancelAddBalance()
                         toggleGroup.clearChecked()
                         setPendingAction(PendingAction.RESET_CARD)
                         tvStatus.text = getString(R.string.tap_card_to_reset)
