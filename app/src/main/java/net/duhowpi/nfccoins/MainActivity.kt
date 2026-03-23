@@ -97,6 +97,9 @@ class MainActivity : AppCompatActivity() {
         private const val VIBRATE_DURATION_MS = 200L
         private val FLASH_TOKEN = Any()
         private val BEEP_TOKEN = Any()
+        // Keep one ToneGenerator across Activity recreation (e.g. rotation) to avoid
+        // audible click/pop when a fresh audio session is opened again.
+        private var sharedToneGenerator: ToneGenerator? = null
     }
 
     private enum class PendingAction { NONE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
@@ -116,7 +119,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvTxDebug: TextView
 
     private var nfcAdapter: NfcAdapter? = null
-    private var toneGenerator: ToneGenerator? = null
+    private var toneGenerator: ToneGenerator?
+        get() = sharedToneGenerator
+        set(value) {
+            sharedToneGenerator = value
+        }
 
     private var currentBalance: Int = -1
     private var currentTag: Tag? = null
@@ -234,8 +241,10 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         handler.removeCallbacksAndMessages(BEEP_TOKEN)
-        toneGenerator?.release()
-        toneGenerator = null
+        if (isFinishing) {
+            toneGenerator?.release()
+            toneGenerator = null
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -526,9 +535,9 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {}
     }
 
-    // Reuses the single ToneGenerator created in initToneGenerator() for the lifetime of the
-    // activity. startTone() stops any in-progress tone before playing the new one, so no explicit
-    // teardown is needed between calls.
+    // Reuses the single ToneGenerator created in initToneGenerator(). The instance is shared
+    // across activity recreation (rotation), and startTone() stops any in-progress tone before
+    // playing the new one, so no explicit teardown is needed between calls.
     private fun playBeep(count: Int, toneType: Int, durationMs: Int, intervalMs: Int = 100) {
         handler.removeCallbacksAndMessages(BEEP_TOKEN)
         if (count <= 0) return
