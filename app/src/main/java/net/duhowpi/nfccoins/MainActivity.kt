@@ -1,6 +1,7 @@
 package net.duhowpi.nfccoins
 
 import android.app.AlertDialog
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.graphics.Color
@@ -501,15 +502,16 @@ class MainActivity : AppCompatActivity() {
     // -------------------------------------------------------------------------
 
     private fun showAboutDialog() {
+        val appName = getString(R.string.app_name)
         AlertDialog.Builder(this)
-            .setTitle(R.string.about_title)
-            .setMessage(getString(R.string.about_message, BuildConfig.VERSION_NAME))
+            .setTitle(getString(R.string.about_title, appName))
+            .setMessage(getString(R.string.about_message, appName, BuildConfig.VERSION_NAME))
             .setPositiveButton(android.R.string.ok, null)
             .setNeutralButton(R.string.view_source) { _, _ ->
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.github_url)))
-                if (intent.resolveActivity(packageManager) != null) {
+                try {
                     startActivity(intent)
-                }
+                } catch (_: ActivityNotFoundException) { }
             }
             .show()
     }
