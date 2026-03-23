@@ -1,3 +1,97 @@
 <resources>
     <string name="app_name">Monedas NFC</string>
+
+    <!-- Card info -->
+    <string name="no_card_detected">Acerca una tarjeta Mifare Classic</string>
+    <string name="card_id_format">Tarjeta: %s</string>
+
+    <!-- Balance -->
+    <string name="coins_label">monedas</string>
+
+    <!-- Status messages -->
+    <string name="waiting_card">Esperando tarjeta…</string>
+    <string name="card_read_ok">Tarjeta leída correctamente</string>
+    <string name="auth_failed">Error de autenticación con la tarjeta</string>
+    <string name="unsupported_card">Tarjeta no compatible (se requiere Mifare Classic)</string>
+    <string name="nfc_not_available">NFC no disponible en este dispositivo</string>
+    <string name="no_card">No hay tarjeta. Acércala de nuevo.</string>
+    <string name="insufficient_balance">Saldo insuficiente</string>
+    <string name="deduct_ok">Descontadas %s moneda(s) correctamente</string>
+    <string name="error_get_mifare">Error: no se pudo acceder a la tarjeta Mifare</string>
+    <string name="error_reading">Error de lectura: %s</string>
+    <string name="error_writing">Error de escritura: %s</string>
+
+    <!-- Buttons -->
+    <string name="deduct_1">− 1 moneda</string>
+    <string name="deduct_2">− 2 monedas</string>
+
+    <!-- Card management -->
+    <string name="card_management">Gestión de tarjetas</string>
+    <string name="action_add_balance">Añadir saldo</string>
+    <string name="action_format_card">Formatear tarjeta nueva</string>
+    <string name="action_reset_card">Reiniciar tarjeta</string>
+    <string name="action_confirm">Confirmar</string>
+    <string name="tap_card_to_add">Acerca la tarjeta para añadir saldo…</string>
+    <string name="tap_card_to_format">Acerca la tarjeta a formatear…</string>
+    <string name="tap_card_to_reset">Acerca la tarjeta a reiniciar…</string>
+    <string name="hint_add_amount">Cantidad a añadir</string>
+    <string name="action_deduct_custom">Descontar cantidad</string>
+    <string name="hint_deduct_amount">Cantidad a descontar</string>
+    <string name="tap_card_to_deduct">Acerca la tarjeta para descontar…</string>
+    <string name="add_balance_title">Saldo actual: %d monedas</string>
+    <string name="invalid_amount">Cantidad no válida</string>
+    <string name="balance_too_high">El saldo máximo es 65535 monedas</string>
+    <string name="balance_added_ok">Se añadieron %s moneda(s) correctamente</string>
+    <string name="card_not_formatted">Tarjeta no formateada. Usa \'Formatear tarjeta nueva\' primero.</string>
+    <string name="format_no_key_found">No se encontró ninguna clave estándar. La tarjeta puede estar ya personalizada.</string>
+    <string name="format_reset_success">Saldo reiniciado a 0 (tarjeta ya formateada)</string>
+    <string name="format_success">Tarjeta formateada</string>
+    <string name="format_success_message">Clave %1$s encontrada: %2$s\nNueva clave generada: %3$s</string>
+    <string name="reset_card_success">Tarjeta reiniciada a valores de fábrica</string>
+    <string name="reset_card_no_key">No se pudo autenticar con ninguna clave conocida</string>
+    <string name="format_recarga_unica">Recarga única</string>
+    <string name="format_limite_edad">Límite de edad</string>
+    <string name="format_limite_edad_hint">Edad o año de nacimiento</string>
+    <string name="single_recharge_already_used">Recarga única ya realizada.\nNo se permiten más recargas.</string>
+    <string name="setting_legal_age">Edad adulta legal</string>
+    <string name="setting_legal_age_hint">Edad (años)</string>
+    <string name="minor_indicator_description">Menor de edad</string>
+
+    <!-- About -->
+    <string name="about">Acerca de</string>
+    <string name="about_title">Acerca de %s</string>
+    <string name="about_message">%1$s es una aplicación para gestionar saldos en tarjetas Mifare Classic mediante NFC.\n\nVersión: %2$s</string>
+
+    <!-- Advanced settings -->
+    <string name="advanced_settings">Ajustes</string>
+    <string name="setting_language">Idioma</string>
+    <string name="setting_target_sector">Sector a modificar</string>
+    <string name="setting_static_key">Clave estática</string>
+    <string name="btn_show_key">Mostrar clave</string>
+    <string name="btn_hide_key">Ocultar clave</string>
+    <string name="btn_generate_key">Generar aleatoria</string>
+    <string name="generate_key_confirm_title">¿Generar nueva clave?</string>
+    <string name="generate_key_confirm_message">Las tarjetas anteriores quedarán bloqueadas o inaccesibles. ¿Deseas continuar?</string>
+    <string name="setting_dynamic_key">Activar clave dinámica (mezclar UID con clave estática)</string>
+    <string name="setting_flash_enabled">Activar cambio de color de fondo</string>
+    <string name="setting_verify_integrity">Verificar integridad de tarjeta</string>
+    <string name="setting_debug_mode">Modo debug</string>
+    <string name="setting_keep_screen_on">Mantener pantalla encendida</string>
+    <string name="setting_sound_enabled">Activar sonido</string>
+    <string name="setting_vibration_enabled">Activar vibración</string>
+    <string name="setting_decimal_mode">Modo decimal (valores x100, mostrar 2 decimales)</string>
+    <string name="setting_theme_color">Color de tema</string>
+    <string name="color_pick_title">Color personalizado</string>
+    <string name="color_custom_swatch">Seleccionar color personalizado</string>
+    <string name="sector_invalid">El sector debe estar entre 1 y 15</string>
+    <string name="key_too_short">La clave debe tener al menos 8 caracteres</string>
+    <string name="btn_save_settings">Guardar</string>
+    <string name="settings_saved">Ajustes guardados</string>
+
+    <!-- Transaction history -->
+    <string name="tx_history_label">Últimas transacciones</string>
+    <string name="tx_add">+%d monedas</string>
+    <string name="tx_subtract">-%d monedas</string>
+    <string name="card_tampered">Tarjeta manipulada. Operación cancelada.</string>
+    <string name="write_retried">Escritura reiniciada tras interrupción anterior</string>
 </resources>

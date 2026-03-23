@@ -1,7 +1,9 @@
 package net.duhowpi.nfccoins
 
 import android.content.Context
+import android.content.Intent
 import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
@@ -9,6 +11,8 @@ import android.os.Bundle
 import android.text.InputType
 import android.text.method.HideReturnsTransformationMethod
 import android.text.method.PasswordTransformationMethod
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -20,6 +24,7 @@ import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import java.security.SecureRandom
+import java.util.Locale
 
 class AdvancedSettingsActivity : AppCompatActivity() {
 
@@ -37,6 +42,29 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         const val KEY_THEME_COLOR = "theme_color"
         const val KEY_DECIMAL_MODE = "decimal_mode"
         const val KEY_LEGAL_AGE = "legal_age"
+        const val KEY_LANGUAGE = "language"
+        /** Default language code used when no preference has been saved yet. */
+        const val DEFAULT_LANGUAGE = "en"
+
+        /**
+         * Returns the list of supported languages as (displayName, code) pairs by reading
+         * `R.array.language_names` and `R.array.language_codes` from resources.
+         * Adding a new language only requires updating those arrays in `res/values/arrays.xml`
+         * — no source-code change is needed.
+         */
+        fun getLanguageEntries(context: Context): List<Pair<String, String>> {
+            val codes = context.resources.getStringArray(R.array.language_codes)
+            val names = context.resources.getStringArray(R.array.language_names)
+            check(codes.size == names.size) {
+                "language_codes and language_names arrays must have the same number of items " +
+                        "(got ${codes.size} codes vs ${names.size} names)"
+            }
+            return names.zip(codes)
+        }
+
+        fun getSupportedLanguageCodes(context: Context): Array<String> =
+            context.resources.getStringArray(R.array.language_codes)
+
         const val DEFAULT_SECTOR = 14
         val DEFAULT_THEME_COLOR = 0xFF6200EE.toInt()
         const val DEFAULT_LEGAL_AGE = 18
@@ -113,6 +141,31 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             return prefs.getInt(KEY_LEGAL_AGE, DEFAULT_LEGAL_AGE)
         }
 
+        fun getLanguage(context: Context): String {
+            return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_LANGUAGE, DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE
+        }
+
+        /**
+         * Returns a context whose resources are configured to use the saved app language.
+         * If no language preference has been saved yet, returns [base] unchanged so that
+         * the system locale is used until the first launch detection runs.
+         *
+         * Android's resource resolution automatically falls back to the default `values/`
+         * directory (English) for any string not present in the selected locale's folder,
+         * so partial translations are handled transparently.
+         */
+        fun wrapContextWithLocale(base: Context): Context {
+            val prefs = base.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            if (!prefs.contains(KEY_LANGUAGE)) return base
+            val langCode = prefs.getString(KEY_LANGUAGE, DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE
+            val locale = Locale(langCode)
+            Locale.setDefault(locale)
+            val config = Configuration(base.resources.configuration)
+            config.setLocale(locale)
+            return base.createConfigurationContext(config)
+        }
+
         /** Returns black or white, whichever contrasts better with [color]. */
         fun contrastColor(color: Int): Int {
             val r = Color.red(color) / 255.0
@@ -130,6 +183,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
     }
 
+    private lateinit var actvLanguage: AutoCompleteTextView
+    private lateinit var tilLanguage: TextInputLayout
     private lateinit var etSector: TextInputEditText
     private lateinit var tilSector: TextInputLayout
     private lateinit var etStaticKey: TextInputEditText
@@ -154,6 +209,10 @@ class AdvancedSettingsActivity : AppCompatActivity() {
 
     private val isCustomColor get() = selectedThemeColor !in COLOR_OPTIONS
 
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(wrapContextWithLocale(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_advanced_settings)
@@ -161,6 +220,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = getString(R.string.advanced_settings)
 
+        actvLanguage           = findViewById(R.id.actvLanguage)
+        tilLanguage            = findViewById(R.id.tilLanguage)
         etSector               = findViewById(R.id.etSector)
         tilSector              = findViewById(R.id.tilSector)
         etStaticKey            = findViewById(R.id.etStaticKey)
@@ -235,13 +296,22 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
             intArrayOf(color, Color.GRAY)
         )
-        for (til in listOf(tilSector, tilStaticKey, tilLegalAge)) {
+        for (til in listOf(tilLanguage, tilSector, tilStaticKey, tilLegalAge)) {
             til.setBoxStrokeColorStateList(focusedColorList)
             til.setHintTextColor(focusedColorList)
         }
     }
 
     private fun loadCurrentSettings() {
+        val currentLangCode = getLanguage(this)
+        val langEntries = getLanguageEntries(this)
+        val langNames = langEntries.map { it.first }
+        val selectedLangName = langEntries.firstOrNull { it.second == currentLangCode }?.first
+            ?: langEntries.firstOrNull()?.first
+        val langAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, langNames)
+        actvLanguage.setAdapter(langAdapter)
+        actvLanguage.setText(selectedLangName, false)
+
         etSector.setText(getTargetSector(this).toString())
         etStaticKey.setText(getStaticKey(this))
         cbDynamicKey.isChecked = isDynamicKeyEnabled(this)
@@ -405,6 +475,11 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     }
 
     private fun saveSettings() {
+        val selectedLangName = actvLanguage.text?.toString() ?: ""
+        val newLangCode = getLanguageEntries(this).firstOrNull { it.first == selectedLangName }?.second
+            ?: DEFAULT_LANGUAGE
+        val oldLangCode = getLanguage(this)
+
         val sectorText = etSector.text?.toString()?.trim() ?: ""
         val sector = sectorText.toIntOrNull()
         if (sector == null || sector < 1 || sector > 15) {
@@ -441,9 +516,18 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             .putBoolean(KEY_DECIMAL_MODE, decimalMode)
             .putInt(KEY_LEGAL_AGE, legalAge)
             .putInt(KEY_THEME_COLOR, selectedThemeColor)
+            .putString(KEY_LANGUAGE, newLangCode)
             .apply()
 
         Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()
-        finish()
+
+        if (newLangCode != oldLangCode) {
+            // Restart the whole app task so the new locale takes effect everywhere.
+            val intent = Intent(this, MainActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            startActivity(intent)
+        } else {
+            finish()
+        }
     }
 }
