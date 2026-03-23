@@ -201,7 +201,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         colorSelectorLayout.removeAllViews()
         val density = resources.displayMetrics.density
         val selectedSizePx = (44 * density).toInt()
-        val normalSizePx = (32 * density).toInt()
+        val normalSizePx = (18 * density).toInt()
         val marginPx = (8 * density).toInt()
         val strokeWidthPx = (3 * density).toInt()
 
