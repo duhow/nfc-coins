@@ -79,7 +79,9 @@
     <string name="setting_keep_screen_on">Mantener pantalla encendida</string>
     <string name="setting_sound_enabled">Activar sonido</string>
     <string name="setting_vibration_enabled">Activar vibración</string>
-    <string name="setting_active_button_color">Color del botón activo</string>
+    <string name="setting_theme_color">Color de tema</string>
+    <string name="color_pick_title">Color personalizado</string>
+    <string name="color_pick_invalid">Color no válido. Usa formato #RRGGBB</string>
     <string name="sector_invalid">El sector debe estar entre 1 y 15</string>
     <string name="key_too_short">La clave debe tener al menos 8 caracteres</string>
     <string name="btn_save_settings">Guardar</string>

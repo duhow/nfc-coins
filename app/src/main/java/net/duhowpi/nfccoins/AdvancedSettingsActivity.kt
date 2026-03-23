@@ -2,12 +2,15 @@ package net.duhowpi.nfccoins
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
 import android.text.method.HideReturnsTransformationMethod
 import android.text.method.PasswordTransformationMethod
+import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -29,9 +32,14 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
         const val KEY_SOUND_ENABLED = "sound_enabled"
         const val KEY_VIBRATION_ENABLED = "vibration_enabled"
-        const val KEY_ACTIVE_BUTTON_COLOR = "active_button_color"
+        // Key string kept as "active_button_color" for backward compatibility —
+        // existing saved preferences will continue to work without migration
+        const val KEY_THEME_COLOR = "active_button_color"
         const val DEFAULT_SECTOR = 14
-        val DEFAULT_ACTIVE_BUTTON_COLOR = 0xFF6200EE.toInt()
+        val DEFAULT_THEME_COLOR = 0xFF6200EE.toInt()
+
+        private const val SWATCH_NORMAL_TEXT_SP = 14f
+        private const val SWATCH_SELECTED_TEXT_SP = 18f
 
         val COLOR_OPTIONS = listOf(
             0xFF6200EE.toInt(), // Purple (default)
@@ -88,9 +96,26 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             return prefs.getBoolean(KEY_VIBRATION_ENABLED, false)
         }
 
-        fun getActiveButtonColor(context: Context): Int {
+        fun getThemeColor(context: Context): Int {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            return prefs.getInt(KEY_ACTIVE_BUTTON_COLOR, DEFAULT_ACTIVE_BUTTON_COLOR)
+            return prefs.getInt(KEY_THEME_COLOR, DEFAULT_THEME_COLOR)
+        }
+
+        /** Returns a darkened version of [color] for status bar / action bar variant. */
+        fun darkenColor(color: Int, factor: Float = 0.7f): Int {
+            val hsv = FloatArray(3)
+            Color.colorToHSV(color, hsv)
+            hsv[2] = (hsv[2] * factor).coerceIn(0f, 1f)
+            return Color.HSVToColor(hsv)
+        }
+
+        /** Returns black or white, whichever contrasts better with [color]. */
+        fun contrastColor(color: Int): Int {
+            val r = Color.red(color) / 255.0
+            val g = Color.green(color) / 255.0
+            val b = Color.blue(color) / 255.0
+            val luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+            return if (luminance > 0.35) Color.BLACK else Color.WHITE
         }
     }
 
@@ -109,7 +134,9 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private lateinit var btnSaveSettings: MaterialButton
 
     private var keyVisible = false
-    private var selectedActiveColor: Int = DEFAULT_ACTIVE_BUTTON_COLOR
+    private var selectedThemeColor: Int = DEFAULT_THEME_COLOR
+
+    private val isCustomColor get() = selectedThemeColor !in COLOR_OPTIONS
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -118,21 +145,22 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = getString(R.string.advanced_settings)
 
-        etSector              = findViewById(R.id.etSector)
-        etStaticKey           = findViewById(R.id.etStaticKey)
+        etSector               = findViewById(R.id.etSector)
+        etStaticKey            = findViewById(R.id.etStaticKey)
         btnToggleKeyVisibility = findViewById(R.id.btnToggleKeyVisibility)
-        btnGenerateKey        = findViewById(R.id.btnGenerateKey)
-        cbDynamicKey          = findViewById(R.id.cbDynamicKey)
-        cbFlashEnabled        = findViewById(R.id.cbFlashEnabled)
-        cbVerifyIntegrity     = findViewById(R.id.cbVerifyIntegrity)
-        cbDebugEnabled        = findViewById(R.id.cbDebugEnabled)
-        cbKeepScreenOn        = findViewById(R.id.cbKeepScreenOn)
-        cbSoundEnabled        = findViewById(R.id.cbSoundEnabled)
-        cbVibrationEnabled    = findViewById(R.id.cbVibrationEnabled)
-        colorSelectorLayout   = findViewById(R.id.colorSelectorLayout)
-        btnSaveSettings       = findViewById(R.id.btnSaveSettings)
+        btnGenerateKey         = findViewById(R.id.btnGenerateKey)
+        cbDynamicKey           = findViewById(R.id.cbDynamicKey)
+        cbFlashEnabled         = findViewById(R.id.cbFlashEnabled)
+        cbVerifyIntegrity      = findViewById(R.id.cbVerifyIntegrity)
+        cbDebugEnabled         = findViewById(R.id.cbDebugEnabled)
+        cbKeepScreenOn         = findViewById(R.id.cbKeepScreenOn)
+        cbSoundEnabled         = findViewById(R.id.cbSoundEnabled)
+        cbVibrationEnabled     = findViewById(R.id.cbVibrationEnabled)
+        colorSelectorLayout    = findViewById(R.id.colorSelectorLayout)
+        btnSaveSettings        = findViewById(R.id.btnSaveSettings)
 
         loadCurrentSettings()
+        applyThemeToActionBar()
 
         btnToggleKeyVisibility.setOnClickListener { toggleKeyVisibility() }
         btnGenerateKey.setOnClickListener { confirmGenerateKey() }
@@ -142,6 +170,12 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     override fun onSupportNavigateUp(): Boolean {
         finish()
         return true
+    }
+
+    private fun applyThemeToActionBar() {
+        val color = selectedThemeColor
+        supportActionBar?.setBackgroundDrawable(ColorDrawable(color))
+        window.statusBarColor = darkenColor(color)
     }
 
     private fun loadCurrentSettings() {
@@ -154,7 +188,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         cbKeepScreenOn.isChecked = isKeepScreenOnEnabled(this)
         cbSoundEnabled.isChecked = isSoundEnabled(this)
         cbVibrationEnabled.isChecked = isVibrationEnabled(this)
-        selectedActiveColor = getActiveButtonColor(this)
+        selectedThemeColor = getThemeColor(this)
 
         // Key is hidden by default
         etStaticKey.transformationMethod = PasswordTransformationMethod.getInstance()
@@ -168,31 +202,98 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private fun renderColorSwatches() {
         colorSelectorLayout.removeAllViews()
         val density = resources.displayMetrics.density
-        val sizePx = (44 * density).toInt()
+        val selectedSizePx = (44 * density).toInt()
+        val normalSizePx = (32 * density).toInt()
         val marginPx = (8 * density).toInt()
         val strokeWidthPx = (3 * density).toInt()
 
         for (color in COLOR_OPTIONS) {
+            val isSelected = color == selectedThemeColor
+            val sizePx = if (isSelected) selectedSizePx else normalSizePx
+
             val swatch = android.view.View(this)
             val params = LinearLayout.LayoutParams(sizePx, sizePx).apply {
                 marginEnd = marginPx
+                gravity = android.view.Gravity.CENTER_VERTICAL
             }
             swatch.layoutParams = params
 
             val drawable = GradientDrawable()
             drawable.shape = GradientDrawable.OVAL
             drawable.setColor(color)
-            if (color == selectedActiveColor) {
+            if (isSelected) {
                 drawable.setStroke(strokeWidthPx, Color.BLACK)
             }
             swatch.background = drawable
 
             swatch.setOnClickListener {
-                selectedActiveColor = color
+                selectedThemeColor = color
+                applyThemeToActionBar()
                 renderColorSwatches()
             }
             colorSelectorLayout.addView(swatch)
         }
+
+        // "+" swatch for custom color
+        val customIsSelected = isCustomColor
+        val sizePx = if (customIsSelected) selectedSizePx else normalSizePx
+
+        val customSwatch = TextView(this)
+        val params = LinearLayout.LayoutParams(sizePx, sizePx).apply {
+            marginEnd = marginPx
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        customSwatch.layoutParams = params
+        customSwatch.gravity = android.view.Gravity.CENTER
+        customSwatch.setPadding(0, 0, 0, 0)
+
+        val drawable = GradientDrawable()
+        drawable.shape = GradientDrawable.OVAL
+        if (customIsSelected) {
+            drawable.setColor(selectedThemeColor)
+            drawable.setStroke(strokeWidthPx, Color.BLACK)
+        } else {
+            drawable.setColor(Color.LTGRAY)
+            customSwatch.text = "+"
+            customSwatch.setTextColor(Color.DKGRAY)
+            customSwatch.textSize = if (customIsSelected) SWATCH_SELECTED_TEXT_SP else SWATCH_NORMAL_TEXT_SP
+        }
+        customSwatch.background = drawable
+
+        customSwatch.setOnClickListener { showCustomColorPicker() }
+        colorSelectorLayout.addView(customSwatch)
+    }
+
+    private fun showCustomColorPicker() {
+        val input = EditText(this)
+        input.hint = "#RRGGBB"
+        input.inputType = InputType.TYPE_CLASS_TEXT
+        input.isSingleLine = true
+        input.setPadding(
+            (16 * resources.displayMetrics.density).toInt(), 0,
+            (16 * resources.displayMetrics.density).toInt(), 0
+        )
+        if (isCustomColor) {
+            input.setText(String.format("#%06X", selectedThemeColor and 0xFFFFFF))
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.color_pick_title))
+            .setView(input)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val hex = input.text.toString().trim().removePrefix("#")
+                val parsed = if (hex.length == 6) hex.toLongOrNull(16) else null
+                val color = parsed?.let { (0xFF000000L or it).toInt() }
+                if (color == null) {
+                    Toast.makeText(this, getString(R.string.color_pick_invalid), Toast.LENGTH_SHORT).show()
+                } else {
+                    selectedThemeColor = color
+                    applyThemeToActionBar()
+                    renderColorSwatches()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun toggleKeyVisibility() {
@@ -268,7 +369,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             .putBoolean(KEY_KEEP_SCREEN_ON, keepScreenOn)
             .putBoolean(KEY_SOUND_ENABLED, soundEnabled)
             .putBoolean(KEY_VIBRATION_ENABLED, vibrationEnabled)
-            .putInt(KEY_ACTIVE_BUTTON_COLOR, selectedActiveColor)
+            .putInt(KEY_THEME_COLOR, selectedThemeColor)
             .apply()
 
         Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()

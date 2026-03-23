@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.graphics.Color
 import android.media.AudioManager
@@ -171,7 +172,7 @@ class MainActivity : AppCompatActivity() {
         tvTxDebug = findViewById(R.id.tvTxDebug)
 
         setupBalanceEditText()
-        applyActiveButtonColor()
+        applyThemeColor()
 
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         if (nfcAdapter == null) {
@@ -229,7 +230,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
-        applyActiveButtonColor()
+        applyThemeColor()
     }
 
     override fun onPause() {
@@ -509,19 +510,37 @@ class MainActivity : AppCompatActivity() {
     private fun flashRedBackground() = flashBackground(R.color.error_red_dark)
 
     // -------------------------------------------------------------------------
-    // Active button color
+    // Theme color
     // -------------------------------------------------------------------------
 
-    private fun applyActiveButtonColor() {
-        val activeColor = AdvancedSettingsActivity.getActiveButtonColor(this)
-        val tintList = ColorStateList(
+    private fun applyThemeColor() {
+        val color = AdvancedSettingsActivity.getThemeColor(this)
+        val darkerColor = AdvancedSettingsActivity.darkenColor(color)
+        val textOnColor = AdvancedSettingsActivity.contrastColor(color)
+
+        // Action bar and status bar
+        supportActionBar?.setBackgroundDrawable(ColorDrawable(color))
+        window.statusBarColor = darkerColor
+
+        // Toggle buttons: opaque fill when checked, transparent when unchecked
+        val bgTint = ColorStateList(
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
-            intArrayOf(activeColor, Color.TRANSPARENT)
+            intArrayOf(color, Color.TRANSPARENT)
         )
+        // Text: contrast color (white/black) when checked, theme color when unchecked
+        val textTint = ColorStateList(
+            arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+            intArrayOf(textOnColor, color)
+        )
+        // Stroke: always the theme color
+        val strokeTint = ColorStateList.valueOf(color)
+
         for (i in 0 until toggleGroup.childCount) {
             val child = toggleGroup.getChildAt(i) as? com.google.android.material.button.MaterialButton
                 ?: continue
-            child.backgroundTintList = tintList
+            child.backgroundTintList = bgTint
+            child.setTextColor(textTint)
+            child.strokeColor = strokeTint
         }
     }
 
