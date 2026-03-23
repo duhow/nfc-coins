@@ -76,37 +76,38 @@ class MainActivity : AppCompatActivity() {
 
         private fun hexKey(vararg bytes: Int): ByteArray = ByteArray(bytes.size) { bytes[it].toByte() }
 
-        // Claves NFC estándar a probar al formatear (fábrica y NDEF)
+        // Standard NFC keys to try when formatting (factory and NDEF)
         private val STANDARD_KEYS = listOf(
-            hexKey(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF), // Fábrica (por defecto)
+            hexKey(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF), // Factory (default)
             hexKey(0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5), // NDEF Key A
-            hexKey(0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7), // NDEF datos
-            hexKey(0x00, 0x00, 0x00, 0x00, 0x00, 0x00), // Todo ceros
-            hexKey(0x4D, 0x3A, 0x99, 0xC3, 0x51, 0xDD), // NDEF Key B común
+            hexKey(0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7), // NDEF data
+            hexKey(0x00, 0x00, 0x00, 0x00, 0x00, 0x00), // All zeros
+            hexKey(0x4D, 0x3A, 0x99, 0xC3, 0x51, 0xDD), // NDEF Key B common
             hexKey(0x1A, 0x98, 0x2C, 0x7E, 0x45, 0x9A), // MAD key
-            hexKey(0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5), // Key B común
+            hexKey(0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5), // Key B common
         )
 
-        // Máximo valor de saldo (uint16: 2 bytes big-endian)
+        // Maximum balance value (uint16: 2 bytes big-endian)
         private const val MAX_BALANCE = 0xFFFF
 
-        // Byte de usuario por defecto en los bits de acceso (posición GPB del trailer)
+        // Default user byte in access bits (GPB position in the trailer)
         private const val DEFAULT_USER_BYTE = 0x69
 
-        // Bits de acceso estándar: lectura y escritura con Key A en todos los bloques de datos
+        // Standard access bits: read and write with Key A on all data blocks (condition 000),
+        // trailer condition 001.
         private val ACCESS_BITS = hexKey(0xFF, 0x07, 0x80, DEFAULT_USER_BYTE)
 
-        // Primeros 3 bytes de bits de acceso restringidos para Recarga única:
-        // Bloque 0: condición 001 (lectura A|B, sin escritura, sin incremento, decremento A|B)
-        // Bloques 1,2: condición 000 (acceso completo); Trailer: condición 001 (igual que estándar)
-        private val ACCESS_BITS_RESTRICTED_CTRL = hexKey(0xFF, 0x06, 0x90)
+        // Control bytes (3) for the single-recharge restricted access bits:
+        // Block 0 condition 001: read+decrement allowed, write+increment blocked.
+        // Blocks 1,2 condition 000 (open); Trailer condition 001 (same as standard).
+        private val ACCESS_BITS_SINGLE_RECHARGE_CTRL = hexKey(0xFF, 0x06, 0x90)
 
-        // Clave de fábrica Mifare Classic (todos los bytes a 0xFF)
+        // Mifare Classic factory key (all bytes 0xFF)
         private val FACTORY_KEY = hexKey(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF)
 
         private const val PREFS_CARD_SETTINGS = "card_settings"
-        private const val PREF_KEY_RECARGA_UNICA = "recarga_unica_"
-        private const val PREF_KEY_EDAD_BYTE = "edad_byte_"
+        private const val PREF_KEY_SINGLE_RECHARGE = "single_recharge_"
+        private const val PREF_KEY_AGE_BYTE = "age_byte_"
 
         private const val AUTO_RESET_DELAY_MS = 7000L
         private const val VIBRATE_DURATION_MS = 200L
@@ -162,9 +163,9 @@ class MainActivity : AppCompatActivity() {
     }
     private var pendingWrite: PendingWrite? = null
 
-    // Opciones del diálogo de formato de tarjeta
-    private var pendingRecargaUnica: Boolean = false
-    private var pendingEdadByte: Int = DEFAULT_USER_BYTE
+    // Format card dialog options
+    private var pendingSingleRecharge: Boolean = false
+    private var pendingAgeByte: Int = DEFAULT_USER_BYTE
 
     private val handler = Handler(Looper.getMainLooper())
     private val autoResetRunnable = Runnable { resetToWaiting() }
@@ -782,27 +783,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Muestra un diálogo con las opciones de formato de la tarjeta:
-     * - Checkbox "Recarga única": si está activado, tras añadir saldo por primera vez
-     *   se actualizan los bits de acceso para bloquear incrementos en el bloque 0.
-     * - Campo "Límite de edad": edad del usuario (< 100) o año de nacimiento (≥ 1900).
-     *   Se calcula y almacena el año de nacimiento – 1900 en el byte de usuario de los
-     *   bits de acceso. Si se deja vacío, se usa el valor predeterminado (0x69).
+     * Shows a dialog with format options before formatting a card:
+     * - "Recarga única" checkbox: when enabled, restricted access bits are written to the sector
+     *   trailer during format (block 0 becomes increment-blocked). On the first balance add the
+     *   app temporarily unlocks, adds balance, then re-locks.
+     * - "Límite de edad" number input: accepts an age (1–99) or birth year (1900–currentYear).
+     *   Stores (birthYear − 1900) in the GPB user byte of the sector trailer access bits.
+     *   Defaults to DEFAULT_USER_BYTE when empty or invalid.
      */
     private fun showFormatOptionsDialog() {
         val pad = (24 * resources.displayMetrics.density).toInt()
 
-        val checkboxRecargaUnica = CheckBox(this).apply {
+        val checkboxSingleRecharge = CheckBox(this).apply {
             text = getString(R.string.format_recarga_unica)
             isChecked = false
         }
 
-        val labelEdad = TextView(this).apply {
+        val labelAge = TextView(this).apply {
             text = getString(R.string.format_limite_edad)
             setPadding(0, pad / 2, 0, 0)
         }
 
-        val editEdad = EditText(this).apply {
+        val editAge = EditText(this).apply {
             hint = getString(R.string.format_limite_edad_hint)
             inputType = InputType.TYPE_CLASS_NUMBER
         }
@@ -810,17 +812,17 @@ class MainActivity : AppCompatActivity() {
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad / 2, pad, 0)
-            addView(checkboxRecargaUnica)
-            addView(labelEdad)
-            addView(editEdad)
+            addView(checkboxSingleRecharge)
+            addView(labelAge)
+            addView(editAge)
         }
 
         val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.action_format_card)
             .setView(layout)
             .setPositiveButton(R.string.action_confirm) { _, _ ->
-                pendingRecargaUnica = checkboxRecargaUnica.isChecked
-                pendingEdadByte = parseEdadByte(editEdad.text.toString())
+                pendingSingleRecharge = checkboxSingleRecharge.isChecked
+                pendingAgeByte = parseAgeByte(editAge.text.toString())
                 cancelAddBalance()
                 toggleGroup.clearChecked()
                 setPendingAction(PendingAction.FORMAT_CARD)
@@ -832,11 +834,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Interpreta la cadena de texto [input] como edad (1–99) o año de nacimiento (1900–año actual)
-     * y devuelve el valor a almacenar en el byte de usuario de los bits de acceso (año – 1900).
-     * Si el valor no es válido o está vacío, devuelve [DEFAULT_USER_BYTE].
+     * Interprets [input] as an age (1–99, resolved to currentYear − age) or birth year
+     * (1900–currentYear) and returns the value to store in the GPB user byte (birthYear − 1900).
+     * Returns [DEFAULT_USER_BYTE] when the input is empty or out of range.
      */
-    private fun parseEdadByte(input: String): Int {
+    private fun parseAgeByte(input: String): Int {
         val trimmed = input.trim()
         if (trimmed.isEmpty()) return DEFAULT_USER_BYTE
         val value = trimmed.toIntOrNull() ?: return DEFAULT_USER_BYTE
@@ -850,6 +852,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val cardPrefs by lazy { getSharedPreferences(PREFS_CARD_SETTINGS, MODE_PRIVATE) }
+
+    /**
+     * Builds a 16-byte Mifare Classic sector trailer block:
+     *   [Key A (6 bytes)] [Access bits (4 bytes)] [Key B (6 bytes)]
+     *
+     * When [standard] is true, uses the standard access bits (FF 07 80) which allow
+     * increment and write on all data blocks. When false, uses the single-recharge
+     * restricted bits (FF 06 90) which block increment and write on block 0.
+     * The [userByte] (GPB, General Purpose Byte) is placed at position 3 of the access bits.
+     */
+    private fun buildSectorTrailer(key: ByteArray, standard: Boolean, userByte: Int): ByteArray {
+        val ctrlBytes = if (standard) byteArrayOf(0xFF.toByte(), 0x07.toByte(), 0x80.toByte())
+                        else          ACCESS_BITS_SINGLE_RECHARGE_CTRL
+        val trailer = ByteArray(MifareClassic.BLOCK_SIZE)
+        System.arraycopy(key, 0, trailer, 0, KEY_LEN)
+        System.arraycopy(ctrlBytes, 0, trailer, KEY_LEN, ctrlBytes.size)
+        trailer[KEY_LEN + ctrlBytes.size] = userByte.toByte()
+        System.arraycopy(key, 0, trailer, KEY_LEN + ctrlBytes.size + 1, KEY_LEN)
+        return trailer
+    }
 
     /**
      * Enters inline add-balance mode: disables the toggle buttons, shows "+0" in the balance
@@ -971,6 +993,23 @@ class MainActivity : AppCompatActivity() {
             // Retain the intended state in memory so an interrupted write can be retried.
             pendingWrite = PendingWrite(uid, newCounterBlock, newTxBlock1, newTxBlock2)
 
+            // For single-recharge cards, the sector trailer was formatted with restricted access
+            // bits that block increment on block 0. On the first balance add (no prior transactions)
+            // we temporarily unlock by writing the standard bits, perform the increment, then
+            // re-lock with the restricted bits and clear the per-card SharedPreferences flag.
+            val uidHex = uid.toHex()
+            val isSingleRecharge = cardPrefs.getBoolean("$PREF_KEY_SINGLE_RECHARGE$uidHex", false)
+            val isFirstAdd = txBlock.transactions.isEmpty()
+            val blocksInSector = mifare.getBlockCountInSector(sector)
+            val trailerIdx = sectorStart + blocksInSector - 1
+
+            if (isSingleRecharge && isFirstAdd) {
+                val ageByte = cardPrefs.getInt("$PREF_KEY_AGE_BYTE$uidHex", DEFAULT_USER_BYTE)
+                // Unlock: write open access bits so block 0 allows increment
+                val openTrailer = buildSectorTrailer(cardKey, standard = true, userByte = ageByte)
+                mifare.writeBlock(trailerIdx, openTrailer)
+            }
+
             // Atomically increment the value block on the chip, then commit with transfer.
             val blockIndex = sectorStart + DATA_BLOCK_OFFSET
             mifare.increment(blockIndex, pendingAddAmount)
@@ -979,24 +1018,14 @@ class MainActivity : AppCompatActivity() {
             mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, newTxBlock2)
             pendingWrite = null
 
-            // Si está habilitada la Recarga única, actualizar los bits de acceso para bloquear
-            // futuros incrementos en el bloque de saldo (bloque 0).
-            val uidHex = uid.toHex()
-            if (cardPrefs.getBoolean("$PREF_KEY_RECARGA_UNICA$uidHex", false)) {
-                val edadByte = cardPrefs.getInt("$PREF_KEY_EDAD_BYTE$uidHex", DEFAULT_USER_BYTE)
-                val blocksInSector = mifare.getBlockCountInSector(sector)
-                val sectorTrailerIdx = sectorStart + blocksInSector - 1
-                val restrictedTrailer = ByteArray(MifareClassic.BLOCK_SIZE)
-                System.arraycopy(cardKey, 0, restrictedTrailer, 0, KEY_LEN)
-                val restrictedBits = ByteArray(4)
-                System.arraycopy(ACCESS_BITS_RESTRICTED_CTRL, 0, restrictedBits, 0, ACCESS_BITS_RESTRICTED_CTRL.size)
-                restrictedBits[3] = edadByte.toByte()
-                System.arraycopy(restrictedBits, 0, restrictedTrailer, KEY_LEN, restrictedBits.size)
-                System.arraycopy(cardKey, 0, restrictedTrailer, KEY_LEN + restrictedBits.size, KEY_LEN)
-                mifare.writeBlock(sectorTrailerIdx, restrictedTrailer)
+            if (isSingleRecharge && isFirstAdd) {
+                val ageByte = cardPrefs.getInt("$PREF_KEY_AGE_BYTE$uidHex", DEFAULT_USER_BYTE)
+                // Re-lock: restore restricted access bits to block future increments
+                val restrictedTrailer = buildSectorTrailer(cardKey, standard = false, userByte = ageByte)
+                mifare.writeBlock(trailerIdx, restrictedTrailer)
                 cardPrefs.edit()
-                    .remove("$PREF_KEY_RECARGA_UNICA$uidHex")
-                    .remove("$PREF_KEY_EDAD_BYTE$uidHex")
+                    .remove("$PREF_KEY_SINGLE_RECHARGE$uidHex")
+                    .remove("$PREF_KEY_AGE_BYTE$uidHex")
                     .apply()
             }
 
@@ -1022,9 +1051,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Intenta formatear el sector configurado de la tarjeta.
-     * Primero prueba la clave derivada del UID: si ya está formateada, solo pone el saldo a cero.
-     * Si no, busca una clave estándar y escribe el sector con la clave derivada.
+     * Attempts to format the configured sector of the card.
+     * First tries the derived key: if already formatted, resets the balance to zero.
+     * Otherwise searches for a standard key and writes the sector with the derived key.
      */
     private fun formatCard(tag: Tag) {
         val sector = AdvancedSettingsActivity.getTargetSector(this)
@@ -1042,9 +1071,16 @@ class MainActivity : AppCompatActivity() {
         try {
             mifare.connect()
 
-            // Si ya está formateada con la clave derivada, reinicia el saldo a 0 y el historial
+            // If already formatted with the derived key, reset balance to 0 and transaction history
             if (mifare.authenticateSectorWithKeyA(sector, derivedKey)) {
                 val sectorStart = mifare.sectorToBlock(sector)
+                val blocksInSector = mifare.getBlockCountInSector(sector)
+                val trailerIdx = sectorStart + blocksInSector - 1
+
+                // Always write open access bits first so block 0 is writable even if the card
+                // was previously formatted with single-recharge restricted bits.
+                mifare.writeBlock(trailerIdx, buildSectorTrailer(derivedKey, standard = true, userByte = pendingAgeByte))
+
                 val counterData = mifare.readBlock(sectorStart + DATA_BLOCK_OFFSET)
                 val oldBalance = readValueBlock(counterData) ?: 0
 
@@ -1056,6 +1092,14 @@ class MainActivity : AppCompatActivity() {
                 mifare.writeBlock(sectorStart + DATA_BLOCK_OFFSET, zeroValueBlock)
                 mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, txB1)
                 mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, txB2)
+
+                // Write the target access bits (restricted or standard) and update SharedPreferences
+                mifare.writeBlock(trailerIdx, buildSectorTrailer(derivedKey, standard = !pendingSingleRecharge, userByte = pendingAgeByte))
+                val uidHex = uid.toHex()
+                cardPrefs.edit()
+                    .putBoolean("$PREF_KEY_SINGLE_RECHARGE$uidHex", pendingSingleRecharge)
+                    .putInt("$PREF_KEY_AGE_BYTE$uidHex", pendingAgeByte)
+                    .apply()
 
                 currentBalance = 0
                 setBalanceDisplay(0)
@@ -1071,7 +1115,7 @@ class MainActivity : AppCompatActivity() {
                 return
             }
 
-            // Buscar clave estándar que permita acceder al sector
+            // Search for a standard key that grants access to the sector
             var foundKey: ByteArray? = null
             var usedKeyA = true
 
@@ -1110,7 +1154,7 @@ class MainActivity : AppCompatActivity() {
                 return
             }
 
-            // Inicializar contador en formato Value Block (valor=0) y bloques de transacción
+            // Initialize counter as a Value Block (value=0) and transaction blocks
             val sectorStart = mifare.sectorToBlock(sector)
             val blocksInSector = mifare.getBlockCountInSector(sector)
             val zeroValueBlock = makeValueBlock(0)
@@ -1122,22 +1166,19 @@ class MainActivity : AppCompatActivity() {
             mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, txB1)
             mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, txB2)
 
-            // Escribir trailer del sector con la clave derivada y el byte de usuario configurado
+            // Write sector trailer with the derived key and the chosen access bits.
+            // Single-recharge cards get restricted bits immediately so block 0 is locked.
             // [Key A (6 bytes)] [Access bits (4 bytes)] [Key B (6 bytes)]
-            val accessBitsForFormat = byteArrayOf(
-                0xFF.toByte(), 0x07.toByte(), 0x80.toByte(), pendingEdadByte.toByte()
+            mifare.writeBlock(
+                sectorStart + blocksInSector - 1,
+                buildSectorTrailer(derivedKey, standard = !pendingSingleRecharge, userByte = pendingAgeByte)
             )
-            val trailer = ByteArray(MifareClassic.BLOCK_SIZE)
-            System.arraycopy(derivedKey, 0, trailer, 0, KEY_LEN)
-            System.arraycopy(accessBitsForFormat, 0, trailer, KEY_LEN, accessBitsForFormat.size)
-            System.arraycopy(derivedKey, 0, trailer, KEY_LEN + accessBitsForFormat.size, KEY_LEN)
-            mifare.writeBlock(sectorStart + blocksInSector - 1, trailer)
 
-            // Guardar opciones de formato por UID para usarlas en la primera recarga
+            // Persist per-card format options so addBalanceToCard can apply the unlock/re-lock flow
             val uidHex = uid.toHex()
             cardPrefs.edit()
-                .putBoolean("$PREF_KEY_RECARGA_UNICA$uidHex", pendingRecargaUnica)
-                .putInt("$PREF_KEY_EDAD_BYTE$uidHex", pendingEdadByte)
+                .putBoolean("$PREF_KEY_SINGLE_RECHARGE$uidHex", pendingSingleRecharge)
+                .putInt("$PREF_KEY_AGE_BYTE$uidHex", pendingAgeByte)
                 .apply()
 
             val foundKeyHex = foundKey.toHex()
