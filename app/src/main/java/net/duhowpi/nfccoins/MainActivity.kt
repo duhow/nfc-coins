@@ -129,6 +129,7 @@ class MainActivity : AppCompatActivity() {
     private var pendingAddAmount: Int = 0
     private var customDeductAmount: Int = 0
     private var isCustomAmountMode = false
+    private var isAddBalanceMode = false
 
     /**
      * Holds the full intended card state (counter + 2 transaction blocks) that was computed
@@ -675,6 +676,8 @@ class MainActivity : AppCompatActivity() {
         rootLayout.setBackgroundColor(Color.TRANSPARENT)
         tvCardId.text = getString(R.string.no_card_detected)
         currentBalance = -1
+        isAddBalanceMode = false
+        setToggleGroupEnabled(true)
         resetBalanceToInitial()
         layoutBeforeAfter.visibility = View.GONE
         tvActualBalance.visibility = View.GONE
@@ -686,8 +689,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun cancelAddBalance() {
+        isAddBalanceMode = false
         pendingAction = PendingAction.NONE
         pendingAddAmount = 0
+        setToggleGroupEnabled(true)
+        clearHiddenInput()
         resetBalanceToInitial()
         tvStatus.text = getString(R.string.waiting_card)
     }
@@ -730,7 +736,7 @@ class MainActivity : AppCompatActivity() {
                 )
             ) { _, which ->
                 when (which) {
-                    0 -> showAddAmountDialog()
+                    0 -> enterAddBalanceModeInline()
                     1 -> {
                         toggleGroup.clearChecked()
                         setPendingAction(PendingAction.FORMAT_CARD)
@@ -750,95 +756,31 @@ class MainActivity : AppCompatActivity() {
         applyThemeToDialog(dialog)
     }
 
-    /** Muestra el diálogo para introducir la cantidad a añadir antes de acercar la tarjeta. */
-    private fun showAddAmountDialog() {
-        val paddingHoriz = (24 * resources.displayMetrics.density).toInt()
-        val paddingVert = (8 * resources.displayMetrics.density).toInt()
-
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(paddingHoriz, paddingVert, paddingHoriz, 0)
-        }
-
-        val input = EditText(this).apply {
-            hint = getString(R.string.hint_add_amount)
-            inputType = InputType.TYPE_CLASS_NUMBER
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        }
-
-        container.addView(input)
-
-        // Use a nullable var so the TextWatcher can reference confirmButton
-        // after the dialog is shown (buttons are created by show())
-        var confirmButton: android.widget.Button? = null
-
-        input.addTextChangedListener(object : TextWatcher {
-            private var isUpdating = false
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) {
-                if (isUpdating) return
-                val value = s?.toString()?.toIntOrNull() ?: 0
-                confirmButton?.isEnabled = value > 0
-                val normalized = if (value > 0) value.toString() else null
-                when {
-                    value > MAX_BALANCE -> {
-                        isUpdating = true
-                        s?.replace(0, s.length, MAX_BALANCE.toString())
-                        isUpdating = false
-                    }
-                    normalized != null && s.toString() != normalized -> {
-                        // Normalize leading zeros (e.g. "0001" → "1")
-                        isUpdating = true
-                        s?.replace(0, s.length, normalized)
-                        isUpdating = false
-                    }
-                }
-            }
-        })
-
-        // Hide keyboard when focus leaves the EditText (e.g. when tabbing to dialog buttons)
-        input.setOnFocusChangeListener { v, hasFocus ->
-            if (!hasFocus) {
-                hideKeyboardFrom(v)
-            }
-        }
-
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.action_add_balance)
-            .setView(container)
-            .setPositiveButton(R.string.action_confirm) { _, _ ->
-                val amount = input.text.toString().toIntOrNull()
-                if (amount == null || amount <= 0) {
-                    Toast.makeText(this, getString(R.string.invalid_amount), Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
-                pendingAddAmount = amount
-                toggleGroup.clearChecked()
-                setPendingAction(PendingAction.ADD_BALANCE)
-                setBalanceText("+$amount")
-                tvStatus.text = getString(R.string.tap_card_to_add)
-            }
-            .setNegativeButton(android.R.string.cancel) { _, _ ->
-                pendingAction = PendingAction.NONE
-                pendingAddAmount = 0
-            }
-            .setNeutralButton("+1", null) // null prevents auto-dismiss; listener set below
-            .show()
-
-        confirmButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-        confirmButton?.isEnabled = false
-        applyThemeToDialog(dialog)
-
-        // Override neutral button click to increment without dismissing the dialog
-        dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener {
-            val current = input.text.toString().toIntOrNull() ?: 0
-            val newValue = (current + 1).coerceAtMost(MAX_BALANCE)
-            input.setText(newValue.toString())
-            input.setSelection(input.text.length)
+    /**
+     * Enters inline add-balance mode: disables the toggle buttons, shows "+0" in the balance
+     * display, opens the keyboard on the hidden input, and immediately sets the pending amount
+     * as the user types (no dialog or confirm step needed).
+     */
+    private fun enterAddBalanceModeInline() {
+        handler.removeCallbacks(autoResetRunnable)
+        isAddBalanceMode = true
+        isCustomAmountMode = false
+        customDeductAmount = 0
+        pendingAddAmount = 0
+        currentBalance = -1
+        toggleGroup.clearChecked()
+        setToggleGroupEnabled(false)
+        etHiddenInput.text.clear()
+        tvBalance.setText("+0")
+        layoutBeforeAfter.visibility = View.GONE
+        tvActualBalance.visibility = View.GONE
+        layoutTransactionHistory.visibility = View.GONE
+        tvTx.forEach { it.visibility = View.GONE }
+        setPendingAction(PendingAction.NONE)
+        tvStatus.text = getString(R.string.tap_card_to_add)
+        etHiddenInput.post {
+            etHiddenInput.requestFocus()
+            showKeyboardFor(etHiddenInput)
         }
     }
 
@@ -847,6 +789,9 @@ class MainActivity : AppCompatActivity() {
      * si falla la autenticación, la tarjeta no está formateada y se muestra un error.
      */
     private fun addBalanceToCard(tag: Tag) {
+        hideKeyboardFrom(etHiddenInput)
+        isAddBalanceMode = false
+        setToggleGroupEnabled(true)
         val sector = AdvancedSettingsActivity.getTargetSector(this)
         val uid = tag.id
         val cardKey = deriveCardKey(uid)
@@ -1225,6 +1170,8 @@ class MainActivity : AppCompatActivity() {
      */
     private fun setBalanceText(text: String) {
         isCustomAmountMode = false
+        isAddBalanceMode = false
+        setToggleGroupEnabled(true)
         tvBalance.setText(text)
         tvBalance.inputType = InputType.TYPE_NULL
         tvBalance.isFocusable = false
@@ -1258,6 +1205,10 @@ class MainActivity : AppCompatActivity() {
 
         tvBalance.setOnClickListener {
             when {
+                isAddBalanceMode -> {
+                    // Keyboard was dismissed (e.g. via Back) without losing focus; reopen it.
+                    etHiddenInput.post { showKeyboardFor(etHiddenInput) }
+                }
                 currentBalance >= 0 -> {
                     // Tapping the displayed balance cancels the auto-reset and resets immediately.
                     handler.removeCallbacks(autoResetRunnable)
@@ -1292,9 +1243,32 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
                 if (isUpdating) return
-                if (!isCustomAmountMode) return
                 val raw = s?.toString() ?: ""
                 val value = raw.toIntOrNull() ?: 0
+                if (isAddBalanceMode) {
+                    // Normalize input: cap at MAX_BALANCE and strip leading zeros
+                    val normalizedValue = when {
+                        value > MAX_BALANCE -> {
+                            isUpdating = true
+                            s?.replace(0, s.length, MAX_BALANCE.toString())
+                            isUpdating = false
+                            MAX_BALANCE
+                        }
+                        raw != value.toString() && value > 0 -> {
+                            isUpdating = true
+                            s?.replace(0, s.length, value.toString())
+                            isUpdating = false
+                            value
+                        }
+                        else -> value
+                    }
+                    tvBalance.setText("+$normalizedValue")
+                    pendingAddAmount = normalizedValue
+                    setPendingAction(if (normalizedValue > 0) PendingAction.ADD_BALANCE else PendingAction.NONE)
+                    tvStatus.text = getString(R.string.tap_card_to_add)
+                    return
+                }
+                if (!isCustomAmountMode) return
                 when {
                     raw.isEmpty() -> {
                         tvBalance.setText(getString(R.string.balance_initial))
@@ -1329,18 +1303,23 @@ class MainActivity : AppCompatActivity() {
         })
 
         etHiddenInput.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus && isCustomAmountMode) {
-                isCustomAmountMode = false
-                val amount = etHiddenInput.text.toString().toIntOrNull() ?: 0
-                clearHiddenInput()
-                if (amount > 0) {
-                    // Keep the typed value visible and transition to withdraw state
-                    customDeductAmount = amount
-                    tvBalance.setText(amount.toString())
-                    setPendingAction(PendingAction.WITHDRAW_BALANCE)
-                    tvStatus.text = getString(R.string.tap_card_to_deduct)
-                } else {
-                    resetBalanceToInitial()
+            if (!hasFocus) {
+                if (isAddBalanceMode) {
+                    // In add balance mode: loss of focus (e.g. Back key) doesn't cancel the mode.
+                    // The amount and pending action remain as typed.
+                } else if (isCustomAmountMode) {
+                    isCustomAmountMode = false
+                    val amount = etHiddenInput.text.toString().toIntOrNull() ?: 0
+                    clearHiddenInput()
+                    if (amount > 0) {
+                        // Keep the typed value visible and transition to withdraw state
+                        customDeductAmount = amount
+                        tvBalance.setText(amount.toString())
+                        setPendingAction(PendingAction.WITHDRAW_BALANCE)
+                        tvStatus.text = getString(R.string.tap_card_to_deduct)
+                    } else {
+                        resetBalanceToInitial()
+                    }
                 }
             }
         }
@@ -1390,6 +1369,12 @@ class MainActivity : AppCompatActivity() {
     private fun clearHiddenInput() {
         etHiddenInput.text.clear()
         hideKeyboardFrom(etHiddenInput)
+    }
+
+    private fun setToggleGroupEnabled(enabled: Boolean) {
+        for (i in 0 until toggleGroup.childCount) {
+            toggleGroup.getChildAt(i)?.isEnabled = enabled
+        }
     }
 
     private fun showKeyboardFor(view: View) {
