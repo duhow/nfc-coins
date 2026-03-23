@@ -392,13 +392,17 @@ class MainActivity : AppCompatActivity() {
                     scheduleAutoReset()
                     return
                 }
-                tvStatus.text = getString(R.string.card_tampered)
-                showTransactionHistory(txBlock)
-                showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
-                flashRedBackground()
-                playNfcErrorBeep()
-                scheduleAutoReset()
-                return
+                if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
+                    tvStatus.text = getString(R.string.card_tampered)
+                    showTransactionHistory(txBlock)
+                    showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
+                    flashRedBackground()
+                    playNfcErrorBeep()
+                    scheduleAutoReset()
+                    return
+                }
+                // Integrity check disabled: invalid checksum is ignored and the transaction
+                // proceeds. The new write will produce a fresh valid checksum.
             }
             pendingWrite = null  // Previous write (if any) was successful.
 
@@ -781,13 +785,17 @@ class MainActivity : AppCompatActivity() {
                     scheduleAutoReset()
                     return
                 }
-                tvStatus.text = getString(R.string.card_tampered)
-                showTransactionHistory(txBlock)
-                showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
-                flashRedBackground()
-                playNfcErrorBeep()
-                scheduleAutoReset()
-                return
+                if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
+                    tvStatus.text = getString(R.string.card_tampered)
+                    showTransactionHistory(txBlock)
+                    showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
+                    flashRedBackground()
+                    playNfcErrorBeep()
+                    scheduleAutoReset()
+                    return
+                }
+                // Integrity check disabled: invalid checksum is ignored and the transaction
+                // proceeds. The new write will produce a fresh valid checksum.
             }
             pendingWrite = null
 

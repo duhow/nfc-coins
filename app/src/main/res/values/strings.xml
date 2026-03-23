@@ -67,6 +67,7 @@
     <string name="generate_key_confirm_message">Las tarjetas anteriores quedarán bloqueadas o inaccesibles. ¿Deseas continuar?</string>
     <string name="setting_dynamic_key">Activar clave dinámica (mezclar UID con clave estática)</string>
     <string name="setting_flash_enabled">Activar cambio de color de fondo</string>
+    <string name="setting_verify_integrity">Verificar integridad de tarjeta</string>
     <string name="setting_debug_mode">Modo debug</string>
     <string name="setting_keep_screen_on">Mantener pantalla encendida</string>
     <string name="setting_sound_enabled">Activar sonido</string>

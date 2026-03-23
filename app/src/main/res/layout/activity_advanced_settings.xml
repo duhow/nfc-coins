@@ -116,6 +116,15 @@
             android:checked="true"
             android:layout_marginBottom="8dp" />
 
+        <!-- Verify card integrity checkbox -->
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/cbVerifyIntegrity"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/setting_verify_integrity"
+            android:checked="true"
+            android:layout_marginBottom="8dp" />
+
         <!-- Debug mode checkbox -->
         <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/cbDebugEnabled"
