@@ -22,6 +22,13 @@ Tap a card to pay, top it up, and issue new ones, in a simple interface.
 
 ---
 
+<p align="center" width="100%">
+  <img src="https://github.com/user-attachments/assets/f10fedb0-22b7-4fdf-9fba-b772c9abc050" width="300" height="600">
+  <img src="https://github.com/user-attachments/assets/bc23cd60-071f-475d-9555-6a1c9bd72a4c" width="300" height="600">
+</p>
+
+--- 
+
 ## ✨ Features
 
 ### 💳 Card Operations
