@@ -19,6 +19,7 @@ import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.text.Editable
+import android.text.InputFilter
 import android.text.InputType
 import android.text.TextWatcher
 import android.view.Menu
@@ -810,9 +811,17 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, pad / 2, 0, 0)
         }
 
+        val currentYear = Calendar.getInstance().get(Calendar.YEAR)
         val editAge = EditText(this).apply {
             hint = getString(R.string.format_limite_edad_hint)
             inputType = InputType.TYPE_CLASS_NUMBER
+            filters = arrayOf(InputFilter { source, start, end, dest, dstart, dend ->
+                val newText = dest.toString().substring(0, dstart) +
+                    source.subSequence(start, end) +
+                    dest.toString().substring(dend)
+                val value = newText.toIntOrNull()
+                if (value != null && value > currentYear) "" else null
+            })
         }
 
         val layout = LinearLayout(this).apply {
