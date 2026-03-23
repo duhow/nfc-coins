@@ -69,6 +69,7 @@
 
     <!-- Advanced settings -->
     <string name="advanced_settings">Advanced settings</string>
+    <string name="setting_language">Application language</string>
     <string name="setting_target_sector">Target sector</string>
     <string name="setting_target_sector_hint">Sector (1–15)</string>
     <string name="setting_static_key">Static key</string>
