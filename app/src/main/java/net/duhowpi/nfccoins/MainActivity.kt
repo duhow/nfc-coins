@@ -677,7 +677,6 @@ class MainActivity : AppCompatActivity() {
         tvCardId.text = getString(R.string.no_card_detected)
         currentBalance = -1
         isAddBalanceMode = false
-        setToggleGroupEnabled(true)
         resetBalanceToInitial()
         layoutBeforeAfter.visibility = View.GONE
         tvActualBalance.visibility = View.GONE
@@ -692,7 +691,6 @@ class MainActivity : AppCompatActivity() {
         isAddBalanceMode = false
         pendingAction = PendingAction.NONE
         pendingAddAmount = 0
-        setToggleGroupEnabled(true)
         clearHiddenInput()
         resetBalanceToInitial()
         tvStatus.text = getString(R.string.waiting_card)
@@ -769,7 +767,6 @@ class MainActivity : AppCompatActivity() {
         pendingAddAmount = 0
         currentBalance = -1
         toggleGroup.clearChecked()
-        setToggleGroupEnabled(false)
         etHiddenInput.text.clear()
         tvBalance.setText("+0")
         layoutBeforeAfter.visibility = View.GONE
@@ -791,7 +788,6 @@ class MainActivity : AppCompatActivity() {
     private fun addBalanceToCard(tag: Tag) {
         hideKeyboardFrom(etHiddenInput)
         isAddBalanceMode = false
-        setToggleGroupEnabled(true)
         val sector = AdvancedSettingsActivity.getTargetSector(this)
         val uid = tag.id
         val cardKey = deriveCardKey(uid)
@@ -1171,7 +1167,6 @@ class MainActivity : AppCompatActivity() {
     private fun setBalanceText(text: String) {
         isCustomAmountMode = false
         isAddBalanceMode = false
-        setToggleGroupEnabled(true)
         tvBalance.setText(text)
         tvBalance.inputType = InputType.TYPE_NULL
         tvBalance.isFocusable = false
@@ -1369,12 +1364,6 @@ class MainActivity : AppCompatActivity() {
     private fun clearHiddenInput() {
         etHiddenInput.text.clear()
         hideKeyboardFrom(etHiddenInput)
-    }
-
-    private fun setToggleGroupEnabled(enabled: Boolean) {
-        for (i in 0 until toggleGroup.childCount) {
-            toggleGroup.getChildAt(i)?.isEnabled = enabled
-        }
     }
 
     private fun showKeyboardFor(view: View) {
