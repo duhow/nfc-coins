@@ -74,6 +74,7 @@
     <string name="generate_key_confirm_message">Las tarjetas anteriores quedarán bloqueadas o inaccesibles. ¿Deseas continuar?</string>
     <string name="setting_dynamic_key">Activar clave dinámica (mezclar UID con clave estática)</string>
     <string name="setting_flash_enabled">Activar cambio de color de fondo</string>
+    <string name="setting_verify_integrity">Verificar integridad de tarjeta</string>
     <string name="setting_debug_mode">Modo debug</string>
     <string name="setting_keep_screen_on">Mantener pantalla encendida</string>
     <string name="setting_sound_enabled">Activar sonido</string>
@@ -82,4 +83,13 @@
     <string name="key_too_short">La clave debe tener al menos 8 caracteres</string>
     <string name="btn_save_settings">Guardar</string>
     <string name="settings_saved">Ajustes guardados</string>
+
+    <!-- Transaction history -->
+    <string name="tx_history_label">Últimas transacciones</string>
+    <string name="tx_add">+%d monedas</string>
+    <string name="tx_subtract">-%d monedas</string>
+    <string name="tx_entry_format">%1$s  %2$s</string>
+    <string name="tx_debug_checksum">stored: %1$s  calc: %2$s</string>
+    <string name="card_tampered">Tarjeta manipulada. Operación cancelada.</string>
+    <string name="write_retried">Escritura reiniciada tras interrupción anterior</string>
 </resources>
