@@ -96,6 +96,7 @@ class MainActivity : AppCompatActivity() {
         // Standard access bits: read and write with Key A on all data blocks (condition 000),
         // trailer condition 001.
         private val ACCESS_BITS = hexKey(0xFF, 0x07, 0x80, DEFAULT_USER_BYTE)
+        private val ACCESS_BITS_STANDARD_CTRL = hexKey(0xFF, 0x07, 0x80)
 
         // Control bytes (3) for the single-recharge restricted access bits:
         // Block 0 condition 001: read+decrement allowed, write+increment blocked.
@@ -863,7 +864,7 @@ class MainActivity : AppCompatActivity() {
      * The [userByte] (GPB, General Purpose Byte) is placed at position 3 of the access bits.
      */
     private fun buildSectorTrailer(key: ByteArray, standard: Boolean, userByte: Int): ByteArray {
-        val ctrlBytes = if (standard) byteArrayOf(0xFF.toByte(), 0x07.toByte(), 0x80.toByte())
+        val ctrlBytes = if (standard) ACCESS_BITS_STANDARD_CTRL
                         else          ACCESS_BITS_SINGLE_RECHARGE_CTRL
         val trailer = ByteArray(MifareClassic.BLOCK_SIZE)
         System.arraycopy(key, 0, trailer, 0, KEY_LEN)
@@ -1002,9 +1003,9 @@ class MainActivity : AppCompatActivity() {
             val isFirstAdd = txBlock.transactions.isEmpty()
             val blocksInSector = mifare.getBlockCountInSector(sector)
             val trailerIdx = sectorStart + blocksInSector - 1
+            val ageByte = if (isSingleRecharge) cardPrefs.getInt("$PREF_KEY_AGE_BYTE$uidHex", DEFAULT_USER_BYTE) else DEFAULT_USER_BYTE
 
             if (isSingleRecharge && isFirstAdd) {
-                val ageByte = cardPrefs.getInt("$PREF_KEY_AGE_BYTE$uidHex", DEFAULT_USER_BYTE)
                 // Unlock: write open access bits so block 0 allows increment
                 val openTrailer = buildSectorTrailer(cardKey, standard = true, userByte = ageByte)
                 mifare.writeBlock(trailerIdx, openTrailer)
@@ -1019,7 +1020,6 @@ class MainActivity : AppCompatActivity() {
             pendingWrite = null
 
             if (isSingleRecharge && isFirstAdd) {
-                val ageByte = cardPrefs.getInt("$PREF_KEY_AGE_BYTE$uidHex", DEFAULT_USER_BYTE)
                 // Re-lock: restore restricted access bits to block future increments
                 val restrictedTrailer = buildSectorTrailer(cardKey, standard = false, userByte = ageByte)
                 mifare.writeBlock(trailerIdx, restrictedTrailer)
