@@ -5,72 +5,21 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Credit card (white, rounded rectangle) -->
+    <!-- Credit card: top section above magnetic stripe -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M22,22 H86 A6,6 0 0 1 92,28 V64 A6,6 0 0 1 86,70 H22 A6,6 0 0 1 16,64 V28 A6,6 0 0 1 22,22 Z" />
+        android:pathData="M32,32 H66 A4,4 0 0 1 70,36 V40 H28 V36 A4,4 0 0 1 32,32 Z" />
 
-    <!-- Card magnetic stripe (blue) -->
-    <path
-        android:fillColor="#1565C0"
-        android:pathData="M16,30 H92 V38 H16 Z" />
-
-    <!-- EMV chip (blue, rounded) -->
-    <path
-        android:fillColor="#1565C0"
-        android:pathData="M26,46 H40 A2,2 0 0 1 42,48 V58 A2,2 0 0 1 40,60 H26 A2,2 0 0 1 24,58 V48 A2,2 0 0 1 26,46 Z" />
-
-    <!-- NFC waves (blue strokes, right side of card) -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#1565C0"
-        android:strokeWidth="2.5"
-        android:strokeLineCap="round"
-        android:pathData="M66,41 A5,5 0 0 1 66,51" />
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#1565C0"
-        android:strokeWidth="2.5"
-        android:strokeLineCap="round"
-        android:pathData="M66,37 A9,9 0 0 1 66,55" />
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#1565C0"
-        android:strokeWidth="2.5"
-        android:strokeLineCap="round"
-        android:pathData="M66,33 A13,13 0 0 1 66,59" />
-
-    <!-- Virtual coin (white filled circle, overlapping card bottom-right) -->
+    <!-- Credit card: bottom section below magnetic stripe, with chip cutout -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M80,60 A20,20 0 0 1 100,80 A20,20 0 0 1 80,100 A20,20 0 0 1 60,80 A20,20 0 0 1 80,60 Z" />
+        android:fillType="evenOdd"
+        android:pathData="M28,44 H70 V54 A4,4 0 0 1 66,58 H32 A4,4 0 0 1 28,54 Z M35,48 H41 A2,2 0 0 1 43,50 V53 A2,2 0 0 1 41,55 H35 A2,2 0 0 1 33,53 V50 A2,2 0 0 1 35,48 Z" />
 
-    <!-- Coin border (blue outline) -->
+    <!-- Coin with ring detail overlapping card at bottom-right -->
     <path
-        android:fillColor="#00000000"
-        android:strokeColor="#1565C0"
-        android:strokeWidth="2"
-        android:pathData="M80,60 A20,20 0 0 1 100,80 A20,20 0 0 1 80,100 A20,20 0 0 1 60,80 A20,20 0 0 1 80,60 Z" />
-
-    <!-- Invented virtual coin symbol: "N" with two horizontal bars (like an invented currency) -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#1565C0"
-        android:strokeWidth="2.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M73,90 L73,70 L87,90 L87,70" />
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#1565C0"
-        android:strokeWidth="2.5"
-        android:strokeLineCap="round"
-        android:pathData="M71,77 L89,77" />
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#1565C0"
-        android:strokeWidth="2.5"
-        android:strokeLineCap="round"
-        android:pathData="M71,83 L89,83" />
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M55,66 A15,15 0 0 1 85,66 A15,15 0 0 1 55,66 Z M58,66 A12,12 0 0 1 82,66 A12,12 0 0 1 58,66 Z M60,66 A10,10 0 0 1 80,66 A10,10 0 0 1 60,66 Z" />
 
 </vector>
