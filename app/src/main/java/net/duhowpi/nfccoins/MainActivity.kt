@@ -25,6 +25,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -89,11 +90,23 @@ class MainActivity : AppCompatActivity() {
         // Máximo valor de saldo (uint16: 2 bytes big-endian)
         private const val MAX_BALANCE = 0xFFFF
 
+        // Byte de usuario por defecto en los bits de acceso (posición GPB del trailer)
+        private const val DEFAULT_USER_BYTE = 0x69
+
         // Bits de acceso estándar: lectura y escritura con Key A en todos los bloques de datos
-        private val ACCESS_BITS = hexKey(0xFF, 0x07, 0x80, 0x69)
+        private val ACCESS_BITS = hexKey(0xFF, 0x07, 0x80, DEFAULT_USER_BYTE)
+
+        // Primeros 3 bytes de bits de acceso restringidos para Recarga única:
+        // Bloque 0: condición 001 (lectura A|B, sin escritura, sin incremento, decremento A|B)
+        // Bloques 1,2: condición 000 (acceso completo); Trailer: condición 001 (igual que estándar)
+        private val ACCESS_BITS_RESTRICTED_CTRL = byteArrayOf(0xFF.toByte(), 0x06.toByte(), 0x90.toByte())
 
         // Clave de fábrica Mifare Classic (todos los bytes a 0xFF)
         private val FACTORY_KEY = hexKey(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF)
+
+        private const val PREFS_CARD_SETTINGS = "card_settings"
+        private const val PREF_KEY_RECARGA_UNICA = "recarga_unica_"
+        private const val PREF_KEY_EDAD_BYTE = "edad_byte_"
 
         private const val AUTO_RESET_DELAY_MS = 7000L
         private const val VIBRATE_DURATION_MS = 200L
@@ -148,6 +161,10 @@ class MainActivity : AppCompatActivity() {
         fun matchesUid(other: ByteArray) = uid.contentEquals(other)
     }
     private var pendingWrite: PendingWrite? = null
+
+    // Opciones del diálogo de formato de tarjeta
+    private var pendingRecargaUnica: Boolean = false
+    private var pendingEdadByte: Int = DEFAULT_USER_BYTE
 
     private val handler = Handler(Looper.getMainLooper())
     private val autoResetRunnable = Runnable { resetToWaiting() }
@@ -748,12 +765,7 @@ class MainActivity : AppCompatActivity() {
             ) { _, which ->
                 when (which) {
                     0 -> enterAddBalanceModeInline()
-                    1 -> {
-                        cancelAddBalance()
-                        toggleGroup.clearChecked()
-                        setPendingAction(PendingAction.FORMAT_CARD)
-                        tvStatus.text = getString(R.string.tap_card_to_format)
-                    }
+                    1 -> showFormatOptionsDialog()
                     2 -> {
                         cancelAddBalance()
                         toggleGroup.clearChecked()
@@ -768,6 +780,82 @@ class MainActivity : AppCompatActivity() {
             .show()
         applyThemeToDialog(dialog)
     }
+
+    /**
+     * Muestra un diálogo con las opciones de formato de la tarjeta:
+     * - Checkbox "Recarga única": si está activado, tras añadir saldo por primera vez
+     *   se actualizan los bits de acceso para bloquear incrementos en el bloque 0.
+     * - Campo "Límite de edad": edad del usuario (< 100) o año de nacimiento (≥ 1900).
+     *   Se calcula y almacena el año de nacimiento – 1900 en el byte de usuario de los
+     *   bits de acceso. Si se deja vacío, se usa el valor predeterminado (0x69).
+     */
+    private fun showFormatOptionsDialog() {
+        val pad = (24 * resources.displayMetrics.density).toInt()
+
+        val checkboxRecargaUnica = CheckBox(this).apply {
+            text = getString(R.string.format_recarga_unica)
+            isChecked = false
+        }
+
+        val labelEdad = TextView(this).apply {
+            text = getString(R.string.format_limite_edad)
+            setPadding(0, pad / 2, 0, 0)
+        }
+
+        val editEdad = EditText(this).apply {
+            hint = getString(R.string.format_limite_edad_hint)
+            inputType = InputType.TYPE_CLASS_NUMBER
+        }
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad / 2, pad, 0)
+            addView(checkboxRecargaUnica)
+            addView(labelEdad)
+            addView(editEdad)
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.action_format_card)
+            .setView(layout)
+            .setPositiveButton(R.string.action_confirm) { _, _ ->
+                pendingRecargaUnica = checkboxRecargaUnica.isChecked
+                pendingEdadByte = parseEdadByte(editEdad.text.toString())
+                cancelAddBalance()
+                toggleGroup.clearChecked()
+                setPendingAction(PendingAction.FORMAT_CARD)
+                tvStatus.text = getString(R.string.tap_card_to_format)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+        applyThemeToDialog(dialog)
+    }
+
+    /**
+     * Interpreta la cadena de texto [input] como edad (1–99) o año de nacimiento (1900–año actual)
+     * y devuelve el valor a almacenar en el byte de usuario de los bits de acceso (año – 1900).
+     * Si el valor no es válido o está vacío, devuelve [DEFAULT_USER_BYTE].
+     */
+    private fun parseEdadByte(input: String): Int {
+        val trimmed = input.trim()
+        if (trimmed.isEmpty()) return DEFAULT_USER_BYTE
+        val value = trimmed.toIntOrNull() ?: return DEFAULT_USER_BYTE
+        val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+        val birthYear = when {
+            value in 1..99 -> currentYear - value
+            value in 1900..currentYear -> value
+            else -> return DEFAULT_USER_BYTE
+        }
+        return (birthYear - 1900).coerceIn(0, 255)
+    }
+
+    private fun getCardPrefs() = getSharedPreferences(PREFS_CARD_SETTINGS, android.content.Context.MODE_PRIVATE)
+
+    private fun isRecargaUnicaEnabled(uidHex: String): Boolean =
+        getCardPrefs().getBoolean("$PREF_KEY_RECARGA_UNICA$uidHex", false)
+
+    private fun getCardEdadByte(uidHex: String): Int =
+        getCardPrefs().getInt("$PREF_KEY_EDAD_BYTE$uidHex", DEFAULT_USER_BYTE)
 
     /**
      * Enters inline add-balance mode: disables the toggle buttons, shows "+0" in the balance
@@ -897,6 +985,22 @@ class MainActivity : AppCompatActivity() {
             mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, newTxBlock2)
             pendingWrite = null
 
+            // Si está habilitada la Recarga única, actualizar los bits de acceso para bloquear
+            // futuros incrementos en el bloque de saldo (bloque 0).
+            val uidHex = uid.toHex()
+            if (isRecargaUnicaEnabled(uidHex)) {
+                val edadByte = getCardEdadByte(uidHex)
+                val blocksInSector = mifare.getBlockCountInSector(sector)
+                val sectorTrailerIdx = sectorStart + blocksInSector - 1
+                val restrictedTrailer = ByteArray(MifareClassic.BLOCK_SIZE)
+                System.arraycopy(cardKey, 0, restrictedTrailer, 0, KEY_LEN)
+                val restrictedBits = ACCESS_BITS_RESTRICTED_CTRL + byteArrayOf(edadByte.toByte())
+                System.arraycopy(restrictedBits, 0, restrictedTrailer, KEY_LEN, restrictedBits.size)
+                System.arraycopy(cardKey, 0, restrictedTrailer, KEY_LEN + restrictedBits.size, KEY_LEN)
+                mifare.writeBlock(sectorTrailerIdx, restrictedTrailer)
+                getCardPrefs().edit().remove("$PREF_KEY_RECARGA_UNICA$uidHex").apply()
+            }
+
             currentBalance = newBalance
             setBalanceDisplay(newBalance)
             tvBalanceBefore.text = formatBalanceDisplay(oldBalance)
@@ -1019,13 +1123,23 @@ class MainActivity : AppCompatActivity() {
             mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, txB1)
             mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, txB2)
 
-            // Escribir trailer del sector con la clave derivada
+            // Escribir trailer del sector con la clave derivada y el byte de usuario configurado
             // [Key A (6 bytes)] [Access bits (4 bytes)] [Key B (6 bytes)]
+            val accessBitsForFormat = byteArrayOf(
+                0xFF.toByte(), 0x07.toByte(), 0x80.toByte(), pendingEdadByte.toByte()
+            )
             val trailer = ByteArray(MifareClassic.BLOCK_SIZE)
             System.arraycopy(derivedKey, 0, trailer, 0, KEY_LEN)
-            System.arraycopy(ACCESS_BITS, 0, trailer, KEY_LEN, ACCESS_BITS.size)
-            System.arraycopy(derivedKey, 0, trailer, KEY_LEN + ACCESS_BITS.size, KEY_LEN)
+            System.arraycopy(accessBitsForFormat, 0, trailer, KEY_LEN, accessBitsForFormat.size)
+            System.arraycopy(derivedKey, 0, trailer, KEY_LEN + accessBitsForFormat.size, KEY_LEN)
             mifare.writeBlock(sectorStart + blocksInSector - 1, trailer)
+
+            // Guardar opciones de formato por UID para usarlas en la primera recarga
+            val uidHex = uid.toHex()
+            getCardPrefs().edit()
+                .putBoolean("$PREF_KEY_RECARGA_UNICA$uidHex", pendingRecargaUnica)
+                .putInt("$PREF_KEY_EDAD_BYTE$uidHex", pendingEdadByte)
+                .apply()
 
             val foundKeyHex = foundKey.toHex()
             val newKeyHex = derivedKey.toHex()

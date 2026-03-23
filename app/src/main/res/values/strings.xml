@@ -52,6 +52,9 @@
     <string name="format_success_message">Clave %1$s encontrada: %2$s\nNueva clave generada: %3$s</string>
     <string name="reset_card_success">Tarjeta reiniciada a valores de fábrica</string>
     <string name="reset_card_no_key">No se pudo autenticar con ninguna clave conocida</string>
+    <string name="format_recarga_unica">Recarga única</string>
+    <string name="format_limite_edad">Límite de edad</string>
+    <string name="format_limite_edad_hint">Edad o año de nacimiento</string>
 
     <!-- About -->
     <string name="about">Acerca de</string>
