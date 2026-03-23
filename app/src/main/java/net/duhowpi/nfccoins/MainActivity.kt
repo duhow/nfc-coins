@@ -1252,7 +1252,12 @@ class MainActivity : AppCompatActivity() {
                     // Tapping the balance display while waiting to add balance cancels the operation.
                     cancelAddBalance()
                 }
-                currentBalance == -1 && !isCustomAmountMode && pendingAction == PendingAction.NONE -> {
+                isCustomAmountMode -> {
+                    // Keyboard was dismissed (e.g. via Back) without etHiddenInput losing focus,
+                    // so isCustomAmountMode stayed true but the IME is hidden. Reopen it.
+                    etHiddenInput.post { showKeyboardFor(etHiddenInput) }
+                }
+                currentBalance == -1 && pendingAction == PendingAction.NONE -> {
                     enterCustomAmountMode()
                 }
             }
