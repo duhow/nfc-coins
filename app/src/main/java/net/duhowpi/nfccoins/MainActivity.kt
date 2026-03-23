@@ -1,7 +1,9 @@
 package net.duhowpi.nfccoins
 
 import android.app.AlertDialog
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import android.graphics.Color
 import android.media.AudioManager
 import android.media.ToneGenerator
@@ -152,6 +154,10 @@ class MainActivity : AppCompatActivity() {
             }
             R.id.action_advanced_settings -> {
                 startActivity(Intent(this, AdvancedSettingsActivity::class.java))
+                true
+            }
+            R.id.action_about -> {
+                showAboutDialog()
                 true
             }
             else -> super.onOptionsItemSelected(item)
@@ -489,6 +495,25 @@ class MainActivity : AppCompatActivity() {
         pendingAddAmount = 0
         resetBalanceToInitial()
         tvStatus.text = getString(R.string.waiting_card)
+    }
+
+    // -------------------------------------------------------------------------
+    // Acerca de
+    // -------------------------------------------------------------------------
+
+    private fun showAboutDialog() {
+        val appName = getString(R.string.app_name)
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.about_title, appName))
+            .setMessage(getString(R.string.about_message, appName, BuildConfig.VERSION_NAME))
+            .setPositiveButton(android.R.string.ok, null)
+            .setNeutralButton(R.string.view_source) { _, _ ->
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.github_url)))
+                try {
+                    startActivity(intent)
+                } catch (_: ActivityNotFoundException) { }
+            }
+            .show()
     }
 
     // -------------------------------------------------------------------------

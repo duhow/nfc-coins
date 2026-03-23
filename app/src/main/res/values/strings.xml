@@ -54,6 +54,13 @@
     <string name="reset_card_success">Tarjeta reiniciada a valores de fábrica</string>
     <string name="reset_card_no_key">No se pudo autenticar con ninguna clave conocida</string>
 
+    <!-- About -->
+    <string name="about">Acerca de</string>
+    <string name="about_title">Acerca de %s</string>
+    <string name="about_message">%1$s es una aplicación para gestionar saldos en tarjetas Mifare Classic mediante NFC.\n\nVersión: %2$s</string>
+    <string name="view_source">GitHub</string>
+    <string name="github_url" translatable="false">https://github.com/duhow/nfc-coins</string>
+
     <!-- Advanced settings -->
     <string name="advanced_settings">Ajustes avanzados</string>
     <string name="setting_target_sector">Sector a modificar</string>
