@@ -518,12 +518,6 @@ class MainActivity : AppCompatActivity() {
     // started by the first startTone() call — not by construction. To warm up the pipeline we
     // must call startTone() on the exact same instance that will be used for real beeps; warming
     // a throwaway instance (even at volume=0) does nothing for a separately constructed instance.
-    //
-    // We call startTone() with a 1 ms duration on the real instance immediately after
-    // construction. Because the Android audio output latency is typically 50–200 ms, the 1 ms of
-    // generated audio is flushed before it ever reaches the speaker, so the user hears nothing.
-    // startTone() blocks internally until its native thread has started and AudioTrack is open,
-    // so by the time it returns the instance is fully warm for all subsequent calls.
     private fun initToneGenerator() {
         synchronized(toneGeneratorLock) {
             if (sharedToneGenerator != null) return
