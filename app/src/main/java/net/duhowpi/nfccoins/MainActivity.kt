@@ -295,8 +295,8 @@ class MainActivity : AppCompatActivity() {
                 // success/failure and whether a toggle button or custom amount is active.
                 val cardKey = deriveCardKey(uid)
                 when {
-                    toggleGroup.checkedButtonId == R.id.btnDeduct1 -> readAndDeduct(tag, cardKey, 1, isButtonMode = true)
-                    toggleGroup.checkedButtonId == R.id.btnDeduct2 -> readAndDeduct(tag, cardKey, 2, isButtonMode = true)
+                    toggleGroup.checkedButtonId == R.id.btnDeduct1 -> readAndDeduct(tag, cardKey, deductUnitAmount(1), isButtonMode = true)
+                    toggleGroup.checkedButtonId == R.id.btnDeduct2 -> readAndDeduct(tag, cardKey, deductUnitAmount(2), isButtonMode = true)
                     customDeductAmount > 0 -> {
                         isCustomAmountMode = false
                         clearHiddenInput()
@@ -350,7 +350,7 @@ class MainActivity : AppCompatActivity() {
                 return
             }
             val txBlock = TransactionBlock.fromBytes(txBlock1, txBlock2)
-            setBalanceText(currentBalance.toString())
+            setBalanceDisplay(currentBalance)
             layoutBeforeAfter.visibility = View.GONE
             tvActualBalance.visibility = View.GONE
             if (!txBlock.isValid(counterData, txBlock1, txBlock2, uid, psk)) {
@@ -442,11 +442,11 @@ class MainActivity : AppCompatActivity() {
             if (balance < amount) {
                 currentBalance = balance
                 if (isCustomAmount) {
-                    setBalanceText(amount.toString())
-                    tvActualBalance.text = balance.toString()
+                    setBalanceDisplay(amount)
+                    tvActualBalance.text = formatBalanceDisplay(balance)
                     tvActualBalance.visibility = View.VISIBLE
                 } else {
-                    setBalanceText(balance.toString())
+                    setBalanceDisplay(balance)
                     tvActualBalance.visibility = View.GONE
                 }
                 layoutBeforeAfter.visibility = View.GONE
@@ -481,12 +481,12 @@ class MainActivity : AppCompatActivity() {
             pendingWrite = null
 
             currentBalance = newBalance
-            setBalanceText(newBalance.toString())
-            tvBalanceBefore.text = balance.toString()
-            tvBalanceAfter.text = newBalance.toString()
+            setBalanceDisplay(newBalance)
+            tvBalanceBefore.text = formatBalanceDisplay(balance)
+            tvBalanceAfter.text = formatBalanceDisplay(newBalance)
             layoutBeforeAfter.visibility = View.VISIBLE
             tvActualBalance.visibility = View.GONE
-            tvStatus.text = getString(R.string.deduct_ok, amount)
+            tvStatus.text = getString(R.string.deduct_ok, formatBalanceDisplay(amount))
             showTransactionHistory(updatedTxBlock)
             showDebugChecksums(newCounterBlock, newTxBlock1, newTxBlock2, uid, psk)
             playSuccessBeep()
@@ -561,6 +561,16 @@ class MainActivity : AppCompatActivity() {
             child.strokeColor = strokeTint
             child.rippleColor = rippleTint
         }
+
+        // Update deduct button labels to reflect decimal mode
+        val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this)
+        val btnDeduct1 = toggleGroup.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnDeduct1)
+        val btnDeduct2 = toggleGroup.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnDeduct2)
+        val deductTextSizeSp = if (isDecimalMode) 20f else 26f
+        btnDeduct1?.text = if (isDecimalMode) "-1.00" else getString(R.string.deduct_1_short)
+        btnDeduct2?.text = if (isDecimalMode) "-2.00" else getString(R.string.deduct_2_short)
+        btnDeduct1?.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, deductTextSizeSp)
+        btnDeduct2?.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, deductTextSizeSp)
     }
 
     private fun applyThemeToDialog(dialog: AlertDialog) {
@@ -773,7 +783,15 @@ class MainActivity : AppCompatActivity() {
         currentBalance = -1
         toggleGroup.clearChecked()
         etHiddenInput.text?.clear()
-        tvBalance.setText("+0")
+        val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this)
+        if (isDecimalMode) {
+            etHiddenInput.keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789.,")
+            etHiddenInput.setRawInputType(InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
+        } else {
+            etHiddenInput.keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789")
+            etHiddenInput.setRawInputType(InputType.TYPE_CLASS_NUMBER)
+        }
+        tvBalance.setText("+" + formatBalanceDisplay(0))
         layoutBeforeAfter.visibility = View.GONE
         tvActualBalance.visibility = View.GONE
         layoutTransactionHistory.visibility = View.GONE
@@ -880,11 +898,11 @@ class MainActivity : AppCompatActivity() {
             pendingWrite = null
 
             currentBalance = newBalance
-            setBalanceText(newBalance.toString())
-            tvBalanceBefore.text = oldBalance.toString()
-            tvBalanceAfter.text = newBalance.toString()
+            setBalanceDisplay(newBalance)
+            tvBalanceBefore.text = formatBalanceDisplay(oldBalance)
+            tvBalanceAfter.text = formatBalanceDisplay(newBalance)
             layoutBeforeAfter.visibility = View.VISIBLE
-            tvStatus.text = getString(R.string.balance_added_ok, pendingAddAmount)
+            tvStatus.text = getString(R.string.balance_added_ok, formatBalanceDisplay(pendingAddAmount))
             showTransactionHistory(updatedTxBlock)
             showDebugChecksums(newCounterBlock, newTxBlock1, newTxBlock2, uid, psk)
             flashBackground(R.color.success_green)
@@ -937,9 +955,9 @@ class MainActivity : AppCompatActivity() {
                 mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, txB2)
 
                 currentBalance = 0
-                setBalanceText("0")
-                tvBalanceBefore.text = oldBalance.toString()
-                tvBalanceAfter.text = "0"
+                setBalanceDisplay(0)
+                tvBalanceBefore.text = formatBalanceDisplay(oldBalance)
+                tvBalanceAfter.text = formatBalanceDisplay(0)
                 layoutBeforeAfter.visibility = View.VISIBLE
                 showTransactionHistory(freshTxBlock)
                 showDebugChecksums(zeroValueBlock, txB1, txB2, uid, psk)
@@ -1014,7 +1032,7 @@ class MainActivity : AppCompatActivity() {
             val keyType = if (usedKeyA) "A" else "B"
 
             currentBalance = 0
-            setBalanceText("0")
+            setBalanceDisplay(0)
             layoutBeforeAfter.visibility = View.GONE
             showTransactionHistory(freshTxBlock)
             showDebugChecksums(zeroValueBlock, txB1, txB2, uid, psk)
@@ -1163,6 +1181,50 @@ class MainActivity : AppCompatActivity() {
     }
 
     // -------------------------------------------------------------------------
+    // Decimal mode helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Formats an integer stored value for display. In decimal mode the value is treated
+     * as cents (e.g. 125 → "1.25"); outside decimal mode it is returned as-is ("125").
+     */
+    private fun formatBalanceDisplay(value: Int): String {
+        return if (AdvancedSettingsActivity.isDecimalModeEnabled(this)) {
+            "%d.%02d".format(value / 100, Math.abs(value % 100))
+        } else {
+            value.toString()
+        }
+    }
+
+    /**
+     * Returns the base deduct amount for the fixed-amount buttons in the current mode.
+     * In decimal mode the unit is 100 (= 1.00), otherwise it is [factor] itself.
+     */
+    private fun deductUnitAmount(factor: Int = 1): Int =
+        if (AdvancedSettingsActivity.isDecimalModeEnabled(this)) factor * 100 else factor
+
+    /**
+     * Parses a raw string from the decimal input field into the stored integer value.
+     *
+     * Supports two input styles:
+     * - Explicit decimal ("1.25" or "1,25") → 125 stored
+     * - TPV push-from-right (no separator, "125") → 125 stored (= 1.25 display)
+     *
+     * Always normalise commas to dots before calling this function.
+     */
+    private fun parseDecimalInput(normalized: String): Int {
+        return if ('.' in normalized) {
+            val parts = normalized.split('.')
+            val intPart = parts[0].toIntOrNull() ?: 0
+            val fracStr = (parts.getOrNull(1) ?: "").take(2).padEnd(2, '0')
+            val fracPart = fracStr.toIntOrNull() ?: 0
+            intPart * 100 + fracPart
+        } else {
+            normalized.toIntOrNull() ?: 0
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Utilidades
     // -------------------------------------------------------------------------
 
@@ -1177,6 +1239,12 @@ class MainActivity : AppCompatActivity() {
         tvBalance.isFocusable = false
         tvBalance.isFocusableInTouchMode = false
     }
+
+    /**
+     * Convenience overload that formats [value] according to the current decimal mode
+     * before delegating to [setBalanceText].
+     */
+    private fun setBalanceDisplay(value: Int) = setBalanceText(formatBalanceDisplay(value))
 
     /**
      * Resets the balance display to the initial "--" state and allows
@@ -1246,7 +1314,73 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
                 if (isUpdating) return
-                val raw = s?.toString() ?: ""
+                var raw = s?.toString() ?: ""
+
+                val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this@MainActivity)
+                if (isDecimalMode) {
+                    // Normalize: replace comma separator with dot and continue processing
+                    if (',' in raw) {
+                        val normalized = raw.replace(',', '.')
+                        isUpdating = true
+                        s?.replace(0, s.length, normalized)
+                        isUpdating = false
+                        raw = normalized
+                    }
+                    // Allow at most one decimal separator
+                    val dotCount = raw.count { it == '.' }
+                    if (dotCount > 1) {
+                        val firstDot = raw.indexOf('.')
+                        val fixedStr = raw.substring(0, firstDot + 1) +
+                            raw.substring(firstDot + 1).replace(".", "")
+                        isUpdating = true
+                        s?.replace(0, s.length, fixedStr)
+                        isUpdating = false
+                        return
+                    }
+                    // Limit to 2 decimal places
+                    val dotIdx = raw.indexOf('.')
+                    if (dotIdx >= 0 && raw.length - dotIdx - 1 > 2) {
+                        isUpdating = true
+                        s?.replace(0, s.length, raw.substring(0, dotIdx + 3))
+                        isUpdating = false
+                        return
+                    }
+                    // Compute stored integer value from input
+                    val storedValue = parseDecimalInput(raw)
+                    val cappedValue = storedValue.coerceIn(0, MAX_BALANCE)
+                    // Cap if MAX_BALANCE exceeded
+                    if (cappedValue != storedValue) {
+                        isUpdating = true
+                        s?.replace(0, s.length, formatBalanceDisplay(cappedValue))
+                        isUpdating = false
+                        return
+                    }
+                    if (isAddBalanceMode) {
+                        tvBalance.setText("+" + formatBalanceDisplay(cappedValue))
+                        pendingAddAmount = cappedValue
+                        setPendingAction(if (cappedValue > 0) PendingAction.ADD_BALANCE else PendingAction.NONE)
+                        tvStatus.text = getString(R.string.tap_card_to_add)
+                        return
+                    }
+                    if (!isCustomAmountMode) return
+                    if (raw.isEmpty()) {
+                        tvBalance.setText(getString(R.string.balance_initial))
+                    } else {
+                        tvBalance.setText(formatBalanceDisplay(cappedValue))
+                    }
+                    customDeductAmount = cappedValue
+                    if (customDeductAmount > 0) {
+                        toggleGroup.clearChecked()
+                        setPendingAction(PendingAction.WITHDRAW_BALANCE)
+                        tvStatus.text = getString(R.string.tap_card_to_deduct)
+                    } else {
+                        setPendingAction(PendingAction.NONE)
+                        tvStatus.text = getString(R.string.waiting_card)
+                    }
+                    return
+                }
+
+                // Non-decimal mode (original behaviour)
                 val value = raw.toIntOrNull() ?: 0
                 if (isAddBalanceMode) {
                     // Normalize input: cap at MAX_BALANCE and strip leading zeros
@@ -1312,12 +1446,17 @@ class MainActivity : AppCompatActivity() {
                     // The amount and pending action remain as typed.
                 } else if (isCustomAmountMode) {
                     isCustomAmountMode = false
-                    val amount = etHiddenInput.text.toString().toIntOrNull() ?: 0
+                    val raw = etHiddenInput.text.toString()
+                    val amount = if (AdvancedSettingsActivity.isDecimalModeEnabled(this)) {
+                        parseDecimalInput(raw.replace(',', '.'))
+                    } else {
+                        raw.toIntOrNull() ?: 0
+                    }
                     clearHiddenInput()
                     if (amount > 0) {
                         // Keep the typed value visible and transition to withdraw state
                         customDeductAmount = amount
-                        tvBalance.setText(amount.toString())
+                        tvBalance.setText(formatBalanceDisplay(amount))
                         setPendingAction(PendingAction.WITHDRAW_BALANCE)
                         tvStatus.text = getString(R.string.tap_card_to_deduct)
                     } else {
@@ -1363,6 +1502,13 @@ class MainActivity : AppCompatActivity() {
         isCustomAmountMode = true
         etHiddenInput.text?.clear()
         tvBalance.setText(getString(R.string.balance_initial))
+        if (AdvancedSettingsActivity.isDecimalModeEnabled(this)) {
+            etHiddenInput.keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789.,")
+            etHiddenInput.setRawInputType(InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
+        } else {
+            etHiddenInput.keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789")
+            etHiddenInput.setRawInputType(InputType.TYPE_CLASS_NUMBER)
+        }
         etHiddenInput.post {
             etHiddenInput.requestFocus()
             showKeyboardFor(etHiddenInput)
@@ -1460,6 +1606,7 @@ class MainActivity : AppCompatActivity() {
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
 
+        val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this)
         for (i in tvTx.indices) {
             val tv = tvTx[i]
             val entry = entries.getOrNull(i)
@@ -1469,9 +1616,16 @@ class MainActivity : AppCompatActivity() {
                 val txEpochMs = (txBlock.initTimestamp + entry.secondsOffset) * 1000L
                 val fmt = if (txEpochMs >= todayStart) timeFmt else dateFmt
                 val timeLabel = fmt.format(Date(txEpochMs))
-                val amtLabel = when (entry.operation) {
-                    TxOperation.ADD      -> getString(R.string.tx_add, entry.amount)
-                    TxOperation.SUBTRACT -> getString(R.string.tx_subtract, entry.amount)
+                val amtLabel = if (isDecimalMode) {
+                    when (entry.operation) {
+                        TxOperation.ADD      -> "+${formatBalanceDisplay(entry.amount)}"
+                        TxOperation.SUBTRACT -> "-${formatBalanceDisplay(entry.amount)}"
+                    }
+                } else {
+                    when (entry.operation) {
+                        TxOperation.ADD      -> getString(R.string.tx_add, entry.amount)
+                        TxOperation.SUBTRACT -> getString(R.string.tx_subtract, entry.amount)
+                    }
                 }
                 tv.text = getString(R.string.tx_entry_format, timeLabel, amtLabel)
                 tv.visibility = View.VISIBLE
