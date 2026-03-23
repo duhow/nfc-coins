@@ -1318,6 +1318,7 @@ class MainActivity : AppCompatActivity() {
                 if (customDeductAmount > 0) {
                     toggleGroup.clearChecked()
                     setPendingAction(PendingAction.WITHDRAW_BALANCE)
+                    tvStatus.text = getString(R.string.tap_card_to_deduct)
                 }
             }
         })
