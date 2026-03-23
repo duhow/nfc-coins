@@ -1307,7 +1307,10 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 customDeductAmount = etHiddenInput.text.toString().toIntOrNull() ?: 0
-                if (customDeductAmount > 0) toggleGroup.clearChecked()
+                if (customDeductAmount > 0) {
+                    toggleGroup.clearChecked()
+                    setPendingAction(PendingAction.WITHDRAW_BALANCE)
+                }
             }
         })
 
@@ -1347,8 +1350,12 @@ class MainActivity : AppCompatActivity() {
                     if (toggleGroup.checkedButtonId == View.NO_ID
                         && customDeductAmount == 0
                         && pendingAction == PendingAction.WITHDRAW_BALANCE) {
-                        setPendingAction(PendingAction.NONE)
-                        tvStatus.text = getString(R.string.waiting_card)
+                        if (currentBalance >= 0) {
+                            resetToWaiting()
+                        } else {
+                            setPendingAction(PendingAction.NONE)
+                            tvStatus.text = getString(R.string.waiting_card)
+                        }
                     }
                 }
             }
