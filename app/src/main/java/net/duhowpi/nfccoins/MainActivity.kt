@@ -4,7 +4,6 @@ import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.res.ColorStateList
-import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.graphics.Color
 import android.media.AudioManager
@@ -515,12 +514,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyThemeColor() {
         val color = AdvancedSettingsActivity.getThemeColor(this)
-        val darkerColor = AdvancedSettingsActivity.darkenColor(color)
         val textOnColor = AdvancedSettingsActivity.contrastColor(color)
-
-        // Action bar and status bar
-        supportActionBar?.setBackgroundDrawable(ColorDrawable(color))
-        window.statusBarColor = darkerColor
 
         // Toggle buttons: opaque fill when checked, transparent when unchecked
         val bgTint = ColorStateList(
@@ -542,6 +536,13 @@ class MainActivity : AppCompatActivity() {
             child.setTextColor(textTint)
             child.strokeColor = strokeTint
         }
+    }
+
+    private fun applyThemeToDialog(dialog: android.app.AlertDialog) {
+        val color = AdvancedSettingsActivity.getThemeColor(this)
+        dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)?.setTextColor(color)
+        dialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE)?.setTextColor(color)
+        dialog.getButton(android.app.AlertDialog.BUTTON_NEUTRAL)?.setTextColor(color)
     }
 
     // -------------------------------------------------------------------------
@@ -671,7 +672,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showAboutDialog() {
         val appName = getString(R.string.app_name)
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(getString(R.string.about_title, appName))
             .setMessage(getString(R.string.about_message, appName, BuildConfig.VERSION_NAME))
             .setPositiveButton(android.R.string.ok, null)
@@ -682,6 +683,7 @@ class MainActivity : AppCompatActivity() {
                 } catch (_: ActivityNotFoundException) { }
             }
             .show()
+        applyThemeToDialog(dialog)
     }
 
     // -------------------------------------------------------------------------
@@ -692,7 +694,7 @@ class MainActivity : AppCompatActivity() {
         // Cancel any running auto-reset so it doesn't interfere while the user
         // is actively interacting with the dialog.
         handler.removeCallbacks(autoResetRunnable)
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.card_management)
             .setItems(
                 arrayOf(
@@ -717,6 +719,7 @@ class MainActivity : AppCompatActivity() {
                 pendingAction = PendingAction.NONE
             }
             .show()
+        applyThemeToDialog(dialog)
     }
 
     /** Muestra el diálogo para introducir la cantidad a añadir antes de acercar la tarjeta. */
@@ -799,6 +802,7 @@ class MainActivity : AppCompatActivity() {
 
         confirmButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
         confirmButton?.isEnabled = false
+        applyThemeToDialog(dialog)
 
         // Override neutral button click to increment without dismissing the dialog
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener {
@@ -1045,11 +1049,12 @@ class MainActivity : AppCompatActivity() {
             scheduleAutoReset()
 
             if (AdvancedSettingsActivity.isDebugEnabled(this)) {
-                AlertDialog.Builder(this)
+                val debugDialog = AlertDialog.Builder(this)
                     .setTitle(R.string.format_success)
                     .setMessage(getString(R.string.format_success_message, keyType, foundKeyHex, newKeyHex))
                     .setPositiveButton(android.R.string.ok, null)
                     .show()
+                applyThemeToDialog(debugDialog)
             }
 
         } catch (e: Exception) {

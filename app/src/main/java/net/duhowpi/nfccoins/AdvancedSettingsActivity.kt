@@ -2,13 +2,11 @@ package net.duhowpi.nfccoins
 
 import android.content.Context
 import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
 import android.text.method.HideReturnsTransformationMethod
 import android.text.method.PasswordTransformationMethod
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -99,14 +97,6 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             return prefs.getInt(KEY_THEME_COLOR, DEFAULT_THEME_COLOR)
         }
 
-        /** Returns a darkened version of [color] for status bar / action bar variant. */
-        fun darkenColor(color: Int, factor: Float = 0.7f): Int {
-            val hsv = FloatArray(3)
-            Color.colorToHSV(color, hsv)
-            hsv[2] = (hsv[2] * factor).coerceIn(0f, 1f)
-            return Color.HSVToColor(hsv)
-        }
-
         /** Returns black or white, whichever contrasts better with [color]. */
         fun contrastColor(color: Int): Int {
             val r = Color.red(color) / 255.0
@@ -158,7 +148,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         btnSaveSettings        = findViewById(R.id.btnSaveSettings)
 
         loadCurrentSettings()
-        applyThemeToActionBar()
+        applyThemeToButtons()
 
         btnToggleKeyVisibility.setOnClickListener { toggleKeyVisibility() }
         btnGenerateKey.setOnClickListener { confirmGenerateKey() }
@@ -170,10 +160,13 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         return true
     }
 
-    private fun applyThemeToActionBar() {
+    private fun applyThemeToButtons() {
         val color = selectedThemeColor
-        supportActionBar?.setBackgroundDrawable(ColorDrawable(color))
-        window.statusBarColor = darkenColor(color)
+        val tintList = android.content.res.ColorStateList.valueOf(color)
+        btnToggleKeyVisibility.iconTint = tintList
+        btnGenerateKey.iconTint = tintList
+        btnSaveSettings.backgroundTintList = tintList
+        btnSaveSettings.setTextColor(contrastColor(color))
     }
 
     private fun loadCurrentSettings() {
@@ -226,7 +219,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
 
             swatch.setOnClickListener {
                 selectedThemeColor = color
-                applyThemeToActionBar()
+                applyThemeToButtons()
                 renderColorSwatches()
             }
             colorSelectorLayout.addView(swatch)
@@ -254,44 +247,40 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             drawable.setColor(Color.LTGRAY)
             customSwatch.text = "+"
             customSwatch.setTextColor(Color.DKGRAY)
-            customSwatch.textSize = if (customIsSelected) SWATCH_SELECTED_TEXT_SP else SWATCH_NORMAL_TEXT_SP
+            customSwatch.textSize = SWATCH_NORMAL_TEXT_SP
         }
         customSwatch.background = drawable
+        customSwatch.contentDescription = getString(R.string.color_custom_swatch)
 
         customSwatch.setOnClickListener { showCustomColorPicker() }
         colorSelectorLayout.addView(customSwatch)
     }
 
     private fun showCustomColorPicker() {
-        val input = EditText(this)
-        input.hint = "#RRGGBB"
-        input.inputType = InputType.TYPE_CLASS_TEXT
-        input.isSingleLine = true
-        input.setPadding(
-            (16 * resources.displayMetrics.density).toInt(), 0,
-            (16 * resources.displayMetrics.density).toInt(), 0
-        )
+        val wheel = ColorWheelView(this)
         if (isCustomColor) {
-            input.setText(String.format("#%06X", selectedThemeColor and 0xFFFFFF))
+            wheel.setColor(selectedThemeColor)
         }
 
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(getString(R.string.color_pick_title))
-            .setView(input)
+            .setView(wheel)
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                val hex = input.text.toString().trim().removePrefix("#")
-                val parsed = if (hex.length == 6) hex.toLongOrNull(16) else null
-                val color = parsed?.let { (0xFF000000L or it).toInt() }
-                if (color == null) {
-                    Toast.makeText(this, getString(R.string.color_pick_invalid), Toast.LENGTH_SHORT).show()
-                } else {
-                    selectedThemeColor = color
-                    applyThemeToActionBar()
-                    renderColorSwatches()
-                }
+                selectedThemeColor = wheel.getColor()
+                applyThemeToButtons()
+                renderColorSwatches()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+
+        applyThemeToDialogButtons(dialog)
+    }
+
+    private fun applyThemeToDialogButtons(dialog: AlertDialog) {
+        val color = selectedThemeColor
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(color)
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(color)
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setTextColor(color)
     }
 
     private fun toggleKeyVisibility() {
@@ -312,12 +301,14 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     }
 
     private fun confirmGenerateKey() {
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.generate_key_confirm_title)
             .setMessage(R.string.generate_key_confirm_message)
             .setPositiveButton(android.R.string.ok) { _, _ -> generateRandomKey() }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+
+        applyThemeToDialogButtons(dialog)
     }
 
     private fun generateRandomKey() {
