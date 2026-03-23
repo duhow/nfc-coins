@@ -36,8 +36,10 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         const val KEY_VIBRATION_ENABLED = "vibration_enabled"
         const val KEY_THEME_COLOR = "theme_color"
         const val KEY_DECIMAL_MODE = "decimal_mode"
+        const val KEY_LEGAL_AGE = "legal_age"
         const val DEFAULT_SECTOR = 14
         val DEFAULT_THEME_COLOR = 0xFF6200EE.toInt()
+        const val DEFAULT_LEGAL_AGE = 18
 
         private const val SWATCH_NORMAL_TEXT_SP = 14f
         private const val SWATCH_SELECTED_TEXT_SP = 18f
@@ -106,6 +108,11 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             return prefs.getBoolean(KEY_DECIMAL_MODE, false)
         }
 
+        fun getLegalAge(context: Context): Int {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            return prefs.getInt(KEY_LEGAL_AGE, DEFAULT_LEGAL_AGE)
+        }
+
         /** Returns black or white, whichever contrasts better with [color]. */
         fun contrastColor(color: Int): Int {
             val r = Color.red(color) / 255.0
@@ -137,6 +144,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private lateinit var cbSoundEnabled: MaterialCheckBox
     private lateinit var cbVibrationEnabled: MaterialCheckBox
     private lateinit var cbDecimalMode: MaterialCheckBox
+    private lateinit var etLegalAge: TextInputEditText
+    private lateinit var tilLegalAge: TextInputLayout
     private lateinit var colorSelectorLayout: LinearLayout
     private lateinit var btnSaveSettings: MaterialButton
 
@@ -166,6 +175,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         cbSoundEnabled         = findViewById(R.id.cbSoundEnabled)
         cbVibrationEnabled     = findViewById(R.id.cbVibrationEnabled)
         cbDecimalMode          = findViewById(R.id.cbDecimalMode)
+        etLegalAge             = findViewById(R.id.etLegalAge)
+        tilLegalAge            = findViewById(R.id.tilLegalAge)
         colorSelectorLayout    = findViewById(R.id.colorSelectorLayout)
         btnSaveSettings        = findViewById(R.id.btnSaveSettings)
 
@@ -224,7 +235,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
             intArrayOf(color, Color.GRAY)
         )
-        for (til in listOf(tilSector, tilStaticKey)) {
+        for (til in listOf(tilSector, tilStaticKey, tilLegalAge)) {
             til.setBoxStrokeColorStateList(focusedColorList)
             til.setHintTextColor(focusedColorList)
         }
@@ -241,6 +252,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         cbSoundEnabled.isChecked = isSoundEnabled(this)
         cbVibrationEnabled.isChecked = isVibrationEnabled(this)
         cbDecimalMode.isChecked = isDecimalModeEnabled(this)
+        etLegalAge.setText(getLegalAge(this).toString())
         selectedThemeColor = getThemeColor(this)
 
         // Key is hidden by default
@@ -413,6 +425,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         val soundEnabled = cbSoundEnabled.isChecked
         val vibrationEnabled = cbVibrationEnabled.isChecked
         val decimalMode = cbDecimalMode.isChecked
+        val legalAge = etLegalAge.text?.toString()?.trim()?.toIntOrNull()?.coerceIn(1, 99) ?: DEFAULT_LEGAL_AGE
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
@@ -426,6 +439,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             .putBoolean(KEY_SOUND_ENABLED, soundEnabled)
             .putBoolean(KEY_VIBRATION_ENABLED, vibrationEnabled)
             .putBoolean(KEY_DECIMAL_MODE, decimalMode)
+            .putInt(KEY_LEGAL_AGE, legalAge)
             .putInt(KEY_THEME_COLOR, selectedThemeColor)
             .apply()
 

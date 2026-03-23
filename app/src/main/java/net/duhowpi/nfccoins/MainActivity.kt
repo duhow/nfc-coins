@@ -25,6 +25,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -75,24 +76,34 @@ class MainActivity : AppCompatActivity() {
 
         private fun hexKey(vararg bytes: Int): ByteArray = ByteArray(bytes.size) { bytes[it].toByte() }
 
-        // Claves NFC estándar a probar al formatear (fábrica y NDEF)
+        // Standard NFC keys to try when formatting (factory and NDEF)
         private val STANDARD_KEYS = listOf(
-            hexKey(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF), // Fábrica (por defecto)
+            hexKey(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF), // Factory (default)
             hexKey(0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5), // NDEF Key A
-            hexKey(0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7), // NDEF datos
-            hexKey(0x00, 0x00, 0x00, 0x00, 0x00, 0x00), // Todo ceros
-            hexKey(0x4D, 0x3A, 0x99, 0xC3, 0x51, 0xDD), // NDEF Key B común
+            hexKey(0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7), // NDEF data
+            hexKey(0x00, 0x00, 0x00, 0x00, 0x00, 0x00), // All zeros
+            hexKey(0x4D, 0x3A, 0x99, 0xC3, 0x51, 0xDD), // NDEF Key B common
             hexKey(0x1A, 0x98, 0x2C, 0x7E, 0x45, 0x9A), // MAD key
-            hexKey(0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5), // Key B común
+            hexKey(0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5), // Key B common
         )
 
-        // Máximo valor de saldo (uint16: 2 bytes big-endian)
+        // Maximum balance value (uint16: 2 bytes big-endian)
         private const val MAX_BALANCE = 0xFFFF
 
-        // Bits de acceso estándar: lectura y escritura con Key A en todos los bloques de datos
-        private val ACCESS_BITS = hexKey(0xFF, 0x07, 0x80, 0x69)
+        // Default user byte in access bits (GPB position in the trailer)
+        private const val DEFAULT_USER_BYTE = 0x69
 
-        // Clave de fábrica Mifare Classic (todos los bytes a 0xFF)
+        // Standard access bits: read and write with Key A on all data blocks (condition 000),
+        // trailer condition 001.
+        private val ACCESS_BITS = hexKey(0xFF, 0x07, 0x80, DEFAULT_USER_BYTE)
+        private val ACCESS_BITS_STANDARD_CTRL = hexKey(0xFF, 0x07, 0x80)
+
+        // Control bytes (3) for the single-recharge restricted access bits:
+        // Block 0 condition 001: read+decrement allowed, write+increment blocked.
+        // Blocks 1,2 condition 000 (open); Trailer condition 001 (same as standard).
+        private val ACCESS_BITS_SINGLE_RECHARGE_CTRL = hexKey(0xFF, 0x06, 0x90)
+
+        // Mifare Classic factory key (all bytes 0xFF)
         private val FACTORY_KEY = hexKey(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF)
 
         private const val AUTO_RESET_DELAY_MS = 7000L
@@ -113,6 +124,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var rootLayout: View
     private lateinit var tvStatus: TextView
     private lateinit var tvBalance: EditText
+    private lateinit var tvMinorIcon: TextView
     private lateinit var tvCardId: TextView
     private lateinit var tvBalanceBefore: TextView
     private lateinit var tvBalanceAfter: TextView
@@ -149,6 +161,10 @@ class MainActivity : AppCompatActivity() {
     }
     private var pendingWrite: PendingWrite? = null
 
+    // Format card dialog options
+    private var pendingSingleRecharge: Boolean = false
+    private var pendingAgeByte: Int = DEFAULT_USER_BYTE
+
     private val handler = Handler(Looper.getMainLooper())
     private val autoResetRunnable = Runnable { resetToWaiting() }
 
@@ -159,6 +175,7 @@ class MainActivity : AppCompatActivity() {
         rootLayout        = findViewById(R.id.rootLayout)
         tvStatus          = findViewById(R.id.tvStatus)
         tvBalance         = findViewById(R.id.tvBalance)
+        tvMinorIcon       = findViewById(R.id.tvMinorIcon)
         tvCardId          = findViewById(R.id.tvCardId)
         tvBalanceBefore   = findViewById(R.id.tvBalanceBefore)
         tvBalanceAfter    = findViewById(R.id.tvBalanceAfter)
@@ -339,9 +356,11 @@ class MainActivity : AppCompatActivity() {
                 return
             }
             val sectorStart = mifare.sectorToBlock(sector)
+            val blocksInSector = mifare.getBlockCountInSector(sector)
             val counterData = mifare.readBlock(sectorStart + DATA_BLOCK_OFFSET)
             val txBlock1    = mifare.readBlock(sectorStart + TX_BLOCK_1_OFFSET)
             val txBlock2    = mifare.readBlock(sectorStart + TX_BLOCK_2_OFFSET)
+            val trailerData = mifare.readBlock(sectorStart + blocksInSector - 1)
             currentBalance = readValueBlock(counterData) ?: run {
                 tvStatus.text = getString(R.string.error_reading, "invalid value block")
                 flashBackground(R.color.error_orange)
@@ -351,6 +370,7 @@ class MainActivity : AppCompatActivity() {
             }
             val txBlock = TransactionBlock.fromBytes(txBlock1, txBlock2)
             setBalanceDisplay(currentBalance)
+            updateMinorIndicator(trailerData[KEY_LEN + 3].toInt() and 0xFF)
             layoutBeforeAfter.visibility = View.GONE
             tvActualBalance.visibility = View.GONE
             if (!txBlock.isValid(counterData, txBlock1, txBlock2, uid, psk)) {
@@ -399,9 +419,11 @@ class MainActivity : AppCompatActivity() {
                 return
             }
             val sectorStart = mifare.sectorToBlock(sector)
+            val blocksInSector = mifare.getBlockCountInSector(sector)
             val counterData = mifare.readBlock(sectorStart + DATA_BLOCK_OFFSET)
             val txBlock1    = mifare.readBlock(sectorStart + TX_BLOCK_1_OFFSET)
             val txBlock2    = mifare.readBlock(sectorStart + TX_BLOCK_2_OFFSET)
+            val trailerData = mifare.readBlock(sectorStart + blocksInSector - 1)
             val txBlock     = TransactionBlock.fromBytes(txBlock1, txBlock2)
 
             // Anti-tampering: verify checksum before performing any operation.
@@ -482,6 +504,7 @@ class MainActivity : AppCompatActivity() {
 
             currentBalance = newBalance
             setBalanceDisplay(newBalance)
+            updateMinorIndicator(trailerData[KEY_LEN + 3].toInt() and 0xFF)
             tvBalanceBefore.text = formatBalanceDisplay(balance)
             tvBalanceAfter.text = formatBalanceDisplay(newBalance)
             layoutBeforeAfter.visibility = View.VISIBLE
@@ -693,6 +716,7 @@ class MainActivity : AppCompatActivity() {
         resetBalanceToInitial()
         layoutBeforeAfter.visibility = View.GONE
         tvActualBalance.visibility = View.GONE
+        tvMinorIcon.visibility = View.GONE
         layoutTransactionHistory.visibility = View.GONE
         tvTx.forEach { it.visibility = View.GONE }
         tvStatus.text = getString(R.string.waiting_card)
@@ -748,12 +772,7 @@ class MainActivity : AppCompatActivity() {
             ) { _, which ->
                 when (which) {
                     0 -> enterAddBalanceModeInline()
-                    1 -> {
-                        cancelAddBalance()
-                        toggleGroup.clearChecked()
-                        setPendingAction(PendingAction.FORMAT_CARD)
-                        tvStatus.text = getString(R.string.tap_card_to_format)
-                    }
+                    1 -> showFormatOptionsDialog()
                     2 -> {
                         cancelAddBalance()
                         toggleGroup.clearChecked()
@@ -767,6 +786,110 @@ class MainActivity : AppCompatActivity() {
             }
             .show()
         applyThemeToDialog(dialog)
+    }
+
+    /**
+     * Shows a dialog with format options before formatting a card:
+     * - "Recarga única" checkbox: when enabled, restricted access bits are written to the sector
+     *   trailer during format (block 0 becomes increment-blocked). On the first balance add the
+     *   app temporarily unlocks, adds balance, then re-locks.
+     * - "Límite de edad" number input: accepts an age (1–99) or birth year (1900–currentYear).
+     *   Stores (birthYear − 1900) in the GPB user byte of the sector trailer access bits.
+     *   Defaults to DEFAULT_USER_BYTE when empty or invalid.
+     */
+    private fun showFormatOptionsDialog() {
+        val pad = (24 * resources.displayMetrics.density).toInt()
+
+        val checkboxSingleRecharge = CheckBox(this).apply {
+            text = getString(R.string.format_recarga_unica)
+            isChecked = false
+        }
+
+        val labelAge = TextView(this).apply {
+            text = getString(R.string.format_limite_edad)
+            setPadding(0, pad / 2, 0, 0)
+        }
+
+        val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+        val editAge = EditText(this).apply {
+            hint = getString(R.string.format_limite_edad_hint)
+            inputType = InputType.TYPE_CLASS_NUMBER
+            addTextChangedListener(object : TextWatcher {
+                private var updating = false
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: Editable?) {
+                    if (updating) return
+                    val value = s?.toString()?.toIntOrNull() ?: return
+                    if (value > currentYear) {
+                        updating = true
+                        s?.replace(0, s.length, currentYear.toString())
+                        updating = false
+                    }
+                }
+            })
+        }
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad / 2, pad, 0)
+            addView(checkboxSingleRecharge)
+            addView(labelAge)
+            addView(editAge)
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.action_format_card)
+            .setView(layout)
+            .setPositiveButton(R.string.action_confirm) { _, _ ->
+                pendingSingleRecharge = checkboxSingleRecharge.isChecked
+                pendingAgeByte = parseAgeByte(editAge.text.toString())
+                cancelAddBalance()
+                toggleGroup.clearChecked()
+                setPendingAction(PendingAction.FORMAT_CARD)
+                tvStatus.text = getString(R.string.tap_card_to_format)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+        applyThemeToDialog(dialog)
+    }
+
+    /**
+     * Interprets [input] as an age (1–99, resolved to currentYear − age) or birth year
+     * (1900–currentYear) and returns the value to store in the GPB user byte (birthYear − 1900).
+     * Returns [DEFAULT_USER_BYTE] when the input is empty or out of range.
+     */
+    private fun parseAgeByte(input: String): Int {
+        val trimmed = input.trim()
+        if (trimmed.isEmpty()) return DEFAULT_USER_BYTE
+        val value = trimmed.toIntOrNull() ?: return DEFAULT_USER_BYTE
+        val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+        val birthYear = when {
+            value in 1..99 -> currentYear - value
+            value in 1900..currentYear -> value
+            else -> return DEFAULT_USER_BYTE
+        }
+        return (birthYear - 1900).coerceIn(0, 255)
+    }
+
+    /**
+     * Builds a 16-byte Mifare Classic sector trailer block:
+     *   [Key A (6 bytes)] [Access bits (4 bytes)] [Key B (6 bytes)]
+     *
+     * When [standard] is true, uses the standard access bits (FF 07 80) which allow
+     * increment and write on all data blocks. When false, uses the single-recharge
+     * restricted bits (FF 06 90) which block increment and write on block 0.
+     * The [userByte] (GPB, General Purpose Byte) is placed at position 3 of the access bits.
+     */
+    private fun buildSectorTrailer(key: ByteArray, standard: Boolean, userByte: Int): ByteArray {
+        val ctrlBytes = if (standard) ACCESS_BITS_STANDARD_CTRL
+                        else          ACCESS_BITS_SINGLE_RECHARGE_CTRL
+        val trailer = ByteArray(MifareClassic.BLOCK_SIZE)
+        System.arraycopy(key, 0, trailer, 0, KEY_LEN)
+        System.arraycopy(ctrlBytes, 0, trailer, KEY_LEN, ctrlBytes.size)
+        trailer[KEY_LEN + ctrlBytes.size] = userByte.toByte()
+        System.arraycopy(key, 0, trailer, KEY_LEN + ctrlBytes.size + 1, KEY_LEN)
+        return trailer
     }
 
     /**
@@ -889,6 +1012,36 @@ class MainActivity : AppCompatActivity() {
             // Retain the intended state in memory so an interrupted write can be retried.
             pendingWrite = PendingWrite(uid, newCounterBlock, newTxBlock1, newTxBlock2)
 
+            // Detect single-recharge mode by reading the sector trailer directly from the card.
+            // A single-recharge card has ACCESS_BITS_SINGLE_RECHARGE_CTRL in bytes 6-8 of the
+            // trailer. The ageByte (GPB) lives at byte 9. No per-device SharedPreferences are
+            // used so that the recharge can be performed on any device/instance.
+            val blocksInSector = mifare.getBlockCountInSector(sector)
+            val trailerIdx = sectorStart + blocksInSector - 1
+            val trailerData = mifare.readBlock(trailerIdx)
+            val isSingleRecharge = trailerData[KEY_LEN] == ACCESS_BITS_SINGLE_RECHARGE_CTRL[0] &&
+                                   trailerData[KEY_LEN + 1] == ACCESS_BITS_SINGLE_RECHARGE_CTRL[1] &&
+                                   trailerData[KEY_LEN + 2] == ACCESS_BITS_SINGLE_RECHARGE_CTRL[2]
+            val ageByte = trailerData[KEY_LEN + 3].toInt() and 0xFF
+            val isFirstAdd = txBlock.transactions.isEmpty()
+
+            if (isSingleRecharge && !isFirstAdd) {
+                // Card was already charged once; reject any further balance additions.
+                tvStatus.text = getString(R.string.single_recharge_already_used)
+                flashBackground(R.color.error_orange)
+                playNfcErrorBeep()
+                scheduleAutoReset()
+                pendingWrite = null
+                return
+            }
+
+            if (isSingleRecharge) {
+                // First and only allowed recharge: temporarily unlock block 0, increment, then
+                // re-lock with the original restricted bits and preserved ageByte.
+                val openTrailer = buildSectorTrailer(cardKey, standard = true, userByte = ageByte)
+                mifare.writeBlock(trailerIdx, openTrailer)
+            }
+
             // Atomically increment the value block on the chip, then commit with transfer.
             val blockIndex = sectorStart + DATA_BLOCK_OFFSET
             mifare.increment(blockIndex, pendingAddAmount)
@@ -897,8 +1050,15 @@ class MainActivity : AppCompatActivity() {
             mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, newTxBlock2)
             pendingWrite = null
 
+            if (isSingleRecharge) {
+                // Re-lock: restore restricted access bits so further increments are blocked.
+                val restrictedTrailer = buildSectorTrailer(cardKey, standard = false, userByte = ageByte)
+                mifare.writeBlock(trailerIdx, restrictedTrailer)
+            }
+
             currentBalance = newBalance
             setBalanceDisplay(newBalance)
+            updateMinorIndicator(ageByte)
             tvBalanceBefore.text = formatBalanceDisplay(oldBalance)
             tvBalanceAfter.text = formatBalanceDisplay(newBalance)
             layoutBeforeAfter.visibility = View.VISIBLE
@@ -919,9 +1079,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Intenta formatear el sector configurado de la tarjeta.
-     * Primero prueba la clave derivada del UID: si ya está formateada, solo pone el saldo a cero.
-     * Si no, busca una clave estándar y escribe el sector con la clave derivada.
+     * Attempts to format the configured sector of the card.
+     * First tries the derived key: if already formatted, resets the balance to zero.
+     * Otherwise searches for a standard key and writes the sector with the derived key.
      */
     private fun formatCard(tag: Tag) {
         val sector = AdvancedSettingsActivity.getTargetSector(this)
@@ -939,9 +1099,16 @@ class MainActivity : AppCompatActivity() {
         try {
             mifare.connect()
 
-            // Si ya está formateada con la clave derivada, reinicia el saldo a 0 y el historial
+            // If already formatted with the derived key, reset balance to 0 and transaction history
             if (mifare.authenticateSectorWithKeyA(sector, derivedKey)) {
                 val sectorStart = mifare.sectorToBlock(sector)
+                val blocksInSector = mifare.getBlockCountInSector(sector)
+                val trailerIdx = sectorStart + blocksInSector - 1
+
+                // Always write open access bits first so block 0 is writable even if the card
+                // was previously formatted with single-recharge restricted bits.
+                mifare.writeBlock(trailerIdx, buildSectorTrailer(derivedKey, standard = true, userByte = pendingAgeByte))
+
                 val counterData = mifare.readBlock(sectorStart + DATA_BLOCK_OFFSET)
                 val oldBalance = readValueBlock(counterData) ?: 0
 
@@ -953,6 +1120,9 @@ class MainActivity : AppCompatActivity() {
                 mifare.writeBlock(sectorStart + DATA_BLOCK_OFFSET, zeroValueBlock)
                 mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, txB1)
                 mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, txB2)
+
+                // Write the target access bits (restricted or standard)
+                mifare.writeBlock(trailerIdx, buildSectorTrailer(derivedKey, standard = !pendingSingleRecharge, userByte = pendingAgeByte))
 
                 currentBalance = 0
                 setBalanceDisplay(0)
@@ -968,7 +1138,7 @@ class MainActivity : AppCompatActivity() {
                 return
             }
 
-            // Buscar clave estándar que permita acceder al sector
+            // Search for a standard key that grants access to the sector
             var foundKey: ByteArray? = null
             var usedKeyA = true
 
@@ -1007,7 +1177,7 @@ class MainActivity : AppCompatActivity() {
                 return
             }
 
-            // Inicializar contador en formato Value Block (valor=0) y bloques de transacción
+            // Initialize counter as a Value Block (value=0) and transaction blocks
             val sectorStart = mifare.sectorToBlock(sector)
             val blocksInSector = mifare.getBlockCountInSector(sector)
             val zeroValueBlock = makeValueBlock(0)
@@ -1019,13 +1189,13 @@ class MainActivity : AppCompatActivity() {
             mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, txB1)
             mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, txB2)
 
-            // Escribir trailer del sector con la clave derivada
+            // Write sector trailer with the derived key and the chosen access bits.
+            // Single-recharge cards get restricted bits immediately so block 0 is locked.
             // [Key A (6 bytes)] [Access bits (4 bytes)] [Key B (6 bytes)]
-            val trailer = ByteArray(MifareClassic.BLOCK_SIZE)
-            System.arraycopy(derivedKey, 0, trailer, 0, KEY_LEN)
-            System.arraycopy(ACCESS_BITS, 0, trailer, KEY_LEN, ACCESS_BITS.size)
-            System.arraycopy(derivedKey, 0, trailer, KEY_LEN + ACCESS_BITS.size, KEY_LEN)
-            mifare.writeBlock(sectorStart + blocksInSector - 1, trailer)
+            mifare.writeBlock(
+                sectorStart + blocksInSector - 1,
+                buildSectorTrailer(derivedKey, standard = !pendingSingleRecharge, userByte = pendingAgeByte)
+            )
 
             val foundKeyHex = foundKey.toHex()
             val newKeyHex = derivedKey.toHex()
@@ -1245,6 +1415,21 @@ class MainActivity : AppCompatActivity() {
      * before delegating to [setBalanceText].
      */
     private fun setBalanceDisplay(value: Int) = setBalanceText(formatBalanceDisplay(value))
+
+    /**
+     * Shows or hides the minor-age indicator icon next to the balance display.
+     *
+     * [ageByte] is the GPB byte stored in the sector trailer, where the birth year is
+     * encoded as `birthYear - 1900`. The icon is shown when the computed age is below the
+     * configured legal adult age and the byte represents a plausible birth year.
+     */
+    private fun updateMinorIndicator(ageByte: Int) {
+        val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+        val birthYear = 1900 + ageByte
+        val age = currentYear - birthYear
+        val legalAge = AdvancedSettingsActivity.getLegalAge(this)
+        tvMinorIcon.visibility = if (age in 0 until legalAge) View.VISIBLE else View.GONE
+    }
 
     /**
      * Resets the balance display to the initial "--" state and allows
