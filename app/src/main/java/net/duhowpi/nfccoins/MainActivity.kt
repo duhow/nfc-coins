@@ -287,18 +287,18 @@ class MainActivity : AppCompatActivity() {
                 resetCard(tag)
             }
             PendingAction.WITHDRAW_BALANCE -> {
-                pendingAction = PendingAction.NONE
+                // Do not clear pendingAction here; readAndDeduct manages state depending on
+                // success/failure and whether a toggle button or custom amount is active.
                 val cardKey = deriveCardKey(uid)
                 when {
-                    toggleGroup.checkedButtonId == R.id.btnDeduct1 -> readAndDeduct(tag, cardKey, 1)
-                    toggleGroup.checkedButtonId == R.id.btnDeduct2 -> readAndDeduct(tag, cardKey, 2)
+                    toggleGroup.checkedButtonId == R.id.btnDeduct1 -> readAndDeduct(tag, cardKey, 1, isButtonMode = true)
+                    toggleGroup.checkedButtonId == R.id.btnDeduct2 -> readAndDeduct(tag, cardKey, 2, isButtonMode = true)
                     customDeductAmount > 0 -> {
-                        val amount = customDeductAmount
-                        customDeductAmount = 0
                         isCustomAmountMode = false
                         clearHiddenInput()
-                        readAndDeduct(tag, cardKey, amount, isCustomAmount = true)
+                        readAndDeduct(tag, cardKey, customDeductAmount, isCustomAmount = true)
                     }
+                    else -> setPendingAction(PendingAction.NONE)
                 }
             }
             PendingAction.NONE -> {
@@ -374,7 +374,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Modo con botón activo: descuenta monedas y muestra saldo inicial → final en grande. */
-    private fun readAndDeduct(tag: Tag, cardKey: ByteArray, amount: Int, isCustomAmount: Boolean = false) {
+    private fun readAndDeduct(tag: Tag, cardKey: ByteArray, amount: Int, isCustomAmount: Boolean = false, isButtonMode: Boolean = false) {
         val sector = AdvancedSettingsActivity.getTargetSector(this)
         val uid = tag.id
         val psk = AdvancedSettingsActivity.getStaticKey(this)
@@ -382,7 +382,7 @@ class MainActivity : AppCompatActivity() {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
             playNfcErrorBeep()
-            scheduleAutoReset()
+            // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
             return
         }
         try {
@@ -391,7 +391,7 @@ class MainActivity : AppCompatActivity() {
                 tvStatus.text = getString(R.string.auth_failed)
                 flashBackground(R.color.error_orange)
                 playNfcErrorBeep()
-                scheduleAutoReset()
+                // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                 return
             }
             val sectorStart = mifare.sectorToBlock(sector)
@@ -410,7 +410,7 @@ class MainActivity : AppCompatActivity() {
                     mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, pw.txBlock2)
                     pendingWrite = null
                     tvStatus.text = getString(R.string.write_retried)
-                    scheduleAutoReset()
+                    // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                     return
                 }
                 if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
@@ -419,7 +419,7 @@ class MainActivity : AppCompatActivity() {
                     showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
                     flashRedBackground()
                     playNfcErrorBeep()
-                    scheduleAutoReset()
+                    // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                     return
                 }
                 // Integrity check disabled: invalid checksum is ignored and the transaction
@@ -431,7 +431,7 @@ class MainActivity : AppCompatActivity() {
                 tvStatus.text = getString(R.string.error_reading, "invalid value block")
                 flashBackground(R.color.error_orange)
                 playNfcErrorBeep()
-                scheduleAutoReset()
+                // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                 return
             }
 
@@ -451,7 +451,7 @@ class MainActivity : AppCompatActivity() {
                 showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
                 flashRedBackground()
                 playInsufficientBalanceBeep()
-                scheduleAutoReset()
+                // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                 return
             }
 
@@ -486,13 +486,20 @@ class MainActivity : AppCompatActivity() {
             showTransactionHistory(updatedTxBlock)
             showDebugChecksums(newCounterBlock, newTxBlock1, newTxBlock2, uid, psk)
             playSuccessBeep()
-            scheduleAutoReset()
+            if (isButtonMode) {
+                // Button remains active: keep WITHDRAW_BALANCE state for additional transactions.
+                // No auto-reset scheduled; the user can tap another card immediately.
+            } else {
+                // Custom-amount is a one-shot transaction: clear it and schedule a full reset.
+                customDeductAmount = 0
+                scheduleAutoReset()
+            }
 
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
             flashBackground(R.color.error_orange)
             playNfcErrorBeep()
-            scheduleAutoReset()
+            // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
         } finally {
             runCatching { mifare.close() }
         }
