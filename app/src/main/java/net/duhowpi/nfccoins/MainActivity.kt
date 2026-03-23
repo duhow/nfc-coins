@@ -486,11 +486,7 @@ class MainActivity : AppCompatActivity() {
             tvBalanceAfter.text = formatBalanceDisplay(newBalance)
             layoutBeforeAfter.visibility = View.VISIBLE
             tvActualBalance.visibility = View.GONE
-            tvStatus.text = if (AdvancedSettingsActivity.isDecimalModeEnabled(this)) {
-                getString(R.string.deduct_ok_decimal, formatBalanceDisplay(amount))
-            } else {
-                getString(R.string.deduct_ok, amount)
-            }
+            tvStatus.text = getString(R.string.deduct_ok, formatBalanceDisplay(amount))
             showTransactionHistory(updatedTxBlock)
             showDebugChecksums(newCounterBlock, newTxBlock1, newTxBlock2, uid, psk)
             playSuccessBeep()
@@ -901,11 +897,7 @@ class MainActivity : AppCompatActivity() {
             tvBalanceBefore.text = formatBalanceDisplay(oldBalance)
             tvBalanceAfter.text = formatBalanceDisplay(newBalance)
             layoutBeforeAfter.visibility = View.VISIBLE
-            tvStatus.text = if (AdvancedSettingsActivity.isDecimalModeEnabled(this)) {
-                getString(R.string.balance_added_ok_decimal, formatBalanceDisplay(pendingAddAmount))
-            } else {
-                getString(R.string.balance_added_ok, pendingAddAmount)
-            }
+            tvStatus.text = getString(R.string.balance_added_ok, formatBalanceDisplay(pendingAddAmount))
             showTransactionHistory(updatedTxBlock)
             showDebugChecksums(newCounterBlock, newTxBlock1, newTxBlock2, uid, psk)
             flashBackground(R.color.success_green)
