@@ -1329,7 +1329,7 @@ class MainActivity : AppCompatActivity() {
         // buttons (with no custom amount pending) returns to NONE.
         toggleGroup.addOnButtonCheckedListener { _, _, isChecked ->
             if (isChecked) {
-                if (pendingAction == PendingAction.ADD_BALANCE) {
+                if (isAddBalanceMode || pendingAction == PendingAction.ADD_BALANCE) {
                     cancelAddBalance()
                 } else if (customDeductAmount > 0) {
                     resetBalanceToInitial()
