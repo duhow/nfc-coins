@@ -566,8 +566,11 @@ class MainActivity : AppCompatActivity() {
         val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this)
         val btnDeduct1 = toggleGroup.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnDeduct1)
         val btnDeduct2 = toggleGroup.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnDeduct2)
+        val deductTextSizeSp = if (isDecimalMode) 20f else 26f
         btnDeduct1?.text = if (isDecimalMode) "-1.00" else getString(R.string.deduct_1_short)
         btnDeduct2?.text = if (isDecimalMode) "-2.00" else getString(R.string.deduct_2_short)
+        btnDeduct1?.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, deductTextSizeSp)
+        btnDeduct2?.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, deductTextSizeSp)
     }
 
     private fun applyThemeToDialog(dialog: AlertDialog) {
@@ -786,7 +789,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             InputType.TYPE_CLASS_NUMBER
         }
-        tvBalance.setText(if (isDecimalMode) "+0.00" else "+0")
+        tvBalance.setText("+" + formatBalanceDisplay(0))
         layoutBeforeAfter.visibility = View.GONE
         tvActualBalance.visibility = View.GONE
         layoutTransactionHistory.visibility = View.GONE
@@ -1181,11 +1184,16 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Formats an integer stored value for display. In decimal mode the value is treated
-     * as cents (e.g. 125 → "1.25"); otherwise it is returned as-is ("125").
+     * as cents (e.g. 125 → "1.25"); whole-cent values are shown without the decimal part
+     * (e.g. 100 → "1"). Outside decimal mode it is returned as-is ("125").
      */
     private fun formatBalanceDisplay(value: Int): String {
         return if (AdvancedSettingsActivity.isDecimalModeEnabled(this)) {
-            "%d.%02d".format(value / 100, Math.abs(value % 100))
+            if (value % 100 == 0) {
+                (value / 100).toString()
+            } else {
+                "%d.%02d".format(value / 100, Math.abs(value % 100))
+            }
         } else {
             value.toString()
         }
@@ -1309,16 +1317,17 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
                 if (isUpdating) return
-                val raw = s?.toString() ?: ""
+                var raw = s?.toString() ?: ""
 
                 val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this@MainActivity)
                 if (isDecimalMode) {
-                    // Normalize: replace comma separator with dot
+                    // Normalize: replace comma separator with dot and continue processing
                     if (',' in raw) {
+                        val normalized = raw.replace(',', '.')
                         isUpdating = true
-                        s?.replace(0, s.length, raw.replace(',', '.'))
+                        s?.replace(0, s.length, normalized)
                         isUpdating = false
-                        return
+                        raw = normalized
                     }
                     // Allow at most one decimal separator
                     val dotCount = raw.count { it == '.' }
