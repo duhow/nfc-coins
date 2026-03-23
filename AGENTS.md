@@ -1,5 +1,11 @@
 # Agents Notes
 
+## Commits
+
+Use Conventional Commits. Common types are feat, fix, chore, refactor, perf, ci, docs.
+If using scope, limit scope to two-word max, connected with dash.
+Check historic commits to avoid making up new scopes every time.
+
 ## Development best practices
 
 - Keep changes focused and minimal to the issue being solved.
@@ -8,7 +14,7 @@
 - If touching UI text, keep user-facing wording clear and consistent.
 - Avoid introducing new dependencies unless absolutely necessary.
 
-## Layout change requirement (important)
+## IMPORTANT: Layout changes
 
 - `activity_main.xml` exists in **both**:
   - `app/src/main/res/layout/activity_main.xml` (portrait/default)
