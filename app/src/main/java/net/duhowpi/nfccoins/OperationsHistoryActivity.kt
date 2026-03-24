@@ -21,6 +21,8 @@ class OperationsHistoryActivity : AppCompatActivity() {
     private lateinit var tvNoData: TextView
     private lateinit var togglePeriod: MaterialButtonToggleGroup
     private lateinit var tableLayout: TableLayout
+    private lateinit var tvTableLabel: TextView
+    private lateinit var tvColLastDay: TextView
     private lateinit var tvNavLabel: TextView
     private lateinit var btnNavPrev: ImageButton
     private lateinit var btnNavNext: ImageButton
@@ -48,6 +50,8 @@ class OperationsHistoryActivity : AppCompatActivity() {
         tvNoData     = findViewById(R.id.tvNoData)
         togglePeriod = findViewById(R.id.togglePeriod)
         tableLayout  = findViewById(R.id.tableButtonStats)
+        tvTableLabel = findViewById(R.id.tvTableLabel)
+        tvColLastDay = findViewById(R.id.tvColLastDay)
         tvNavLabel   = findViewById(R.id.tvNavLabel)
         btnNavPrev   = findViewById(R.id.btnNavPrev)
         btnNavNext   = findViewById(R.id.btnNavNext)
@@ -193,9 +197,38 @@ class OperationsHistoryActivity : AppCompatActivity() {
     // -------------------------------------------------------------------------
 
     private fun loadButtonStats() {
-        val stats = db.getButtonStats()
+        val isHourly = !isWeeklyMode()
+
+        // For hourly view of a past day, the per-button table is not relevant
+        // because the hourly-anchored columns (this/last hour) would be meaningless.
+        // The bar chart already shows the full picture for the selected day.
+        if (isHourly && dayOffset > 0) {
+            tvTableLabel.visibility = View.GONE
+            tableLayout.visibility = View.GONE
+            return
+        }
+
+        tvTableLabel.visibility = View.VISIBLE
+        tableLayout.visibility = View.VISIBLE
+
+        val stats = db.getButtonStats(weekOffset)
 
         while (tableLayout.childCount > 1) tableLayout.removeViewAt(1)
+
+        if (isHourly) {
+            // Hourly today: show "This hour / Last hour / Today", hide "This week" column
+            tvColLastDay.text = getString(R.string.ops_col_today)
+            tableLayout.setColumnCollapsed(1, false)
+            tableLayout.setColumnCollapsed(2, false)
+            tableLayout.setColumnCollapsed(3, false)
+            tableLayout.setColumnCollapsed(4, true)
+        } else {
+            // Weekly: show only "This week" column, hide the three hourly columns
+            tableLayout.setColumnCollapsed(1, true)
+            tableLayout.setColumnCollapsed(2, true)
+            tableLayout.setColumnCollapsed(3, true)
+            tableLayout.setColumnCollapsed(4, false)
+        }
 
         if (stats.isEmpty()) {
             val row = TableRow(this)
@@ -224,21 +257,24 @@ class OperationsHistoryActivity : AppCompatActivity() {
             }
 
             row.addView(makeCell(priceText, isBold = true))
+            row.addView(makeCell(stat.countThisHour.toString()))
             row.addView(makeCell(stat.countLastHour.toString()))
-            row.addView(makeCell(stat.countLastDay.toString()))
-            row.addView(makeCell(stat.countLastWeek.toString()))
+            row.addView(makeCell(stat.countToday.toString()))
+            row.addView(makeCell(stat.countThisWeek.toString()))
             tableLayout.addView(row)
         }
 
         // Total row
-        val totalHour = stats.sumOf { it.countLastHour }
-        val totalDay  = stats.sumOf { it.countLastDay }
-        val totalWeek = stats.sumOf { it.countLastWeek }
-        val totalRow  = TableRow(this)
+        val totalThisHour = stats.sumOf { it.countThisHour }
+        val totalLastHour = stats.sumOf { it.countLastHour }
+        val totalToday    = stats.sumOf { it.countToday }
+        val totalWeek     = stats.sumOf { it.countThisWeek }
+        val totalRow      = TableRow(this)
         totalRow.setPadding(0, 4, 0, 4)
         totalRow.addView(makeCell(getString(R.string.ops_col_total), isBold = true))
-        totalRow.addView(makeCell(totalHour.toString(), isBold = true))
-        totalRow.addView(makeCell(totalDay.toString(), isBold = true))
+        totalRow.addView(makeCell(totalThisHour.toString(), isBold = true))
+        totalRow.addView(makeCell(totalLastHour.toString(), isBold = true))
+        totalRow.addView(makeCell(totalToday.toString(), isBold = true))
         totalRow.addView(makeCell(totalWeek.toString(), isBold = true))
         tableLayout.addView(totalRow)
     }

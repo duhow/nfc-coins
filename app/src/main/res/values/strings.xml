@@ -113,11 +113,13 @@
     <string name="ops_no_button_data">No withdrawals recorded yet</string>
     <string name="ops_legend_added">Added</string>
     <string name="ops_legend_subtracted">Subtracted</string>
-    <string name="ops_price_usage">Withdrawals by Amount (last 7 days)</string>
+    <string name="ops_price_usage">Breakdown by Amount</string>
     <string name="ops_col_price">Amount</string>
+    <string name="ops_col_this_hour">This hour</string>
     <string name="ops_col_last_hour">Last hour</string>
-    <string name="ops_col_last_day">Last 24 h</string>
-    <string name="ops_col_last_week">Last 7 days</string>
+    <string name="ops_col_last_day">Yesterday</string>
+    <string name="ops_col_today">Today</string>
+    <string name="ops_col_last_week">This week</string>
     <string name="ops_col_total">Total</string>
     <string name="ops_nav_prev">Previous</string>
     <string name="ops_nav_next">Next</string>
