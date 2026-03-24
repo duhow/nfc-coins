@@ -2,6 +2,7 @@ package net.duhowpi.nfccoins
 
 import android.nfc.Tag
 import android.nfc.tech.NfcA
+import java.io.IOException
 
 /**
  * [BaseCoinCard] implementation for NTAG cards over [NfcA].
@@ -13,7 +14,7 @@ import android.nfc.tech.NfcA
  * - 32 B transactions + checksum
  * - 2 B  padding
  */
-class Ntag(
+class NtagCoinCard(
     tag: Tag,
     psk: String,
     private val options: BaseCoinCard.Companion.NtagOptions
@@ -33,6 +34,8 @@ class Ntag(
 
     private var totalPages: Int = -1
     private var dataStartPage: Int = -1
+    private var supportsGetVersion: Boolean = false
+    private var supportsFastRead: Boolean = false
     private var cachedMeta: HeaderMeta = HeaderMeta(
         version = CURRENT_VERSION,
         userBirthYear = MifareClassicHelper.toUserBirthYear(MifareClassicHelper.DEFAULT_USER_BYTE),
@@ -169,12 +172,28 @@ class Ntag(
     }
 
     private fun detectTotalPages(): Int {
-        val version = transceive(byteArrayOf(CMD_GET_VERSION))
-        if (version.size >= 8) {
-            val sizeCode = version[6].toInt() and 0xFF
-            TOTAL_PAGES_BY_SIZE_CODE[sizeCode]?.let { return it }
+        val versionPages = detectTotalPagesFromVersion()
+        if (versionPages != null) {
+            supportsGetVersion = true
+            supportsFastRead = isFastReadSupported()
+            return versionPages
         }
-        throw IllegalStateException("Unsupported NTAG: could not resolve total pages")
+
+        // NTAG20x family may not support GET_VERSION; fall back to probing.
+        supportsGetVersion = false
+        supportsFastRead = isFastReadSupported()
+        val lastPage = probeLastReadablePage()
+        if (lastPage < options.userMemoryStartPage) {
+            throw IllegalStateException("Unsupported NTAG: could not resolve total pages")
+        }
+        return lastPage + 1
+    }
+
+    private fun detectTotalPagesFromVersion(): Int? {
+        val version = runCatching { transceive(byteArrayOf(CMD_GET_VERSION)) }.getOrNull() ?: return null
+        if (version.size < VERSION_RESPONSE_LEN) return null
+        val sizeCode = version[6].toInt() and 0xFF
+        return TOTAL_PAGES_BY_SIZE_CODE[sizeCode]
     }
 
     private fun readPayload44(): ByteArray = readPages(dataStartPage, TOTAL_PAGES)
@@ -198,6 +217,23 @@ class Ntag(
     }
 
     private fun readPages(startPage: Int, pageCount: Int): ByteArray {
+        if (supportsFastRead) {
+            val fastRead = runCatching { fastReadPages(startPage, pageCount) }.getOrNull()
+            if (fastRead != null) return fastRead
+            supportsFastRead = false
+        }
+        return readPagesByReadCommand(startPage, pageCount)
+    }
+
+    private fun fastReadPages(startPage: Int, pageCount: Int): ByteArray {
+        val endPage = startPage + pageCount - 1
+        val response = transceive(byteArrayOf(CMD_FAST_READ, startPage.toByte(), endPage.toByte()))
+        val expected = pageCount * BYTES_PER_PAGE
+        require(response.size >= expected) { "Unexpected NTAG FAST_READ response" }
+        return response.copyOf(expected)
+    }
+
+    private fun readPagesByReadCommand(startPage: Int, pageCount: Int): ByteArray {
         val out = ByteArray(pageCount * BYTES_PER_PAGE)
         var dst = 0
         var page = startPage
@@ -206,7 +242,7 @@ class Ntag(
         while (remaining > 0) {
             val response = transceive(byteArrayOf(CMD_READ, page.toByte()))
             require(response.size >= READ_CHUNK_PAGES * BYTES_PER_PAGE) {
-                "Unexpected NTAG read response"
+                "Unexpected NTAG READ response"
             }
 
             val pagesToCopy = minOf(remaining, READ_CHUNK_PAGES)
@@ -240,6 +276,40 @@ class Ntag(
     }
 
     private fun transceive(command: ByteArray): ByteArray = nfcA.transceive(command)
+
+    private fun isFastReadSupported(): Boolean =
+        runCatching {
+            // Probe a tiny span in the static area to avoid touching user payload layout.
+            val rsp = transceive(byteArrayOf(CMD_FAST_READ, 0x00, 0x03))
+            rsp.size >= READ_CHUNK_PAGES * BYTES_PER_PAGE
+        }.getOrElse { false }
+
+    private fun probeLastReadablePage(): Int {
+        var low = options.userMemoryStartPage
+        var high = MAX_PAGE_PROBE
+        var best = -1
+
+        while (low <= high) {
+            val mid = (low + high) ushr 1
+            if (canReadPage(mid)) {
+                best = mid
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+        return best
+    }
+
+    private fun canReadPage(page: Int): Boolean =
+        runCatching {
+            val rsp = transceive(byteArrayOf(CMD_READ, page.toByte()))
+            rsp.size >= READ_CHUNK_PAGES * BYTES_PER_PAGE
+        }.getOrElse { err ->
+            // NAK/IO errors are expected while probing beyond memory boundaries.
+            if (err is IOException) return@getOrElse false
+            false
+        }
 
     private fun encodeMeta(meta: HeaderMeta): ByteArray {
         val versionNibble = (meta.version and 0x0F) shl 4
@@ -296,12 +366,17 @@ class Ntag(
         private const val FLAG_SINGLE_RECHARGE = 0x1
 
         private const val CMD_READ: Byte = 0x30
+        private const val CMD_FAST_READ: Byte = 0x3A
         private const val CMD_WRITE: Byte = 0xA2.toByte()
         private const val CMD_GET_VERSION: Byte = 0x60
+        private const val VERSION_RESPONSE_LEN = 8
+        private const val MAX_PAGE_PROBE = 255
 
         private val MAGIC = "COIN".toByteArray(Charsets.US_ASCII)
 
         private val TOTAL_PAGES_BY_SIZE_CODE = mapOf(
+            0x0B to 20,  // NTAG210
+            0x0E to 41,  // NTAG212
             0x0F to 45,  // NTAG213
             0x11 to 135, // NTAG215
             0x13 to 231  // NTAG216

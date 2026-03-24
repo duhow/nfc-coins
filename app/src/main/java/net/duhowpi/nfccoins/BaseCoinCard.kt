@@ -248,10 +248,7 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
         )
 
         /**
-         * Placeholder for future NTAG-specific options.
-         *
-         * Keeping this type in the base factory avoids changing call sites
-         * when NTAG support is added.
+         * NTAG-specific options used by [NtagCoinCard].
          */
         data class NtagOptions(
             val userMemoryStartPage: Int = 4,
@@ -285,7 +282,7 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
                 },
                 create = { tag, options ->
                     runCatching {
-                        Ntag(
+                        NtagCoinCard(
                             tag = tag,
                             psk = options.psk,
                             options = options.ntag
