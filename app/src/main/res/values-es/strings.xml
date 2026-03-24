@@ -109,7 +109,7 @@
     <string name="ops_col_this_hour">Esta hora</string>
     <string name="ops_col_last_hour">Hace 1 hora</string>
     <string name="ops_col_last_day">Ayer</string>
-    <string name="ops_col_today">Total</string>
+    <string name="ops_col_today">Hoy</string>
     <string name="ops_col_last_week">Esta semana</string>
     <string name="ops_col_total">Total</string>
     <string name="ops_nav_prev">Anterior</string>
