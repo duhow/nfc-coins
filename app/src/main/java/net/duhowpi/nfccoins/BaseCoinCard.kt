@@ -1,5 +1,6 @@
 package net.duhowpi.nfccoins
 
+import android.content.Context
 import android.nfc.Tag
 import android.nfc.tech.MifareClassic
 import java.io.Closeable
@@ -14,7 +15,7 @@ import java.io.Closeable
  *
  * Typical lifecycle inside an Activity operation method:
  * ```
- * val card = BaseCoinCard.fromTag(tag, sector, psk, useDynamic) ?: return
+ * val card = BaseCoinCard.fromTag(tag) ?: return
  * try {
  *     card.connect()
  *     val result = card.readCardData()
@@ -38,21 +39,27 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
     /**
      * All coin-relevant data read from the card in a single tap.
      *
-     * [counterData], [txBlock1], and [txBlock2] carry the raw bytes for
+     * [checksum] carries the stored integrity bytes for
      * integrity verification ([isDataValid]) and debug display.
      */
     data class CardData(
-        val balance: Int,
-        val txBlock: TransactionBlock,
-        val ageByte: Int,
-        val isSingleRecharge: Boolean,
-        /** Raw counter / value block bytes as read from the card. */
-        val counterData: ByteArray,
-        /** Raw transaction block 1 bytes. */
-        val txBlock1: ByteArray,
-        /** Raw transaction block 2 bytes. */
-        val txBlock2: ByteArray
-    )
+        val balance: Int = 0,
+        /** Parsed transaction history domain model. */
+        val transactions: TransactionBlock = TransactionBlock(),
+        /** Stored checksum bytes (4 B) from transaction data. */
+        val checksum: ByteArray = ByteArray(4),
+        /** User birth year decoded from trailer GPB byte (e.g. 2005). */
+        val userBirthYear: Int = 2005, // x69
+        val isSingleRecharge: Boolean = false
+    ) {
+        /** Birth year encoded to GPB user byte. */
+        val userBirthByte: Byte
+            get() = (userBirthYear - 1900).coerceIn(0, 255).toByte()
+
+        /** Rebuilds the full 32-byte transaction block using [transactions] + [checksum]. */
+        val transactionsDataWithChecksum: ByteArray
+            get() = transactions.toBytes + checksum
+    }
 
     /**
      * Snapshot of the intended card state taken just before a write.
@@ -63,9 +70,8 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
      */
     data class PendingWriteData(
         val uid: ByteArray,
-        val counterBlock: ByteArray,
-        val txBlock1: ByteArray,
-        val txBlock2: ByteArray
+        val balanceData: ByteArray,
+        val transactions: ByteArray
     ) {
         fun matchesUid(other: ByteArray): Boolean = uid.contentEquals(other)
     }
@@ -88,18 +94,18 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
         /** Card was already formatted; balance has been reset to zero. */
         data class Reformatted(
             val oldBalance: Int,
-            val txBlock: TransactionBlock,
-            val counterData: ByteArray,
-            val txB1: ByteArray,
-            val txB2: ByteArray
+            /** Init timestamp written during format (Unix seconds). */
+            val formattedAtSeconds: Long,
+            /** Raw transaction payload bytes written to card (32 B contiguous). */
+            val transactionsData: ByteArray
         ) : FormatResult()
 
         /** Card formatted for the first time with a derived key. */
         data class NewlyFormatted(
-            val txBlock: TransactionBlock,
-            val counterData: ByteArray,
-            val txB1: ByteArray,
-            val txB2: ByteArray,
+            /** Init timestamp written during format (Unix seconds). */
+            val formattedAtSeconds: Long,
+            /** Raw transaction payload bytes written to card (32 B contiguous). */
+            val transactionsData: ByteArray,
             /** Key type used (e.g. "A"/"B"), or null when not applicable. */
             val foundKeyType: String? = null,
             /** Hex string of the standard key that was found. */
@@ -146,27 +152,33 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
 
     /**
      * Atomically deducts [amount] from the on-card balance and writes the
-     * updated transaction blocks.
+        * updated transaction payload.
      */
-    abstract fun deductBalance(amount: Int, newTxBlock1: ByteArray, newTxBlock2: ByteArray)
+    abstract fun deductBalance(amount: Int, newTransactions: ByteArray)
 
     /**
      * Adds [amount] to the on-card balance and writes the updated transaction
-     * blocks. For cards with single-recharge restrictions the implementation
-     * handles the unlock / relock dance transparently.
+     * payload.
      */
-    abstract fun addBalance(
-        amount: Int,
-        cardData: CardData,
-        newTxBlock1: ByteArray,
-        newTxBlock2: ByteArray
-    )
+    abstract fun addBalance(amount: Int, newTransactions: ByteArray)
+
+    /**
+     * Temporarily unlocks recharge for single-recharge cards.
+     * For technologies without this concept it can be a no-op.
+     */
+    abstract fun unlockRecharge(cardData: CardData)
+
+    /**
+     * Re-applies recharge lock for single-recharge cards.
+     * For technologies without this concept it can be a no-op.
+     */
+    abstract fun lockRecharge(cardData: CardData)
 
     /**
      * Formats (or re-formats) the card, setting the balance to zero and
      * writing a fresh transaction block with a new timestamp.
      */
-    abstract fun formatCard(singleRecharge: Boolean, ageByte: Int): FormatResult
+    abstract fun formatCard(formatOptions: CardData): FormatResult
 
     /**
      * Resets the card to factory defaults (clears data, restores factory key).
@@ -184,33 +196,36 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
      * application [psk].
      */
     fun isDataValid(data: CardData): Boolean =
-        data.txBlock.isValid(data.counterData, data.txBlock1, data.txBlock2, uid, psk)
+        data.transactions.isValid(
+            encodeBalance(data.balance),
+            data.transactionsDataWithChecksum,
+            uid,
+            psk
+        )
 
     /**
      * Returns the (stored, computed) checksum pair for debug display.
      */
     fun extractChecksums(
-        counterData: ByteArray,
-        txBlock1: ByteArray,
-        txBlock2: ByteArray
+        balance: Int,
+        txData: ByteArray
     ): Pair<ByteArray, ByteArray> =
-        TransactionBlock.extractChecksums(counterData, txBlock1, txBlock2, uid, psk)
+        TransactionBlock.extractChecksums(encodeBalance(balance), txData, uid, psk)
 
     /**
-     * Builds updated transaction blocks after a balance operation.
-     *
-     * Returns a [Triple] of (updatedTxBlock, serialised block 1, serialised block 2).
+    * Builds updated transaction payload after a balance operation.
+    * Returns (updated model, serialised contiguous payload).
      */
     fun buildUpdatedTxBlocks(
-        txBlock: TransactionBlock,
-        newCounterBlock: ByteArray,
+        transactions: TransactionBlock,
+        newBalanceData: ByteArray,
         operation: TxOperation,
         amount: Int
-    ): Triple<TransactionBlock, ByteArray, ByteArray> {
+    ): Pair<TransactionBlock, ByteArray> {
         val nowSecs = System.currentTimeMillis() / 1000L
-        val updated = txBlock.addTransaction(nowSecs, operation, amount)
-        val (b1, b2) = updated.toBytes(newCounterBlock, uid, psk)
-        return Triple(updated, b1, b2)
+        val updated = transactions.addTransaction(nowSecs, operation, amount)
+        val updatedTransactions = updated.toBytesWithChecksum(newBalanceData, uid, psk)
+        return updated to updatedTransactions
     }
 
     // -------------------------------------------------------------------------
@@ -218,32 +233,96 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
     // -------------------------------------------------------------------------
 
     companion object {
+        /** Factory options needed to construct technology-specific card classes. */
+        data class FactoryOptions(
+            val psk: String,
+            val mifareClassic: MifareClassicOptions = MifareClassicOptions(),
+            val ntag: NtagOptions = NtagOptions()
+        )
+
+        /** Mifare Classic specific options. */
+        data class MifareClassicOptions(
+            val sector: Int = AdvancedSettingsActivity.DEFAULT_SECTOR,
+            val useDynamic: Boolean = true
+        )
+
+        /**
+         * Placeholder for future NTAG-specific options.
+         *
+         * Keeping this type in the base factory avoids changing call sites
+         * when NTAG support is added.
+         */
+        data class NtagOptions(
+            val userMemoryStartPage: Int = 4
+        )
+
+        private data class CardCreator(
+            val supports: (Tag) -> Boolean,
+            val create: (Tag, FactoryOptions) -> BaseCoinCard?
+        )
+
+        private val creators: List<CardCreator> = listOf(
+            CardCreator(
+                supports = { tag -> tag.techList.contains(MifareClassic::class.java.name) },
+                create = { tag, options ->
+                    runCatching {
+                        MifareClassicCoinCard(
+                            tag = tag,
+                            sector = options.mifareClassic.sector,
+                            psk = options.psk,
+                            useDynamic = options.mifareClassic.useDynamic
+                        )
+                    }.getOrNull()
+                }
+            )
+        )
+
+        /**
+         * Creates the appropriate [BaseCoinCard] subclass for [tag] using built-in defaults.
+         */
+        fun fromTag(tag: Tag): BaseCoinCard? {
+            val options = FactoryOptions(
+                psk = BuildConfig.NFC_PSK,
+                mifareClassic = MifareClassicOptions(
+                    sector = AdvancedSettingsActivity.DEFAULT_SECTOR,
+                    useDynamic = true
+                )
+            )
+            return fromTag(tag, options)
+        }
+
+        /**
+         * Creates the appropriate [BaseCoinCard] subclass for [tag] using
+         * values from [AdvancedSettingsActivity].
+         */
+        fun fromTag(tag: Tag, context: Context): BaseCoinCard? {
+            val options = FactoryOptions(
+                psk = AdvancedSettingsActivity.getStaticKey(context),
+                mifareClassic = MifareClassicOptions(
+                    sector = AdvancedSettingsActivity.getTargetSector(context),
+                    useDynamic = AdvancedSettingsActivity.isDynamicKeyEnabled(context)
+                )
+            )
+            return fromTag(tag, options)
+        }
+
         /**
          * Returns `true` when [tag] is a card type this app can work with.
          */
         fun isSupported(tag: Tag): Boolean =
-            tag.techList.contains(MifareClassic::class.java.name)
-            // Future: || tag.techList.contains(NfcA::class.java.name) for NTAG
+            creators.any { it.supports(tag) }
 
         /**
          * Creates the appropriate [BaseCoinCard] subclass for [tag], or `null`
          * when the tag technology is not supported or cannot be obtained.
          *
-         * [sector] is the target sector index (Mifare Classic only; ignored by
-         * other card types).
+         * [options] contains shared settings ([FactoryOptions.psk]) and optional
+         * per-technology settings.
          */
         fun fromTag(
             tag: Tag,
-            sector: Int,
-            psk: String,
-            useDynamic: Boolean
-        ): BaseCoinCard? {
-            if (tag.techList.contains(MifareClassic::class.java.name)) {
-                val mifare = MifareClassic.get(tag) ?: return null
-                return MifareClassicCoinCard(tag, mifare, sector, psk, useDynamic)
-            }
-            // Future: NTAG, NFC Forum Type 2/4, etc.
-            return null
-        }
+            options: FactoryOptions
+        ): BaseCoinCard? =
+            creators.firstOrNull { it.supports(tag) }?.create?.invoke(tag, options)
     }
 }

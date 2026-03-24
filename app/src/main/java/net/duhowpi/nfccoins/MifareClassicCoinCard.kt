@@ -12,11 +12,14 @@ import android.nfc.tech.MifareClassic
  */
 class MifareClassicCoinCard(
     tag: Tag,
-    private val mifare: MifareClassic,
     private val sector: Int,
     psk: String,
     useDynamic: Boolean
 ) : BaseCoinCard(tag, psk) {
+
+    val mifare: MifareClassic = requireNotNull(MifareClassic.get(tag)) {
+        "MifareClassic tech unavailable for this tag"
+    }
 
     override val maxBalance: Int = MifareClassicHelper.MAX_BALANCE
 
@@ -24,7 +27,7 @@ class MifareClassicCoinCard(
 
     // Sector layout cached after the first successful read.
     private var sectorStart: Int = 0
-    private var blocksInSector: Int = 0
+    private var blocksInSector: Int = 4
 
     // -------------------------------------------------------------------------
     // Connection
@@ -54,12 +57,10 @@ class MifareClassicCoinCard(
         return ReadResult.Success(
             CardData(
                 balance = balance,
-                txBlock = sd.txBlock,
-                ageByte = MifareClassicHelper.getAgeByte(sd.trailerData),
-                isSingleRecharge = MifareClassicHelper.isSingleRecharge(sd.trailerData),
-                counterData = sd.counterData,
-                txBlock1 = sd.txBlock1,
-                txBlock2 = sd.txBlock2
+                transactions = TransactionBlock.fromBytes(sd.transactions),
+                checksum = sd.transactions.copyOfRange(28, 32),
+                userBirthYear = MifareClassicHelper.getUserBirthYear(sd.trailerData),
+                isSingleRecharge = MifareClassicHelper.isSingleRecharge(sd.trailerData)
             )
         )
     }
@@ -76,16 +77,18 @@ class MifareClassicCoinCard(
     // -------------------------------------------------------------------------
 
     override fun retryPendingWrite(pending: PendingWriteData) {
-        mifare.writeBlock(sectorStart + MifareClassicHelper.DATA_BLOCK_OFFSET, pending.counterBlock)
-        mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_1_OFFSET, pending.txBlock1)
-        mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_2_OFFSET, pending.txBlock2)
+        val (txBlock1, txBlock2) = TransactionBlock.toMifareBlocks(pending.transactions)
+        mifare.writeBlock(sectorStart + MifareClassicHelper.DATA_BLOCK_OFFSET, pending.balanceData)
+        mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_1_OFFSET, txBlock1)
+        mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_2_OFFSET, txBlock2)
     }
 
     // -------------------------------------------------------------------------
     // Deduct
     // -------------------------------------------------------------------------
 
-    override fun deductBalance(amount: Int, newTxBlock1: ByteArray, newTxBlock2: ByteArray) {
+    override fun deductBalance(amount: Int, newTransactions: ByteArray) {
+        val (newTxBlock1, newTxBlock2) = TransactionBlock.toMifareBlocks(newTransactions)
         val blockIndex = sectorStart + MifareClassicHelper.DATA_BLOCK_OFFSET
         mifare.decrement(blockIndex, amount)
         mifare.transfer(blockIndex)
@@ -97,52 +100,50 @@ class MifareClassicCoinCard(
     // Add
     // -------------------------------------------------------------------------
 
-    override fun addBalance(
-        amount: Int,
-        cardData: CardData,
-        newTxBlock1: ByteArray,
-        newTxBlock2: ByteArray
-    ) {
-        val trailerIdx = sectorStart + blocksInSector - 1
-
-        if (cardData.isSingleRecharge) {
-            // Temporarily unlock block 0 so increment is allowed.
-            val openTrailer = MifareClassicHelper.buildSectorTrailer(
-                cardKey, standard = true, userByte = cardData.ageByte
-            )
-            mifare.writeBlock(trailerIdx, openTrailer)
-        }
+    override fun addBalance(amount: Int, newTransactions: ByteArray) {
+        val (newTxBlock1, newTxBlock2) = TransactionBlock.toMifareBlocks(newTransactions)
 
         val blockIndex = sectorStart + MifareClassicHelper.DATA_BLOCK_OFFSET
         mifare.increment(blockIndex, amount)
         mifare.transfer(blockIndex)
         mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_1_OFFSET, newTxBlock1)
         mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_2_OFFSET, newTxBlock2)
+    }
 
-        if (cardData.isSingleRecharge) {
-            // Re-lock: restore restricted access bits.
-            val restrictedTrailer = MifareClassicHelper.buildSectorTrailer(
-                cardKey, standard = false, userByte = cardData.ageByte
-            )
-            mifare.writeBlock(trailerIdx, restrictedTrailer)
-        }
+    override fun unlockRecharge(cardData: CardData) {
+        val trailerIdx = sectorStart + blocksInSector - 1
+        val openTrailer = MifareClassicHelper.buildSectorTrailer(
+            cardKey, standard = true, userByte = cardData.userBirthByte
+        )
+        mifare.writeBlock(trailerIdx, openTrailer)
+    }
+
+    override fun lockRecharge(cardData: CardData) {
+        val trailerIdx = sectorStart + blocksInSector - 1
+        val restrictedTrailer = MifareClassicHelper.buildSectorTrailer(
+            cardKey, standard = false, userByte = cardData.userBirthByte
+        )
+        mifare.writeBlock(trailerIdx, restrictedTrailer)
     }
 
     // -------------------------------------------------------------------------
     // Format
     // -------------------------------------------------------------------------
 
-    override fun formatCard(singleRecharge: Boolean, ageByte: Int): FormatResult {
+    override fun formatCard(formatOptions: CardData): FormatResult {
+        val singleRecharge = formatOptions.isSingleRecharge
+        val userBirthYear = formatOptions.userBirthYear
         // Path 1: already formatted with the derived key → re-format (reset balance).
         if (mifare.authenticateSectorWithKeyA(sector, cardKey)) {
-            return reformatExistingCard(singleRecharge, ageByte)
+            return reformatExistingCard(singleRecharge, userBirthYear)
         }
 
         // Path 2: search for a standard key → format from scratch.
-        return formatNewCard(singleRecharge, ageByte)
+        return formatNewCard(singleRecharge, userBirthYear)
     }
 
-    private fun reformatExistingCard(singleRecharge: Boolean, ageByte: Int): FormatResult {
+    private fun reformatExistingCard(singleRecharge: Boolean, userBirthYear: Int): FormatResult {
+        val userByte = MifareClassicHelper.toUserBirthByte(userBirthYear)
         val start = mifare.sectorToBlock(sector)
         val blocks = mifare.getBlockCountInSector(sector)
         val trailerIdx = start + blocks - 1
@@ -150,7 +151,7 @@ class MifareClassicCoinCard(
         // Ensure block 0 is writable (in case card had single-recharge bits).
         mifare.writeBlock(
             trailerIdx,
-            MifareClassicHelper.buildSectorTrailer(cardKey, standard = true, userByte = ageByte)
+            MifareClassicHelper.buildSectorTrailer(cardKey, standard = true, userByte = userByte)
         )
 
         val counterData = mifare.readBlock(start + MifareClassicHelper.DATA_BLOCK_OFFSET)
@@ -159,7 +160,8 @@ class MifareClassicCoinCard(
         val zeroValueBlock = MifareClassicHelper.makeValueBlock(0)
         val nowSecs = System.currentTimeMillis() / 1000L
         val freshTxBlock = TransactionBlock(nowSecs)
-        val (txB1, txB2) = freshTxBlock.toBytes(zeroValueBlock, uid, psk)
+        val txData = freshTxBlock.toBytesWithChecksum(zeroValueBlock, uid, psk)
+        val (txB1, txB2) = TransactionBlock.toMifareBlocks(txData)
 
         mifare.writeBlock(start + MifareClassicHelper.DATA_BLOCK_OFFSET, zeroValueBlock)
         mifare.writeBlock(start + MifareClassicHelper.TX_BLOCK_1_OFFSET, txB1)
@@ -168,19 +170,18 @@ class MifareClassicCoinCard(
         // Write target access bits (restricted or standard).
         mifare.writeBlock(
             trailerIdx,
-            MifareClassicHelper.buildSectorTrailer(cardKey, standard = !singleRecharge, userByte = ageByte)
+            MifareClassicHelper.buildSectorTrailer(cardKey, standard = !singleRecharge, userByte = userByte)
         )
 
         return FormatResult.Reformatted(
             oldBalance = oldBalance,
-            txBlock = freshTxBlock,
-            counterData = zeroValueBlock,
-            txB1 = txB1,
-            txB2 = txB2
+            formattedAtSeconds = nowSecs,
+            transactionsData = txData
         )
     }
 
-    private fun formatNewCard(singleRecharge: Boolean, ageByte: Int): FormatResult {
+    private fun formatNewCard(singleRecharge: Boolean, userBirthYear: Int): FormatResult {
+        val userByte = MifareClassicHelper.toUserBirthByte(userBirthYear)
         var foundKey: ByteArray? = null
         var usedKeyA = true
 
@@ -209,7 +210,8 @@ class MifareClassicCoinCard(
         val zeroValueBlock = MifareClassicHelper.makeValueBlock(0)
         val nowSecs = System.currentTimeMillis() / 1000L
         val freshTxBlock = TransactionBlock(nowSecs)
-        val (txB1, txB2) = freshTxBlock.toBytes(zeroValueBlock, uid, psk)
+        val txData = freshTxBlock.toBytesWithChecksum(zeroValueBlock, uid, psk)
+        val (txB1, txB2) = TransactionBlock.toMifareBlocks(txData)
 
         mifare.writeBlock(start + MifareClassicHelper.DATA_BLOCK_OFFSET, zeroValueBlock)
         mifare.writeBlock(start + MifareClassicHelper.TX_BLOCK_1_OFFSET, txB1)
@@ -217,14 +219,12 @@ class MifareClassicCoinCard(
 
         mifare.writeBlock(
             start + blocks - 1,
-            MifareClassicHelper.buildSectorTrailer(cardKey, standard = !singleRecharge, userByte = ageByte)
+            MifareClassicHelper.buildSectorTrailer(cardKey, standard = !singleRecharge, userByte = userByte)
         )
 
         return FormatResult.NewlyFormatted(
-            txBlock = freshTxBlock,
-            counterData = zeroValueBlock,
-            txB1 = txB1,
-            txB2 = txB2,
+            formattedAtSeconds = nowSecs,
+            transactionsData = txData,
             foundKeyType = if (usedKeyA) "A" else "B",
             foundKeyHex = foundKey.toHex(),
             newKeyHex = cardKey.toHex()
@@ -263,7 +263,7 @@ class MifareClassicCoinCard(
             MifareClassicHelper.buildSectorTrailer(
                 MifareClassicHelper.FACTORY_KEY,
                 standard = true,
-                userByte = MifareClassicHelper.DEFAULT_USER_BYTE
+                userByte = MifareClassicHelper.DEFAULT_USER_BYTE.toByte()
             )
         )
         return true

@@ -12,7 +12,6 @@ import android.media.AudioManager
 import android.media.ToneGenerator
 import android.nfc.NfcAdapter
 import android.nfc.Tag
-import android.nfc.tech.MifareClassic
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -83,7 +82,6 @@ class MainActivity : AppCompatActivity() {
     private var nfcAdapter: NfcAdapter? = null
 
     private var currentBalance: Int = -1
-    private var currentTag: Tag? = null
     private var pendingAction: PendingAction = PendingAction.NONE
     private var pendingAddAmount: Int = 0
     private var customDeductAmount: Int = 0
@@ -94,7 +92,7 @@ class MainActivity : AppCompatActivity() {
 
     // Format card dialog options
     private var pendingSingleRecharge: Boolean = false
-    private var pendingAgeByte: Int = MifareClassicHelper.DEFAULT_USER_BYTE
+    private var pendingUserBirthYear: Int = MifareClassicHelper.toUserBirthYear(MifareClassicHelper.DEFAULT_USER_BYTE)
 
     private val handler = Handler(Looper.getMainLooper())
     private val autoResetRunnable = Runnable { resetToWaiting() }
@@ -231,63 +229,63 @@ class MainActivity : AppCompatActivity() {
     private fun handleTag(tag: Tag) {
         triggerVibration()
         if (!BaseCoinCard.isSupported(tag)) {
-            tvStatus.text = getString(R.string.unsupported_card)
-            playNfcErrorBeep()
-            scheduleAutoReset()
-            return
+            return setScreenStatusError(
+                message = getString(R.string.unsupported_card),
+                background = null
+            )
+        }
+        val card = createCard(tag) ?: run {
+            return setScreenStatusError(
+                message = getString(R.string.error_get_mifare),
+                background = null
+            )
         }
 
+
         // Mifare Classic: validate that the configured sector exists on this card.
-        if (tag.techList.contains(MifareClassic::class.java.name)) {
-            val mifare = MifareClassic.get(tag)
+        if (card is MifareClassicCoinCard) {
             val sector = AdvancedSettingsActivity.getTargetSector(this)
-            if (mifare != null && sector >= mifare.sectorCount) {
-                tvStatus.text = getString(
+            if (sector >= card.mifare.sectorCount) {
+                return setScreenStatusError(getString(
                     R.string.sector_unavailable,
                     sector,
-                    mifare.sectorCount - 1
-                )
-                flashBackground(R.color.error_orange)
-                playNfcErrorBeep()
-                scheduleAutoReset()
-                return
+                    card.mifare.sectorCount - 1
+                ))
             }
         }
 
         handler.removeCallbacks(autoResetRunnable)
-        currentTag = tag
-        val uid = tag.id
-        tvCardId.text = getString(R.string.card_id_format, uid.toHex())
+        tvCardId.text = getString(R.string.card_id_format, card.uid.toHex())
 
         when (pendingAction) {
             PendingAction.ADD_BALANCE -> {
                 pendingAction = PendingAction.NONE
-                addBalanceToCard(tag)
+                addBalanceToCard(card)
             }
             PendingAction.FORMAT_CARD -> {
                 pendingAction = PendingAction.NONE
-                formatCard(tag)
+                formatCard(card)
             }
             PendingAction.RESET_CARD -> {
                 pendingAction = PendingAction.NONE
-                resetCard(tag)
+                resetCard(card)
             }
             PendingAction.WITHDRAW_BALANCE -> {
                 // Do not clear pendingAction here; readAndDeduct manages state depending on
                 // success/failure and whether a toggle button or custom amount is active.
                 when {
-                    toggleGroup.checkedButtonId == R.id.btnDeduct1 -> readAndDeduct(tag, deductUnitAmount(1), isButtonMode = true)
-                    toggleGroup.checkedButtonId == R.id.btnDeduct2 -> readAndDeduct(tag, deductUnitAmount(2), isButtonMode = true)
+                    toggleGroup.checkedButtonId == R.id.btnDeduct1 -> readAndDeduct(card, deductUnitAmount(1), isButtonMode = true)
+                    toggleGroup.checkedButtonId == R.id.btnDeduct2 -> readAndDeduct(card, deductUnitAmount(2), isButtonMode = true)
                     customDeductAmount > 0 -> {
                         isCustomAmountMode = false
                         clearHiddenInput()
-                        readAndDeduct(tag, customDeductAmount, isCustomAmount = true)
+                        readAndDeduct(card, customDeductAmount, isCustomAmount = true)
                     }
                     else -> setPendingAction(PendingAction.NONE)
                 }
             }
             PendingAction.NONE -> {
-                readAndShowBalance(tag)
+                readAndShowBalance(card)
             }
         }
     }
@@ -298,94 +296,69 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Modo sin botón activo: solo muestra el saldo en grande. */
-    private fun readAndShowBalance(tag: Tag) {
-        val card = createCard(tag) ?: run {
-            tvStatus.text = getString(R.string.error_get_mifare)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            scheduleAutoReset()
-            return
-        }
+    private fun readAndShowBalance(card: BaseCoinCard) {
         try {
             card.connect()
             when (val result = card.readCardData()) {
                 is BaseCoinCard.ReadResult.AuthFailed -> {
-                    tvStatus.text = getString(R.string.auth_failed)
-                    flashBackground(R.color.error_orange)
-                    playNfcErrorBeep()
-                    scheduleAutoReset()
-                    return
+                    return setScreenStatusError(getString(R.string.auth_failed))
                 }
                 is BaseCoinCard.ReadResult.InvalidData -> {
-                    tvStatus.text = getString(R.string.error_reading, result.reason)
-                    flashBackground(R.color.error_orange)
-                    playNfcErrorBeep()
-                    scheduleAutoReset()
-                    return
+                    return setScreenStatusError(getString(R.string.error_reading, result.reason))
                 }
                 is BaseCoinCard.ReadResult.Success -> {
                     val data = result.data
+                    val txBlock = data.transactions
                     currentBalance = data.balance
                     setBalanceDisplay(currentBalance)
-                    updateMinorIndicator(data.ageByte)
+                    updateMinorIndicator(data.userBirthYear)
                     layoutBeforeAfter.visibility = View.GONE
                     tvActualBalance.visibility = View.GONE
                     if (!card.isDataValid(data)) {
                         tvStatus.text = getString(R.string.card_tampered)
-                        showTransactionHistory(data.txBlock)
-                        showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
+                        showTransactionHistory(txBlock)
+                        showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
                         flashRedBackground()
                         playNfcErrorBeep()
                         scheduleAutoReset()
                         return
                     }
-                    tvStatus.text = getString(R.string.card_read_ok)
-                    showTransactionHistory(data.txBlock)
-                    showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
+                    showTransactionHistory(txBlock)
+                    showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
                     txDb.insertTransaction(TransactionDatabase.TYPE_READ, balanceBefore = currentBalance, cardUid = card.uid.toHex())
-                    playSuccessBeep()
-                    scheduleAutoReset()
+                    setScreenStatusSuccess(
+                        message = getString(R.string.card_read_ok),
+                        background = null
+                    )
                 }
             }
         } catch (e: Exception) {
-            tvStatus.text = getString(R.string.error_reading, e.message)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            scheduleAutoReset()
+            setScreenStatusError(getString(R.string.error_reading, e.message))
         } finally {
             card.close()
         }
     }
 
     /** Modo con botón activo: descuenta monedas y muestra saldo inicial → final en grande. */
-    private fun readAndDeduct(tag: Tag, amount: Int, isCustomAmount: Boolean = false, isButtonMode: Boolean = false) {
-        val card = createCard(tag) ?: run {
-            tvStatus.text = getString(R.string.error_get_mifare)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
-            return
-        }
+    private fun readAndDeduct(card: BaseCoinCard, amount: Int, isCustomAmount: Boolean = false, isButtonMode: Boolean = false) {
         try {
             card.connect()
             when (val result = card.readCardData()) {
+                // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                 is BaseCoinCard.ReadResult.AuthFailed -> {
-                    tvStatus.text = getString(R.string.auth_failed)
-                    flashBackground(R.color.error_orange)
-                    playNfcErrorBeep()
-                    // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
-                    return
+                    return setScreenStatusError(
+                        message = getString(R.string.auth_failed),
+                        scheduleAutoReset = false
+                    )
                 }
                 is BaseCoinCard.ReadResult.InvalidData -> {
-                    tvStatus.text = getString(R.string.error_reading, result.reason)
-                    flashBackground(R.color.error_orange)
-                    playNfcErrorBeep()
-                    // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
-                    return
+                    return setScreenStatusError(
+                        message = getString(R.string.error_reading, result.reason),
+                        scheduleAutoReset = false
+                    )
                 }
                 is BaseCoinCard.ReadResult.Success -> {
                     val data = result.data
-
                     // Anti-tampering: verify checksum before performing any operation.
                     if (!card.isDataValid(data)) {
                         val pw = pendingWrite
@@ -398,9 +371,9 @@ class MainActivity : AppCompatActivity() {
                             return
                         }
                         if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
+                            showTransactionHistory(data.transactions)
+                            showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
                             tvStatus.text = getString(R.string.card_tampered)
-                            showTransactionHistory(data.txBlock)
-                            showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
                             flashRedBackground()
                             playNfcErrorBeep()
                             // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
@@ -423,9 +396,9 @@ class MainActivity : AppCompatActivity() {
                             tvActualBalance.visibility = View.GONE
                         }
                         layoutBeforeAfter.visibility = View.GONE
+                        showTransactionHistory(data.transactions)
+                        showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
                         tvStatus.text = getString(R.string.insufficient_balance)
-                        showTransactionHistory(data.txBlock)
-                        showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
                         flashRedBackground()
                         playInsufficientBalanceBeep()
                         // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
@@ -433,27 +406,26 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     val newBalance = balance - amount
-                    val newCounterBlock = card.encodeBalance(newBalance)
-                    val (updatedTxBlock, newTxBlock1, newTxBlock2) = card.buildUpdatedTxBlocks(
-                        data.txBlock, newCounterBlock, TxOperation.SUBTRACT, amount
+                    val newBalanceData = card.encodeBalance(newBalance)
+                    val (updatedTxBlock, newTransactions) = card.buildUpdatedTxBlocks(
+                        data.transactions, newBalanceData, TxOperation.SUBTRACT, amount
                     )
 
                     // Retain the intended state in memory so an interrupted write can be retried.
-                    pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newCounterBlock, newTxBlock1, newTxBlock2)
+                    pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newBalanceData, newTransactions)
 
-                    card.deductBalance(amount, newTxBlock1, newTxBlock2)
+                    card.deductBalance(amount, newTransactions)
                     pendingWrite = null
 
                     currentBalance = newBalance
                     setBalanceDisplay(newBalance)
-                    updateMinorIndicator(data.ageByte)
+                    updateMinorIndicator(data.userBirthYear)
                     tvBalanceBefore.text = formatBalanceDisplay(balance)
                     tvBalanceAfter.text = formatBalanceDisplay(newBalance)
                     layoutBeforeAfter.visibility = View.VISIBLE
                     tvActualBalance.visibility = View.GONE
-                    tvStatus.text = getString(R.string.deduct_ok, formatBalanceDisplay(amount))
                     showTransactionHistory(updatedTxBlock)
-                    showDebugChecksums(card, newCounterBlock, newTxBlock1, newTxBlock2)
+                    showDebugChecksums(card, newBalance, newTransactions)
                     txDb.insertTransaction(
                         type = TransactionDatabase.TYPE_SUBTRACT,
                         amount = -amount,
@@ -462,7 +434,11 @@ class MainActivity : AppCompatActivity() {
                         cardUid = card.uid.toHex(),
                         buttonValue = amount
                     )
-                    playSuccessBeep()
+                    setScreenStatusSuccess(
+                        message = getString(R.string.deduct_ok, formatBalanceDisplay(amount)),
+                        scheduleAutoReset = false,
+                        background = null
+                    )
                     if (isButtonMode) {
                         // Button remains active: keep WITHDRAW_BALANCE state for additional transactions.
                         // No auto-reset scheduled; the user can tap another card immediately.
@@ -474,9 +450,10 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (e: Exception) {
-            tvStatus.text = getString(R.string.error_writing, e.message)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
+            setScreenStatusError(
+                message = getString(R.string.error_writing, e.message),
+                scheduleAutoReset = false
+            )
             // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
         } finally {
             card.close()
@@ -664,6 +641,34 @@ class MainActivity : AppCompatActivity() {
         handler.postDelayed(autoResetRunnable, AUTO_RESET_DELAY_MS)
     }
 
+    private fun setScreenStatusError(
+        message: String,
+        scheduleAutoReset: Boolean = true,
+        @ColorRes background: Int? = R.color.error_orange
+    ) {
+        tvStatus.text = message
+        if (background != null) flashBackground(background)
+        playNfcErrorBeep()
+        if (scheduleAutoReset) {
+            this.scheduleAutoReset()
+        }
+        return
+    }
+
+    private fun setScreenStatusSuccess(
+        message: String,
+        scheduleAutoReset: Boolean = true,
+        @ColorRes background: Int? = R.color.success_green
+    ) {
+        tvStatus.text = message
+        if (background != null) flashBackground(background)
+        playSuccessBeep()
+        if (scheduleAutoReset) {
+            this.scheduleAutoReset()
+        }
+        return
+    }
+
     /**
      * Sets pendingAction and manages the auto-reset timer accordingly.
      * For WITHDRAW_BALANCE and ADD_BALANCE the timer is cancelled so the state persists until
@@ -819,7 +824,7 @@ class MainActivity : AppCompatActivity() {
             .setView(layout)
             .setPositiveButton(R.string.action_confirm) { _, _ ->
                 pendingSingleRecharge = checkboxSingleRecharge.isChecked
-                pendingAgeByte = parseAgeByte(editAge.text.toString())
+                pendingUserBirthYear = parseUserBirthYear(editAge.text.toString())
                 cancelAddBalance()
                 toggleGroup.clearChecked()
                 setPendingAction(PendingAction.FORMAT_CARD)
@@ -832,20 +837,21 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Interprets [input] as an age (1–99, resolved to currentYear − age) or birth year
-     * (1900–currentYear) and returns the value to store in the GPB user byte (birthYear − 1900).
-     * Returns [MifareClassicHelper.DEFAULT_USER_BYTE] when the input is empty or out of range.
+     * (1900–currentYear) and returns the birth year directly.
+     * Returns the default birth year when the input is empty or out of range.
      */
-    private fun parseAgeByte(input: String): Int {
+    private fun parseUserBirthYear(input: String): Int {
         val trimmed = input.trim()
-        if (trimmed.isEmpty()) return MifareClassicHelper.DEFAULT_USER_BYTE
-        val value = trimmed.toIntOrNull() ?: return MifareClassicHelper.DEFAULT_USER_BYTE
+        val defaultBirthYear = MifareClassicHelper.toUserBirthYear(MifareClassicHelper.DEFAULT_USER_BYTE)
+        if (trimmed.isEmpty()) return defaultBirthYear
+        val value = trimmed.toIntOrNull() ?: return defaultBirthYear
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
         val birthYear = when {
             value in 1..99 -> currentYear - value
             value in 1900..currentYear -> value
-            else -> return MifareClassicHelper.DEFAULT_USER_BYTE
+            else -> return defaultBirthYear
         }
-        return (birthYear - 1900).coerceIn(0, 255)
+        return birthYear
     }
 
     /**
@@ -887,35 +893,21 @@ class MainActivity : AppCompatActivity() {
      * Aplica el saldo pendiente a la tarjeta. Solo intenta con la clave derivada del UID;
      * si falla la autenticación, la tarjeta no está formateada y se muestra un error.
      */
-    private fun addBalanceToCard(tag: Tag) {
+    private fun addBalanceToCard(card: BaseCoinCard) {
         hideKeyboardFrom(etHiddenInput)
         isAddBalanceMode = false
-        val card = createCard(tag) ?: run {
-            tvStatus.text = getString(R.string.error_get_mifare)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            scheduleAutoReset()
-            return
-        }
         try {
             card.connect()
             when (val result = card.readCardData()) {
                 is BaseCoinCard.ReadResult.AuthFailed -> {
-                    tvStatus.text = getString(R.string.card_not_formatted)
-                    flashBackground(R.color.error_orange)
-                    playNfcErrorBeep()
-                    scheduleAutoReset()
-                    return
+                    return setScreenStatusError(getString(R.string.card_not_formatted))
                 }
                 is BaseCoinCard.ReadResult.InvalidData -> {
-                    tvStatus.text = getString(R.string.error_reading, result.reason)
-                    flashBackground(R.color.error_orange)
-                    playNfcErrorBeep()
-                    scheduleAutoReset()
-                    return
+                    return setScreenStatusError(getString(R.string.error_reading, result.reason))
                 }
                 is BaseCoinCard.ReadResult.Success -> {
                     val data = result.data
+                    val txBlock = data.transactions
 
                     // Anti-tampering: verify checksum before performing any operation.
                     if (!card.isDataValid(data)) {
@@ -930,8 +922,8 @@ class MainActivity : AppCompatActivity() {
                         }
                         if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
                             tvStatus.text = getString(R.string.card_tampered)
-                            showTransactionHistory(data.txBlock)
-                            showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
+                            showTransactionHistory(txBlock)
+                            showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
                             flashRedBackground()
                             playNfcErrorBeep()
                             scheduleAutoReset()
@@ -950,37 +942,40 @@ class MainActivity : AppCompatActivity() {
                         return
                     }
 
-                    val newCounterBlock = card.encodeBalance(newBalance)
-                    val (updatedTxBlock, newTxBlock1, newTxBlock2) = card.buildUpdatedTxBlocks(
-                        data.txBlock, newCounterBlock, TxOperation.ADD, pendingAddAmount
+                    val newBalanceData = card.encodeBalance(newBalance)
+                    val (updatedTxBlock, newTransactions) = card.buildUpdatedTxBlocks(
+                        data.transactions, newBalanceData, TxOperation.ADD, pendingAddAmount
                     )
 
                     // Retain the intended state in memory so an interrupted write can be retried.
-                    pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newCounterBlock, newTxBlock1, newTxBlock2)
+                    pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newBalanceData, newTransactions)
 
-                    val isFirstAdd = data.txBlock.transactions.isEmpty()
-                    if (data.isSingleRecharge && !isFirstAdd) {
-                        // Card was already charged once; reject any further balance additions.
-                        tvStatus.text = getString(R.string.single_recharge_already_used)
-                        flashBackground(R.color.error_orange)
-                        playNfcErrorBeep()
-                        scheduleAutoReset()
-                        pendingWrite = null
-                        return
+                    val isFirstAdd = data.transactions.transactions.isEmpty()
+                    if (data.isSingleRecharge) {
+                        if (!isFirstAdd) {
+                            // Card was already charged once; reject any further balance additions.
+                            pendingWrite = null
+                            return setScreenStatusError(getString(R.string.single_recharge_already_used))
+                        }
+                        card.unlockRecharge(data)
                     }
 
-                    card.addBalance(pendingAddAmount, data, newTxBlock1, newTxBlock2)
+                    card.addBalance(pendingAddAmount, newTransactions)
+
+                    if (data.isSingleRecharge) {
+                        card.lockRecharge(data)
+                    }
+
                     pendingWrite = null
 
                     currentBalance = newBalance
                     setBalanceDisplay(newBalance)
-                    updateMinorIndicator(data.ageByte)
+                    updateMinorIndicator(data.userBirthYear)
                     tvBalanceBefore.text = formatBalanceDisplay(oldBalance)
                     tvBalanceAfter.text = formatBalanceDisplay(newBalance)
                     layoutBeforeAfter.visibility = View.VISIBLE
-                    tvStatus.text = getString(R.string.balance_added_ok, formatBalanceDisplay(pendingAddAmount))
                     showTransactionHistory(updatedTxBlock)
-                    showDebugChecksums(card, newCounterBlock, newTxBlock1, newTxBlock2)
+                    showDebugChecksums(card, newBalance, newTransactions)
                     txDb.insertTransaction(
                         type = TransactionDatabase.TYPE_ADD,
                         amount = pendingAddAmount,
@@ -988,16 +983,13 @@ class MainActivity : AppCompatActivity() {
                         balanceAfter = newBalance,
                         cardUid = card.uid.toHex()
                     )
-                    flashBackground(R.color.success_green)
-                    playSuccessBeep()
-                    scheduleAutoReset()
+                    setScreenStatusSuccess(
+                        getString(R.string.balance_added_ok, formatBalanceDisplay(pendingAddAmount))
+                    )
                 }
             }
         } catch (e: Exception) {
-            tvStatus.text = getString(R.string.error_writing, e.message)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            scheduleAutoReset()
+            setScreenStatusError(getString(R.string.error_writing, e.message))
         } finally {
             card.close()
         }
@@ -1008,42 +1000,40 @@ class MainActivity : AppCompatActivity() {
      * First tries the derived key: if already formatted, resets the balance to zero.
      * Otherwise searches for a standard key and writes the sector with the derived key.
      */
-    private fun formatCard(tag: Tag) {
-        val card = createCard(tag) ?: run {
-            tvStatus.text = getString(R.string.error_get_mifare)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            scheduleAutoReset()
-            return
-        }
+    private fun formatCard(card: BaseCoinCard) {
         try {
             card.connect()
-            when (val result = card.formatCard(singleRecharge = pendingSingleRecharge, ageByte = pendingAgeByte)) {
+            val formatOptions = BaseCoinCard.CardData(
+                balance = 0,
+                userBirthYear = pendingUserBirthYear,
+                isSingleRecharge = pendingSingleRecharge
+            )
+            when (val result = card.formatCard(formatOptions)) {
                 is BaseCoinCard.FormatResult.Reformatted -> {
                     currentBalance = 0
                     setBalanceDisplay(0)
                     tvBalanceBefore.text = formatBalanceDisplay(result.oldBalance)
                     tvBalanceAfter.text = formatBalanceDisplay(0)
                     layoutBeforeAfter.visibility = View.VISIBLE
-                    showTransactionHistory(result.txBlock)
-                    showDebugChecksums(card, result.counterData, result.txB1, result.txB2)
-                    tvStatus.text = getString(R.string.format_reset_success)
+                    showTransactionHistory(TransactionBlock(result.formattedAtSeconds))
+                    showDebugChecksums(card, 0, result.transactionsData)
                     txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = card.uid.toHex())
-                    flashBackground(R.color.success_purple_dark)
-                    playSuccessBeep()
-                    scheduleAutoReset()
+                    setScreenStatusSuccess(
+                        message = getString(R.string.format_reset_success),
+                        background = R.color.success_purple_dark
+                    )
                 }
                 is BaseCoinCard.FormatResult.NewlyFormatted -> {
                     currentBalance = 0
                     setBalanceDisplay(0)
                     layoutBeforeAfter.visibility = View.GONE
-                    showTransactionHistory(result.txBlock)
-                    showDebugChecksums(card, result.counterData, result.txB1, result.txB2)
-                    tvStatus.text = getString(R.string.format_success)
+                    showTransactionHistory(TransactionBlock(result.formattedAtSeconds))
+                    showDebugChecksums(card, 0, result.transactionsData)
                     txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = card.uid.toHex())
-                    flashBackground(R.color.success_purple_dark)
-                    playSuccessBeep()
-                    scheduleAutoReset()
+                    setScreenStatusSuccess(
+                        message = getString(R.string.format_success),
+                        background = R.color.success_purple_dark
+                    )
 
                     if (AdvancedSettingsActivity.isDebugEnabled(this) && result.foundKeyType != null) {
                         val debugDialog = AlertDialog.Builder(this)
@@ -1055,23 +1045,14 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 is BaseCoinCard.FormatResult.NoKeyFound -> {
-                    tvStatus.text = getString(R.string.format_no_key_found)
-                    flashBackground(R.color.error_orange)
-                    playNfcErrorBeep()
-                    scheduleAutoReset()
+                    setScreenStatusError(getString(R.string.format_no_key_found))
                 }
                 is BaseCoinCard.FormatResult.AuthFailed -> {
-                    tvStatus.text = getString(R.string.auth_failed)
-                    flashBackground(R.color.error_orange)
-                    playNfcErrorBeep()
-                    scheduleAutoReset()
+                    setScreenStatusError(getString(R.string.auth_failed))
                 }
             }
         } catch (e: Exception) {
-            tvStatus.text = getString(R.string.error_writing, e.message)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            scheduleAutoReset()
+            setScreenStatusError(getString(R.string.error_writing, e.message))
         } finally {
             card.close()
         }
@@ -1081,37 +1062,23 @@ class MainActivity : AppCompatActivity() {
     // Reset card
     // -------------------------------------------------------------------------
 
-    private fun resetCard(tag: Tag) {
-        val card = createCard(tag) ?: run {
-            tvStatus.text = getString(R.string.error_get_mifare)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            scheduleAutoReset()
-            return
-        }
+    private fun resetCard(card: BaseCoinCard) {
         try {
             card.connect()
             if (!card.resetCard()) {
-                tvStatus.text = getString(R.string.reset_card_no_key)
-                flashBackground(R.color.error_orange)
-                playNfcErrorBeep()
-                scheduleAutoReset()
-                return
+                return setScreenStatusError(getString(R.string.reset_card_no_key))
             }
 
             currentBalance = -1
             resetBalanceToInitial()
             layoutBeforeAfter.visibility = View.GONE
-            tvStatus.text = getString(R.string.reset_card_success)
             txDb.insertTransaction(TransactionDatabase.TYPE_RESET, cardUid = card.uid.toHex())
-            flashBackground(R.color.success_purple_dark)
-            playSuccessBeep()
-            scheduleAutoReset()
+            setScreenStatusSuccess(
+                message = getString(R.string.reset_card_success),
+                background = R.color.success_purple_dark
+            )
         } catch (e: Exception) {
-            tvStatus.text = getString(R.string.error_writing, e.message)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            scheduleAutoReset()
+            setScreenStatusError(getString(R.string.error_writing, e.message))
         } finally {
             card.close()
         }
@@ -1122,10 +1089,7 @@ class MainActivity : AppCompatActivity() {
      * Returns null if the tag technology is not supported or cannot be obtained.
      */
     private fun createCard(tag: Tag): BaseCoinCard? {
-        val sector = AdvancedSettingsActivity.getTargetSector(this)
-        val psk = AdvancedSettingsActivity.getStaticKey(this)
-        val useDynamic = AdvancedSettingsActivity.isDynamicKeyEnabled(this)
-        return BaseCoinCard.fromTag(tag, sector, psk, useDynamic)
+        return BaseCoinCard.fromTag(tag, this)
     }
 
     // -------------------------------------------------------------------------
@@ -1197,16 +1161,14 @@ class MainActivity : AppCompatActivity() {
     /**
      * Shows or hides the minor-age indicator icon next to the balance display.
      *
-     * [ageByte] is the GPB byte stored in the sector trailer, where the birth year is
-     * encoded as `birthYear - 1900`. The icon is shown when the computed age is below the
-     * configured legal adult age and the byte represents a plausible birth year.
+     * The icon is shown when the computed age from [userBirthYear] is below the
+     * configured legal adult age and the year is plausible.
      */
-    private fun updateMinorIndicator(ageByte: Int) {
+    private fun updateMinorIndicator(userBirthYear: Int) {
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
-        val birthYear = 1900 + ageByte
-        val age = currentYear - birthYear
+        val age = currentYear - userBirthYear
         val legalAge = AdvancedSettingsActivity.getLegalAge(this)
-        tvMinorIcon.visibility = if (age in 0 until legalAge) View.VISIBLE else View.GONE
+        tvMinorIcon.visibility = if (userBirthYear in 1900..currentYear && age in 0 until legalAge) View.VISIBLE else View.GONE
     }
 
     /**
@@ -1553,15 +1515,14 @@ class MainActivity : AppCompatActivity() {
      */
     private fun showDebugChecksums(
         card: BaseCoinCard,
-        counterData: ByteArray,
-        txBlock1: ByteArray,
-        txBlock2: ByteArray
+        balance: Int,
+        txData: ByteArray
     ) {
         if (!AdvancedSettingsActivity.isDebugEnabled(this)) {
             tvTxDebug.visibility = View.GONE
             return
         }
-        val (stored, computed) = card.extractChecksums(counterData, txBlock1, txBlock2)
+        val (stored, computed) = card.extractChecksums(balance, txData)
         tvTxDebug.text = getString(R.string.tx_debug_checksum, stored.toHex(), computed.toHex())
         layoutTransactionHistory.visibility = View.VISIBLE
         tvTxDebug.visibility = View.VISIBLE

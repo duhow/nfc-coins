@@ -39,6 +39,14 @@ object MifareClassicHelper {
     // -------------------------------------------------------------------------
 
     const val DEFAULT_USER_BYTE = 0x69
+    const val USER_BIRTH_BASE_YEAR = 1900
+
+    /** Encodes birth year to trailer GPB user-byte domain. */
+    fun toUserBirthByte(userBirthYear: Int): Byte =
+        (userBirthYear - USER_BIRTH_BASE_YEAR).coerceIn(0, 255).toByte()
+
+    /** Decodes trailer GPB user byte to a numeric birth year. */
+    fun toUserBirthYear(userByte: Int): Int = USER_BIRTH_BASE_YEAR + (userByte and 0xFF)
 
     // -------------------------------------------------------------------------
     // Key helpers
@@ -139,13 +147,13 @@ object MifareClassicHelper {
      * restricted bits (FF 06 90) which block increment and write on block 0.
      * The [userByte] (GPB, General Purpose Byte) is placed at position 3 of the access bits.
      */
-    fun buildSectorTrailer(key: ByteArray, standard: Boolean, userByte: Int): ByteArray {
+    fun buildSectorTrailer(key: ByteArray, standard: Boolean, userByte: Byte): ByteArray {
         val ctrlBytes = if (standard) ACCESS_BITS_STANDARD_CTRL
                         else          ACCESS_BITS_SINGLE_RECHARGE_CTRL
         val trailer = ByteArray(MifareClassic.BLOCK_SIZE)
         System.arraycopy(key, 0, trailer, 0, KEY_LEN)
         System.arraycopy(ctrlBytes, 0, trailer, KEY_LEN, ctrlBytes.size)
-        trailer[KEY_LEN + ctrlBytes.size] = userByte.toByte()
+        trailer[KEY_LEN + ctrlBytes.size] = userByte
         System.arraycopy(key, 0, trailer, KEY_LEN + ctrlBytes.size + 1, KEY_LEN)
         return trailer
     }
@@ -208,10 +216,8 @@ object MifareClassicHelper {
         val sectorStart: Int,
         val blocksInSector: Int,
         val counterData: ByteArray,
-        val txBlock1: ByteArray,
-        val txBlock2: ByteArray,
-        val trailerData: ByteArray,
-        val txBlock: TransactionBlock
+        val transactions: ByteArray,
+        val trailerData: ByteArray
     )
 
     /**
@@ -226,15 +232,18 @@ object MifareClassicHelper {
         val counterData = mifare.readBlock(sectorStart + DATA_BLOCK_OFFSET)
         val txBlock1    = mifare.readBlock(sectorStart + TX_BLOCK_1_OFFSET)
         val txBlock2    = mifare.readBlock(sectorStart + TX_BLOCK_2_OFFSET)
+        val transactions = txBlock1 + txBlock2
         val trailerData = mifare.readBlock(sectorStart + blocksInSector - 1)
-        val txBlock     = TransactionBlock.fromBytes(txBlock1, txBlock2)
-        return SectorData(sectorStart, blocksInSector, counterData, txBlock1, txBlock2, trailerData, txBlock)
+        return SectorData(sectorStart, blocksInSector, counterData, transactions, trailerData)
     }
 
     /**
-     * Returns the age byte stored in the GPB position of the sector trailer.
+     * Returns the user birth year decoded from GPB (birthYear - 1900).
      */
-    fun getAgeByte(trailerData: ByteArray): Int = trailerData[KEY_LEN + 3].toInt() and 0xFF
+    fun getUserBirthYear(trailerData: ByteArray): Int {
+        val userByte = trailerData[KEY_LEN + 3].toInt() and 0xFF
+        return toUserBirthYear(userByte)
+    }
 
     /**
      * Checks whether the sector trailer has single-recharge restricted access bits.
