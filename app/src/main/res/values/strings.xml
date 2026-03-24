@@ -14,6 +14,7 @@
     <string name="card_read_ok">Card read successfully</string>
     <string name="auth_failed">Card authentication error</string>
     <string name="unsupported_card">Unsupported card (Mifare Classic required)</string>
+    <string name="sector_unavailable">Sector %1$d not available on this card (%2$d sectors: 0–%3$d)</string>
     <string name="nfc_not_available">NFC not available on this device</string>
     <string name="no_card">No card. Bring it closer again.</string>
     <string name="insufficient_balance">Insufficient balance</string>

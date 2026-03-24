@@ -13,6 +13,7 @@
     <string name="card_read_ok">Tarjeta leída correctamente</string>
     <string name="auth_failed">Error de autenticación con la tarjeta</string>
     <string name="unsupported_card">Tarjeta no compatible (se requiere Mifare Classic)</string>
+    <string name="sector_unavailable">Sector %1$d no disponible en esta tarjeta (%2$d sectores: 0–%3$d)</string>
     <string name="nfc_not_available">NFC no disponible en este dispositivo</string>
     <string name="no_card">No hay tarjeta. Acércala de nuevo.</string>
     <string name="insufficient_balance">Saldo insuficiente</string>
