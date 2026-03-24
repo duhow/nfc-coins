@@ -1506,7 +1506,7 @@ class MainActivity : AppCompatActivity() {
                     // Compute stored integer value from input
                     val storedValue = parseDecimalInput(raw)
                     val cappedValue = storedValue.coerceIn(0, MifareClassicHelper.MAX_BALANCE)
-                    // Cap if MifareClassicHelper.MAX_BALANCE exceeded
+                    // Cap if MAX_BALANCE exceeded
                     if (cappedValue != storedValue) {
                         isUpdating = true
                         s?.replace(0, s.length, formatBalanceDisplay(cappedValue))
@@ -1541,7 +1541,7 @@ class MainActivity : AppCompatActivity() {
                 // Non-decimal mode (original behaviour)
                 val value = raw.toIntOrNull() ?: 0
                 if (isAddBalanceMode) {
-                    // Normalize input: cap at MifareClassicHelper.MAX_BALANCE and strip leading zeros
+                    // Normalize input: cap at MAX_BALANCE and strip leading zeros
                     val normalizedValue = when {
                         value > MifareClassicHelper.MAX_BALANCE -> {
                             isUpdating = true
