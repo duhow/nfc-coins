@@ -365,20 +365,29 @@ class OperationsHistoryActivity : AppCompatActivity() {
             tableLayout.addView(row)
         }
 
-        // Total row
-        val totalThisHour = sortedStats.sumOf { it.countThisHour }
-        val totalLastHour = sortedStats.sumOf { it.countLastHour }
-        val totalToday    = sortedStats.sumOf { it.countToday }
-        val totalWeek     = sortedStats.sumOf { it.countThisWeek }
-        val totalRow      = TableRow(this)
+        // Total row — count + optional amount sum in brackets
+        val displayScale = if (isDecimalMode) 100 else 1
+        val totalThisHour       = sortedStats.sumOf { it.countThisHour }
+        val totalLastHour       = sortedStats.sumOf { it.countLastHour }
+        val totalToday          = sortedStats.sumOf { it.countToday }
+        val totalWeek           = sortedStats.sumOf { it.countThisWeek }
+        val amountThisHour      = sortedStats.sumOf { it.countThisHour  * it.amount / displayScale }
+        val amountLastHour      = sortedStats.sumOf { it.countLastHour  * it.amount / displayScale }
+        val amountToday         = sortedStats.sumOf { it.countToday     * it.amount / displayScale }
+        val amountWeek          = sortedStats.sumOf { it.countThisWeek  * it.amount / displayScale }
+        val totalRow            = TableRow(this)
         totalRow.setPadding(0, 4, 0, 4)
         totalRow.addView(makeCell(getString(R.string.ops_col_total), isBold = true))
-        totalRow.addView(makeCell(totalThisHour.toString(), isBold = true))
-        totalRow.addView(makeCell(totalLastHour.toString(), isBold = true))
-        totalRow.addView(makeCell(totalToday.toString(), isBold = true))
-        totalRow.addView(makeCell(totalWeek.toString(), isBold = true))
+        totalRow.addView(makeCell(formatTotalCell(totalThisHour, amountThisHour), isBold = true))
+        totalRow.addView(makeCell(formatTotalCell(totalLastHour, amountLastHour), isBold = true))
+        totalRow.addView(makeCell(formatTotalCell(totalToday,    amountToday),    isBold = true))
+        totalRow.addView(makeCell(formatTotalCell(totalWeek,     amountWeek),     isBold = true))
         tableLayout.addView(totalRow)
     }
+
+    /** Returns "count (amount)" when amount > 0, otherwise just "count". */
+    private fun formatTotalCell(count: Int, amount: Int): String =
+        if (amount > 0) "$count ($amount)" else count.toString()
 
     private fun makeCell(text: String, isBold: Boolean = false): TextView {
         return TextView(this).apply {
