@@ -33,7 +33,7 @@ data class TransactionEntry(
  *   Byte 16–21 : Transaction 2
  *   Byte 22–27 : Transaction 3
  *   Byte 28–31 : HMAC-SHA256 checksum (first 4 bytes), keyed with PSK+UID,
- *                covering: counterBlock (16 B) + bytes 0–27 of this structure
+ *                covering: counterBlock bytes 0–11 (12 B, value data only) + bytes 0–27 of this structure
  *
  * The checksum binds the counter block and the transaction history to the card's UID
  * and the application PSK, so any out-of-app modification is detectable.
@@ -87,11 +87,16 @@ class TransactionBlock(
         }
 
         /**
-         * Computes the 4-byte checksum that authenticates the counter block and the
+         * Computes the 4-byte checksum that authenticates the counter block value and the
          * transaction payload against the card's UID and the application PSK.
          *
+         * Only bytes 0–11 of [counterBlock] are included (value + inverse + value). Bytes 12–15
+         * (the addr field) are excluded so that hardware differences in the addr written by
+         * card emulators (e.g. Flipper Zero stores the absolute block index instead of the
+         * sector-relative offset) do not affect the checksum.
+         *
          * checksum = HMAC-SHA256(key = PSK.utf8 + UID,
-         *                        msg = counterBlock + txPayload)[0..3]
+         *                        msg = counterBlock[0..11] + txPayload)[0..3]
          */
         fun computeChecksum(
             counterBlock: ByteArray,
@@ -101,19 +106,22 @@ class TransactionBlock(
         ): ByteArray {
             require(counterBlock.size == 16)
             require(txPayload.size == TX_PAYLOAD_SIZE)
+            // Only the 12 bytes carrying the balance value (bytes 0–11) are hashed; the addr
+            // field (bytes 12–15) is omitted to be immune to emulator-specific addr quirks.
+            val counterValue = counterBlock.copyOfRange(0, 12)
             return try {
                 val mac = Mac.getInstance("HmacSHA256")
                 val keyMaterial = psk.toByteArray(Charsets.UTF_8) + uid
                 mac.init(SecretKeySpec(keyMaterial, "HmacSHA256"))
-                mac.update(counterBlock)
+                mac.update(counterValue)
                 mac.update(txPayload)
                 mac.doFinal().copyOf(CHECKSUM_SIZE)
             } catch (e: java.security.GeneralSecurityException) {
-                // Fallback: SHA-256(PSK + UID + counterBlock + txPayload)
+                // Fallback: SHA-256(PSK + UID + counterBlock[0..11] + txPayload)
                 val digest = java.security.MessageDigest.getInstance("SHA-256")
                 digest.update(psk.toByteArray(Charsets.UTF_8))
                 digest.update(uid)
-                digest.update(counterBlock)
+                digest.update(counterValue)
                 digest.update(txPayload)
                 digest.digest().copyOf(CHECKSUM_SIZE)
             }
