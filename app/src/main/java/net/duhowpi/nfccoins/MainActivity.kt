@@ -1004,7 +1004,7 @@ class MainActivity : AppCompatActivity() {
                     showDebugChecksums(card, result.counterData, result.txB1, result.txB2)
                     txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = card.uid.toHex())
                     setScreenStatusSuccess(
-                        message = getString(R.string.format_reformat_success),
+                        message = getString(R.string.format_reset_success),
                         background = R.color.success_purple_dark
                     )
                 }
