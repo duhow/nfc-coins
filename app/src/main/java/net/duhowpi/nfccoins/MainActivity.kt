@@ -644,10 +644,10 @@ class MainActivity : AppCompatActivity() {
     private fun setScreenStatusError(
         message: String,
         scheduleAutoReset: Boolean = true,
-        @ColorRes background: Int = R.color.error_orange
+        @ColorRes background: Int? = R.color.error_orange
     ) {
         tvStatus.text = message
-        if (background != 0) flashBackground(background)
+        if (background != null) flashBackground(background)
         playNfcErrorBeep()
         if (scheduleAutoReset) {
             this.scheduleAutoReset()
@@ -658,10 +658,10 @@ class MainActivity : AppCompatActivity() {
     private fun setScreenStatusSuccess(
         message: String,
         scheduleAutoReset: Boolean = true,
-        @ColorRes background: Int = R.color.success_green
+        @ColorRes background: Int? = R.color.success_green
     ) {
         tvStatus.text = message
-        if (background != 0) flashBackground(background)
+        if (background != null) flashBackground(background)
         playSuccessBeep()
         if (scheduleAutoReset) {
             this.scheduleAutoReset()
