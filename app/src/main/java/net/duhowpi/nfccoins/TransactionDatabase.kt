@@ -226,21 +226,34 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
     }
 
     /**
-     * Returns per-button-value usage counts (subtract operations only) for the past week.
+     * Returns per-button-value usage counts (subtract operations only) for the current week.
+     * All time windows are anchored to calendar boundaries, not rolling durations:
      * "This hour"  = from the start of the current calendar hour until now.
      * "Last hour"  = the previous calendar hour (e.g. 12:00–12:59 when current time is 13:xx).
+     * "Today"      = from midnight of the current calendar day until now.
+     * "This week"  = from Monday midnight of the current ISO week until now.
      */
     fun getButtonStats(): List<ButtonStats> {
         val db = readableDatabase
+
+        // Current calendar hour start
         val cal = Calendar.getInstance()
         cal.set(Calendar.MINUTE, 0)
         cal.set(Calendar.SECOND, 0)
         cal.set(Calendar.MILLISECOND, 0)
         val thisHourStart = cal.timeInMillis
         val lastHourStart = thisHourStart - 3_600_000L
-        val now = System.currentTimeMillis()
-        val oneDayAgo = now - 86_400_000L
-        val oneWeekAgo = now - 7 * 86_400_000L
+
+        // Current calendar day start (midnight today)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        val todayStart = cal.timeInMillis
+
+        // Current ISO week start (Monday midnight)
+        // Calendar.DAY_OF_WEEK is Sunday=1…Saturday=7; (dow+5)%7 maps that to Mon=0…Sun=6.
+        val dow = cal.get(Calendar.DAY_OF_WEEK)
+        val daysFromMon = (dow + 5) % 7
+        cal.add(Calendar.DAY_OF_YEAR, -daysFromMon)
+        val thisWeekStart = cal.timeInMillis
 
         val cursor = db.rawQuery(
             """
@@ -248,11 +261,11 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
                 $COL_BUTTON_VALUE,
                 SUM(CASE WHEN $COL_TIMESTAMP >= $thisHourStart THEN 1 ELSE 0 END),
                 SUM(CASE WHEN $COL_TIMESTAMP >= $lastHourStart AND $COL_TIMESTAMP < $thisHourStart THEN 1 ELSE 0 END),
-                SUM(CASE WHEN $COL_TIMESTAMP >= $oneDayAgo THEN 1 ELSE 0 END),
-                COUNT(*)
+                SUM(CASE WHEN $COL_TIMESTAMP >= $todayStart THEN 1 ELSE 0 END),
+                COUNT(*) -- equals "this week" because WHERE already filters to >= thisWeekStart
             FROM $TABLE
             WHERE $COL_TYPE = '$TYPE_SUBTRACT'
-              AND $COL_TIMESTAMP >= $oneWeekAgo
+              AND $COL_TIMESTAMP >= $thisWeekStart
               AND $COL_BUTTON_VALUE IS NOT NULL
             GROUP BY $COL_BUTTON_VALUE
             ORDER BY COUNT(*) DESC

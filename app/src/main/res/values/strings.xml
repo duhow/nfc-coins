@@ -116,8 +116,8 @@
     <string name="ops_col_price">Amount</string>
     <string name="ops_col_this_hour">This hour</string>
     <string name="ops_col_last_hour">Last hour</string>
-    <string name="ops_col_last_day">Last 24 h</string>
-    <string name="ops_col_last_week">Last 7 days</string>
+    <string name="ops_col_last_day">Today</string>
+    <string name="ops_col_last_week">This week</string>
     <string name="ops_col_total">Total</string>
     <string name="ops_nav_prev">Previous</string>
     <string name="ops_nav_next">Next</string>
