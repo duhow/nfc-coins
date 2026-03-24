@@ -510,8 +510,19 @@ class MainActivity : AppCompatActivity() {
             val blockIndex = sectorStart + DATA_BLOCK_OFFSET
             mifare.decrement(blockIndex, amount)
             mifare.transfer(blockIndex)
-            mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, newTxBlock1)
-            mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, newTxBlock2)
+            // Read the actual block back: card emulators (e.g. Flipper Zero) may set the
+            // value-block address field to the absolute block index instead of DATA_BLOCK_OFFSET,
+            // so the checksum must be computed against the bytes actually stored on the card.
+            val actualCounterBlock = mifare.readBlock(blockIndex)
+            val (writeTxBlock1, writeTxBlock2) = if (actualCounterBlock.contentEquals(newCounterBlock)) {
+                newTxBlock1 to newTxBlock2
+            } else {
+                val recomputed = updatedTxBlock.toBytes(actualCounterBlock, uid, psk)
+                pendingWrite = PendingWrite(uid, actualCounterBlock, recomputed.first, recomputed.second)
+                recomputed
+            }
+            mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, writeTxBlock1)
+            mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, writeTxBlock2)
             pendingWrite = null
 
             currentBalance = newBalance
@@ -523,7 +534,7 @@ class MainActivity : AppCompatActivity() {
             tvActualBalance.visibility = View.GONE
             tvStatus.text = getString(R.string.deduct_ok, formatBalanceDisplay(amount))
             showTransactionHistory(updatedTxBlock)
-            showDebugChecksums(newCounterBlock, newTxBlock1, newTxBlock2, uid, psk)
+            showDebugChecksums(actualCounterBlock, writeTxBlock1, writeTxBlock2, uid, psk)
             txDb.insertTransaction(
                 type = TransactionDatabase.TYPE_SUBTRACT,
                 amount = -amount,
@@ -1094,8 +1105,19 @@ class MainActivity : AppCompatActivity() {
             val blockIndex = sectorStart + DATA_BLOCK_OFFSET
             mifare.increment(blockIndex, pendingAddAmount)
             mifare.transfer(blockIndex)
-            mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, newTxBlock1)
-            mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, newTxBlock2)
+            // Read the actual block back: card emulators (e.g. Flipper Zero) may set the
+            // value-block address field to the absolute block index instead of DATA_BLOCK_OFFSET,
+            // so the checksum must be computed against the bytes actually stored on the card.
+            val actualCounterBlock = mifare.readBlock(blockIndex)
+            val (writeTxBlock1, writeTxBlock2) = if (actualCounterBlock.contentEquals(newCounterBlock)) {
+                newTxBlock1 to newTxBlock2
+            } else {
+                val recomputed = updatedTxBlock.toBytes(actualCounterBlock, uid, psk)
+                pendingWrite = PendingWrite(uid, actualCounterBlock, recomputed.first, recomputed.second)
+                recomputed
+            }
+            mifare.writeBlock(sectorStart + TX_BLOCK_1_OFFSET, writeTxBlock1)
+            mifare.writeBlock(sectorStart + TX_BLOCK_2_OFFSET, writeTxBlock2)
             pendingWrite = null
 
             if (isSingleRecharge) {
@@ -1112,7 +1134,7 @@ class MainActivity : AppCompatActivity() {
             layoutBeforeAfter.visibility = View.VISIBLE
             tvStatus.text = getString(R.string.balance_added_ok, formatBalanceDisplay(pendingAddAmount))
             showTransactionHistory(updatedTxBlock)
-            showDebugChecksums(newCounterBlock, newTxBlock1, newTxBlock2, uid, psk)
+            showDebugChecksums(actualCounterBlock, writeTxBlock1, writeTxBlock2, uid, psk)
             txDb.insertTransaction(
                 type = TransactionDatabase.TYPE_ADD,
                 amount = pendingAddAmount,
