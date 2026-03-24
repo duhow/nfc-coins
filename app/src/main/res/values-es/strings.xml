@@ -94,4 +94,20 @@
     <string name="tx_subtract">-%d monedas</string>
     <string name="card_tampered">Tarjeta manipulada. Operación cancelada.</string>
     <string name="write_retried">Escritura reiniciada tras interrupción anterior</string>
+
+    <!-- Operations History -->
+    <string name="ops_history_title">Historial de operaciones</string>
+    <string name="ops_hourly">Por hora</string>
+    <string name="ops_weekly">Semanal</string>
+    <string name="ops_chart_label">Resumen de saldo</string>
+    <string name="ops_no_data">Sin datos para el período seleccionado</string>
+    <string name="ops_no_button_data">Aún no hay usos de botones registrados</string>
+    <string name="ops_legend_added">Añadido</string>
+    <string name="ops_legend_subtracted">Descontado</string>
+    <string name="ops_button_usage">Uso de botones (últimos 7 días)</string>
+    <string name="ops_col_button">Botón</string>
+    <string name="ops_col_last_hour">Última hora</string>
+    <string name="ops_col_last_day">Últimas 24 h</string>
+    <string name="ops_col_last_week">Últimos 7 días</string>
+    <string name="ops_now">Ahora</string>
 </resources>

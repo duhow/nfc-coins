@@ -12,4 +12,10 @@
     <color name="success_green">#1B5E20</color>
     <color name="error_orange">#E65100</color>
     <color name="ic_launcher_background">#1565C0</color>
+
+    <!-- Operations History chart -->
+    <color name="chart_added">#2E7D32</color>
+    <color name="chart_subtracted">#C62828</color>
+    <color name="chart_axis">#888888</color>
+    <color name="chart_label">#BBBBBB</color>
 </resources>
