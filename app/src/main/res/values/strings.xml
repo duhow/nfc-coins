@@ -14,6 +14,7 @@
     <string name="card_read_ok">Card read successfully</string>
     <string name="auth_failed">Card authentication error</string>
     <string name="unsupported_card">Unsupported card (Mifare Classic required)</string>
+    <string name="sector_unavailable">Card does not have Sector %1$d (%2$d)</string>
     <string name="nfc_not_available">NFC not available on this device</string>
     <string name="no_card">No card. Bring it closer again.</string>
     <string name="insufficient_balance">Insufficient balance</string>
@@ -35,12 +36,12 @@
     <string name="action_reset_card">Reset card</string>
     <string name="action_confirm">Confirm</string>
     <string name="tap_card_to_add">Bring card closer to add balance…</string>
-    <string name="tap_card_to_format">Bring the card to format closer…</string>
-    <string name="tap_card_to_reset">Bring the card to reset closer…</string>
+    <string name="tap_card_to_deduct">Bring card closer to deduct…</string>
+    <string name="tap_card_to_format">Bring card closer to format…</string>
+    <string name="tap_card_to_reset">Bring card closer to reset…</string>
     <string name="hint_add_amount">Amount to add</string>
     <string name="action_deduct_custom">Deduct amount</string>
     <string name="hint_deduct_amount">Amount to deduct</string>
-    <string name="tap_card_to_deduct">Bring card closer to deduct…</string>
     <string name="add_balance_title">Current balance: %d coins</string>
     <string name="invalid_amount">Invalid amount</string>
     <string name="balance_too_high">Maximum balance is 65535 coins</string>

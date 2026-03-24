@@ -300,6 +300,20 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        val mifare = MifareClassic.get(tag)
+        val sector = AdvancedSettingsActivity.getTargetSector(this)
+        if (mifare != null && sector >= mifare.sectorCount) {
+            tvStatus.text = getString(
+                R.string.sector_unavailable,
+                sector,
+                mifare.sectorCount - 1
+            )
+            flashBackground(R.color.error_orange)
+            playNfcErrorBeep()
+            scheduleAutoReset()
+            return
+        }
+
         handler.removeCallbacks(autoResetRunnable)
         currentTag = tag
         val uid = tag.id
