@@ -57,7 +57,7 @@ class NtagCoinCard(
         val payload = readPayload44()
 
         if (!payload.copyOfRange(0, MAGIC.size).contentEquals(MAGIC)) {
-            return ReadResult.AuthFailed
+            return ReadResult.InvalidData("Unformatted or invalid NTAG payload")
         }
 
         val meta = decodeMeta(payload.copyOfRange(OFFSET_META, OFFSET_BALANCE))
