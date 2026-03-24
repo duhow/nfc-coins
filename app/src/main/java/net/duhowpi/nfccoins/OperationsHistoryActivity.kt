@@ -20,11 +20,14 @@ class OperationsHistoryActivity : AppCompatActivity() {
 
     companion object {
         private const val MILLIS_PER_DAY = 86_400_000L
+        private const val ALPHA_SERIES_VISIBLE = 1f
+        private const val ALPHA_SERIES_HIDDEN = 0.35f
     }
 
     private lateinit var db: TransactionDatabase
     private lateinit var chartView: BarChartView
     private lateinit var tvNoData: TextView
+    private lateinit var tvChartLabel: TextView
     private lateinit var togglePeriod: MaterialButtonToggleGroup
     private lateinit var tableLayout: TableLayout
     private lateinit var tvTableLabel: TextView
@@ -34,6 +37,9 @@ class OperationsHistoryActivity : AppCompatActivity() {
     private lateinit var btnNavNext: ImageButton
     private lateinit var tvSummary: TextView
     private lateinit var layoutLegend: LinearLayout
+    private lateinit var viewDivider: View
+    private lateinit var legendAdded: LinearLayout
+    private lateinit var legendSubtracted: LinearLayout
 
     /** How many days back from today the hourly view is showing (0 = today). */
     private var dayOffset: Int = 0
@@ -56,17 +62,21 @@ class OperationsHistoryActivity : AppCompatActivity() {
         supportActionBar?.title = getString(R.string.ops_history_title)
 
         db = TransactionDatabase(this)
-        chartView    = findViewById(R.id.chartView)
-        tvNoData     = findViewById(R.id.tvNoData)
-        togglePeriod = findViewById(R.id.togglePeriod)
-        tableLayout  = findViewById(R.id.tableButtonStats)
-        tvTableLabel = findViewById(R.id.tvTableLabel)
-        tvColLastDay = findViewById(R.id.tvColLastDay)
-        tvNavLabel   = findViewById(R.id.tvNavLabel)
-        btnNavPrev   = findViewById(R.id.btnNavPrev)
-        btnNavNext   = findViewById(R.id.btnNavNext)
-        tvSummary    = findViewById(R.id.tvSummary)
-        layoutLegend = findViewById(R.id.layoutLegend)
+        chartView        = findViewById(R.id.chartView)
+        tvNoData         = findViewById(R.id.tvNoData)
+        tvChartLabel     = findViewById(R.id.tvChartLabel)
+        togglePeriod     = findViewById(R.id.togglePeriod)
+        tableLayout      = findViewById(R.id.tableButtonStats)
+        tvTableLabel     = findViewById(R.id.tvTableLabel)
+        tvColLastDay     = findViewById(R.id.tvColLastDay)
+        tvNavLabel       = findViewById(R.id.tvNavLabel)
+        btnNavPrev       = findViewById(R.id.btnNavPrev)
+        btnNavNext       = findViewById(R.id.btnNavNext)
+        tvSummary        = findViewById(R.id.tvSummary)
+        layoutLegend     = findViewById(R.id.layoutLegend)
+        viewDivider      = findViewById(R.id.viewDivider)
+        legendAdded      = findViewById(R.id.legendAdded)
+        legendSubtracted = findViewById(R.id.legendSubtracted)
 
         btnNavPrev.setOnClickListener {
             if (isWeeklyMode()) weekOffset++ else dayOffset++
@@ -82,6 +92,24 @@ class OperationsHistoryActivity : AppCompatActivity() {
         }
 
         tvNavLabel.setOnClickListener { showDatePicker() }
+
+        legendAdded.setOnClickListener {
+            val newValue = !chartView.showAdded
+            // Don't allow hiding both series simultaneously
+            if (newValue || chartView.showSubtracted) {
+                chartView.showAdded = newValue
+                legendAdded.alpha = if (newValue) ALPHA_SERIES_VISIBLE else ALPHA_SERIES_HIDDEN
+            }
+        }
+
+        legendSubtracted.setOnClickListener {
+            val newValue = !chartView.showSubtracted
+            // Don't allow hiding both series simultaneously
+            if (newValue || chartView.showAdded) {
+                chartView.showSubtracted = newValue
+                legendSubtracted.alpha = if (newValue) ALPHA_SERIES_VISIBLE else ALPHA_SERIES_HIDDEN
+            }
+        }
 
         togglePeriod.addOnButtonCheckedListener { _, _, isChecked ->
             if (isChecked) {
@@ -243,9 +271,13 @@ class OperationsHistoryActivity : AppCompatActivity() {
     private fun updateChart(entries: List<BarChartView.Entry>) {
         val hasData = entries.any { it.added > 0 || it.subtracted > 0 }
         hasChartData = hasData
-        tvNoData.visibility = if (hasData) View.GONE else View.VISIBLE
-        chartView.visibility = if (hasData) View.VISIBLE else View.GONE
-        layoutLegend.visibility = if (hasData) View.VISIBLE else View.GONE
+        val dataVisibility = if (hasData) View.VISIBLE else View.GONE
+        tvNoData.visibility      = if (hasData) View.GONE else View.VISIBLE
+        chartView.visibility     = dataVisibility
+        layoutLegend.visibility  = dataVisibility
+        tvChartLabel.visibility  = dataVisibility
+        tvSummary.visibility     = dataVisibility
+        viewDivider.visibility   = dataVisibility
         chartView.entries = entries
     }
 

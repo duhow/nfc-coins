@@ -15,8 +15,8 @@ import kotlin.math.max
  * A simple bar chart view that draws side-by-side bars for two data series
  * (added = green, subtracted = red) per time slot.
  *
- * Touching the chart highlights the tapped slot and draws a tooltip showing
- * the slot label plus the added/subtracted amounts.
+ * Touching/dragging the chart highlights the touched slot and shows a tooltip.
+ * Each series can be hidden individually via [showAdded] / [showSubtracted].
  */
 class BarChartView @JvmOverloads constructor(
     context: Context,
@@ -31,6 +31,16 @@ class BarChartView @JvmOverloads constructor(
             field = value
             selectedIndex = null
             invalidate()
+        }
+
+    var showAdded: Boolean = true
+        set(value) {
+            if (field != value) { field = value; invalidate() }
+        }
+
+    var showSubtracted: Boolean = true
+        set(value) {
+            if (field != value) { field = value; invalidate() }
         }
 
     private var selectedIndex: Int? = null
@@ -84,8 +94,19 @@ class BarChartView @JvmOverloads constructor(
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+            MotionEvent.ACTION_DOWN -> {
+                // Prevent the parent NestedScrollView from stealing subsequent events so
+                // dragging horizontally and vertically within the chart both work.
+                parent?.requestDisallowInterceptTouchEvent(true)
                 updateSelection(event.x)
+                return true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                updateSelection(event.x)
+                return true
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                parent?.requestDisallowInterceptTouchEvent(false)
                 return true
             }
         }
@@ -96,10 +117,9 @@ class BarChartView @JvmOverloads constructor(
         if (entries.isEmpty()) return
         val chartLeft = paddingLeft
         val chartRight = width.toFloat() - 8f
-        if (x < chartLeft || x > chartRight) return
         val chartWidth = chartRight - chartLeft
         val slotWidth = chartWidth / entries.size
-        val idx = ((x - chartLeft) / slotWidth).toInt().coerceIn(0, entries.size - 1)
+        val idx = ((x - chartLeft) / slotWidth).toInt().coerceIn(0, (entries.size - 1).coerceAtLeast(0))
         selectedIndex = idx
     }
 
@@ -117,8 +137,13 @@ class BarChartView @JvmOverloads constructor(
         val chartHeight = chartBottom - chartTop
         val chartWidth = chartRight - chartLeft
 
-        // Max value for Y-axis scaling
-        val maxVal = entries.maxOf { max(it.added, it.subtracted) }.coerceAtLeast(1)
+        // Max value for Y-axis scaling — only consider visible series
+        val maxVal = entries.maxOf { e ->
+            max(
+                if (showAdded) e.added else 0,
+                if (showSubtracted) e.subtracted else 0
+            )
+        }.coerceAtLeast(1)
 
         val n = entries.size
         val slotWidth = chartWidth / n
@@ -160,25 +185,29 @@ class BarChartView @JvmOverloads constructor(
             val entry = entries[i]
             val slotX = chartLeft + i * slotWidth
 
-            // Added bar (green, left)
-            val addedH = if (maxVal > 0) chartHeight * entry.added / maxVal else 0f
-            rect.set(
-                slotX + barGap,
-                chartBottom - addedH,
-                slotX + barGap + barWidth,
-                chartBottom
-            )
-            canvas.drawRect(rect, paintAdded)
+            // Added bar (green, left) — draw only when series is visible
+            if (showAdded) {
+                val addedH = if (maxVal > 0) chartHeight * entry.added / maxVal else 0f
+                rect.set(
+                    slotX + barGap,
+                    chartBottom - addedH,
+                    slotX + barGap + barWidth,
+                    chartBottom
+                )
+                canvas.drawRect(rect, paintAdded)
+            }
 
-            // Subtracted bar (red, right)
-            val subH = if (maxVal > 0) chartHeight * entry.subtracted / maxVal else 0f
-            rect.set(
-                slotX + barGap * 2 + barWidth,
-                chartBottom - subH,
-                slotX + barGap * 2 + barWidth * 2,
-                chartBottom
-            )
-            canvas.drawRect(rect, paintSubtracted)
+            // Subtracted bar (red, right) — draw only when series is visible
+            if (showSubtracted) {
+                val subH = if (maxVal > 0) chartHeight * entry.subtracted / maxVal else 0f
+                rect.set(
+                    slotX + barGap * 2 + barWidth,
+                    chartBottom - subH,
+                    slotX + barGap * 2 + barWidth * 2,
+                    chartBottom
+                )
+                canvas.drawRect(rect, paintSubtracted)
+            }
 
             // X-axis label centered in the slot (only every Nth to avoid crowding)
             if (i % labelInterval == 0) {
@@ -195,7 +224,7 @@ class BarChartView @JvmOverloads constructor(
                 val centerX = slotX + slotWidth / 2f
 
                 val line1 = entry.label
-                val line2 = "+${entry.added} / -${entry.subtracted}"
+                val line2 = buildTooltipAmounts(entry)
                 val textWidth = maxOf(
                     paintTooltipText.measureText(line1),
                     paintTooltipText.measureText(line2)
@@ -218,6 +247,15 @@ class BarChartView @JvmOverloads constructor(
                 canvas.drawText(line1, textX, boxTop + tipPad + paintTooltipText.textSize, paintTooltipText)
                 canvas.drawText(line2, textX, boxTop + tipPad + paintTooltipText.textSize + lineHeight, paintTooltipText)
             }
+        }
+    }
+
+    private fun buildTooltipAmounts(entry: Entry): String {
+        return when {
+            showAdded && showSubtracted -> "+${entry.added} / -${entry.subtracted}"
+            showAdded                   -> "+${entry.added}"
+            showSubtracted              -> "-${entry.subtracted}"
+            else                        -> "–"
         }
     }
 }
