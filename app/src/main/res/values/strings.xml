@@ -109,15 +109,16 @@
     <string name="ops_weekly">Weekly</string>
     <string name="ops_chart_label">Balance Overview</string>
     <string name="ops_no_data">No data for the selected period</string>
-    <string name="ops_no_button_data">No price usage recorded yet</string>
+    <string name="ops_no_button_data">No withdrawals recorded yet</string>
     <string name="ops_legend_added">Added</string>
     <string name="ops_legend_subtracted">Subtracted</string>
-    <string name="ops_price_usage">Price Usage (last 7 days)</string>
-    <string name="ops_col_price">Price</string>
+    <string name="ops_price_usage">Withdrawals by Amount (last 7 days)</string>
+    <string name="ops_col_price">Amount</string>
     <string name="ops_col_last_hour">Last hour</string>
     <string name="ops_col_last_day">Last 24 h</string>
     <string name="ops_col_last_week">Last 7 days</string>
+    <string name="ops_col_total">Total</string>
     <string name="ops_nav_prev">Previous</string>
     <string name="ops_nav_next">Next</string>
-    <string name="ops_summary">+%1$d added · -%2$d subtracted · %3$d ops</string>
+    <string name="ops_summary">+%1$d add (%2$d ops) · -%3$d withdraw (%4$d ops)</string>
 </resources>

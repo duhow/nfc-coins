@@ -14,8 +14,10 @@ data class HourlyStats(val hour: Int, val added: Int, val subtracted: Int)
 /** Stats for one calendar day inside a specific week (Mon=0 … Sun=6). */
 data class DailyStats(val weekdayIndex: Int, val dayLabel: String, val added: Int, val subtracted: Int)
 
-/** Aggregated totals for a period. */
-data class PeriodSummary(val added: Int, val subtracted: Int, val totalOps: Int)
+/** Aggregated totals for a period, broken down by operation type. */
+data class PeriodSummary(val added: Int, val subtracted: Int, val addOps: Int, val subtractOps: Int) {
+    val totalOps: Int get() = addOps + subtractOps
+}
 
 data class ButtonStats(val amount: Int, val countLastHour: Int, val countLastDay: Int, val countLastWeek: Int)
 
@@ -210,15 +212,16 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
             SELECT
                 COALESCE(SUM(CASE WHEN $COL_TYPE = '$TYPE_ADD' THEN $COL_AMOUNT ELSE 0 END), 0),
                 COALESCE(SUM(CASE WHEN $COL_TYPE = '$TYPE_SUBTRACT' THEN ABS($COL_AMOUNT) ELSE 0 END), 0),
-                COUNT(*)
+                COALESCE(SUM(CASE WHEN $COL_TYPE = '$TYPE_ADD' THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN $COL_TYPE = '$TYPE_SUBTRACT' THEN 1 ELSE 0 END), 0)
             FROM $TABLE
             WHERE $COL_TIMESTAMP >= ? AND $COL_TIMESTAMP < ?
             """.trimIndent(),
             arrayOf(start.toString(), end.toString())
         )
         return cursor.use {
-            if (it.moveToFirst()) PeriodSummary(it.getInt(0), it.getInt(1), it.getInt(2))
-            else PeriodSummary(0, 0, 0)
+            if (it.moveToFirst()) PeriodSummary(it.getInt(0), it.getInt(1), it.getInt(2), it.getInt(3))
+            else PeriodSummary(0, 0, 0, 0)
         }
     }
 

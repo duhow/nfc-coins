@@ -183,9 +183,8 @@ class OperationsHistoryActivity : AppCompatActivity() {
     private fun updateSummary(summary: PeriodSummary) {
         tvSummary.text = getString(
             R.string.ops_summary,
-            summary.added,
-            summary.subtracted,
-            summary.totalOps
+            summary.added, summary.addOps,
+            summary.subtracted, summary.subtractOps
         )
     }
 
@@ -230,6 +229,18 @@ class OperationsHistoryActivity : AppCompatActivity() {
             row.addView(makeCell(stat.countLastWeek.toString()))
             tableLayout.addView(row)
         }
+
+        // Total row
+        val totalHour = stats.sumOf { it.countLastHour }
+        val totalDay  = stats.sumOf { it.countLastDay }
+        val totalWeek = stats.sumOf { it.countLastWeek }
+        val totalRow  = TableRow(this)
+        totalRow.setPadding(0, 4, 0, 4)
+        totalRow.addView(makeCell(getString(R.string.ops_col_total), isBold = true))
+        totalRow.addView(makeCell(totalHour.toString(), isBold = true))
+        totalRow.addView(makeCell(totalDay.toString(), isBold = true))
+        totalRow.addView(makeCell(totalWeek.toString(), isBold = true))
+        tableLayout.addView(totalRow)
     }
 
     private fun makeCell(text: String, isBold: Boolean = false): TextView {
