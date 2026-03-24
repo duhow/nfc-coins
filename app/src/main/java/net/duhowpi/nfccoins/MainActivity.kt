@@ -229,18 +229,16 @@ class MainActivity : AppCompatActivity() {
     private fun handleTag(tag: Tag) {
         triggerVibration()
         if (!BaseCoinCard.isSupported(tag)) {
-            setScreenStatusError(
+            return setScreenStatusError(
                 message = getString(R.string.unsupported_card),
                 background = null
             )
-            return
         }
         val card = createCard(tag) ?: run {
-            setScreenStatusError(
+            return setScreenStatusError(
                 message = getString(R.string.error_get_mifare),
                 background = null
             )
-            return
         }
 
 
@@ -248,12 +246,11 @@ class MainActivity : AppCompatActivity() {
         if (card is MifareClassicCoinCard) {
             val sector = AdvancedSettingsActivity.getTargetSector(this)
             if (sector >= card.mifare.sectorCount) {
-                setScreenStatusError(getString(
+                return setScreenStatusError(getString(
                     R.string.sector_unavailable,
                     sector,
                     card.mifare.sectorCount - 1
                 ))
-                return
             }
         }
 
@@ -304,12 +301,10 @@ class MainActivity : AppCompatActivity() {
             card.connect()
             when (val result = card.readCardData()) {
                 is BaseCoinCard.ReadResult.AuthFailed -> {
-                    setScreenStatusError(getString(R.string.auth_failed))
-                    return
+                    return setScreenStatusError(getString(R.string.auth_failed))
                 }
                 is BaseCoinCard.ReadResult.InvalidData -> {
-                    setScreenStatusError(getString(R.string.error_reading, result.reason))
-                    return
+                    return setScreenStatusError(getString(R.string.error_reading, result.reason))
                 }
                 is BaseCoinCard.ReadResult.Success -> {
                     val data = result.data
@@ -350,18 +345,16 @@ class MainActivity : AppCompatActivity() {
             when (val result = card.readCardData()) {
                 // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                 is BaseCoinCard.ReadResult.AuthFailed -> {
-                    setScreenStatusError(
+                    return setScreenStatusError(
                         message = getString(R.string.auth_failed),
                         scheduleAutoReset = false
                     )
-                    return
                 }
                 is BaseCoinCard.ReadResult.InvalidData -> {
-                    setScreenStatusError(
+                    return setScreenStatusError(
                         message = getString(R.string.error_reading, result.reason),
                         scheduleAutoReset = false
                     )
-                    return
                 }
                 is BaseCoinCard.ReadResult.Success -> {
                     val data = result.data
@@ -906,12 +899,10 @@ class MainActivity : AppCompatActivity() {
             card.connect()
             when (val result = card.readCardData()) {
                 is BaseCoinCard.ReadResult.AuthFailed -> {
-                    setScreenStatusError(getString(R.string.card_not_formatted))
-                    return
+                    return setScreenStatusError(getString(R.string.card_not_formatted))
                 }
                 is BaseCoinCard.ReadResult.InvalidData -> {
-                    setScreenStatusError(getString(R.string.error_reading, result.reason))
-                    return
+                    return setScreenStatusError(getString(R.string.error_reading, result.reason))
                 }
                 is BaseCoinCard.ReadResult.Success -> {
                     val data = result.data
@@ -961,8 +952,7 @@ class MainActivity : AppCompatActivity() {
                     if (data.isSingleRecharge && !isFirstAdd) {
                         // Card was already charged once; reject any further balance additions.
                         pendingWrite = null
-                        setScreenStatusError(getString(R.string.single_recharge_already_used))
-                        return
+                        return setScreenStatusError(getString(R.string.single_recharge_already_used))
                     }
 
                     card.addBalance(pendingAddAmount, data, newTxBlock1, newTxBlock2)
@@ -1061,8 +1051,7 @@ class MainActivity : AppCompatActivity() {
         try {
             card.connect()
             if (!card.resetCard()) {
-                setScreenStatusError(getString(R.string.reset_card_no_key))
-                return
+                return setScreenStatusError(getString(R.string.reset_card_no_key))
             }
 
             currentBalance = -1
