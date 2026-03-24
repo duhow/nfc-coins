@@ -108,7 +108,7 @@
     <string name="ops_col_price">Importe</string>
     <string name="ops_col_this_hour">Esta hora</string>
     <string name="ops_col_last_hour">Última hora</string>
-    <string name="ops_col_last_day">Hoy</string>
+    <string name="ops_col_last_day">Ayer</string>
     <string name="ops_col_last_week">Esta semana</string>
     <string name="ops_col_total">Total</string>
     <string name="ops_nav_prev">Anterior</string>
