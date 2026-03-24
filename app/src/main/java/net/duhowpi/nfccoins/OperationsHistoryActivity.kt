@@ -194,8 +194,12 @@ class OperationsHistoryActivity : AppCompatActivity() {
 
     private fun loadButtonStats() {
         val stats = db.getButtonStats()
+        val isHourly = !isWeeklyMode()
 
         while (tableLayout.childCount > 1) tableLayout.removeViewAt(1)
+
+        // Show or hide the "Last 7 days" column (index 4) depending on view mode
+        tableLayout.setColumnCollapsed(4, isHourly)
 
         if (stats.isEmpty()) {
             val row = TableRow(this)
@@ -224,6 +228,7 @@ class OperationsHistoryActivity : AppCompatActivity() {
             }
 
             row.addView(makeCell(priceText, isBold = true))
+            row.addView(makeCell(stat.countThisHour.toString()))
             row.addView(makeCell(stat.countLastHour.toString()))
             row.addView(makeCell(stat.countLastDay.toString()))
             row.addView(makeCell(stat.countLastWeek.toString()))
@@ -231,12 +236,14 @@ class OperationsHistoryActivity : AppCompatActivity() {
         }
 
         // Total row
+        val totalThisHour = stats.sumOf { it.countThisHour }
         val totalHour = stats.sumOf { it.countLastHour }
         val totalDay  = stats.sumOf { it.countLastDay }
         val totalWeek = stats.sumOf { it.countLastWeek }
         val totalRow  = TableRow(this)
         totalRow.setPadding(0, 4, 0, 4)
         totalRow.addView(makeCell(getString(R.string.ops_col_total), isBold = true))
+        totalRow.addView(makeCell(totalThisHour.toString(), isBold = true))
         totalRow.addView(makeCell(totalHour.toString(), isBold = true))
         totalRow.addView(makeCell(totalDay.toString(), isBold = true))
         totalRow.addView(makeCell(totalWeek.toString(), isBold = true))

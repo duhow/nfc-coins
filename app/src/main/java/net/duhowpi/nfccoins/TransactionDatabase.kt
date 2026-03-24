@@ -19,7 +19,7 @@ data class PeriodSummary(val added: Int, val subtracted: Int, val addOps: Int, v
     val totalOps: Int get() = addOps + subtractOps
 }
 
-data class ButtonStats(val amount: Int, val countLastHour: Int, val countLastDay: Int, val countLastWeek: Int)
+data class ButtonStats(val amount: Int, val countThisHour: Int, val countLastHour: Int, val countLastDay: Int, val countLastWeek: Int)
 
 class TransactionDatabase(context: Context) : SQLiteOpenHelper(
     context, DATABASE_NAME, null, DATABASE_VERSION
@@ -227,11 +227,18 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
 
     /**
      * Returns per-button-value usage counts (subtract operations only) for the past week.
+     * "This hour"  = from the start of the current calendar hour until now.
+     * "Last hour"  = the previous calendar hour (e.g. 12:00–12:59 when current time is 13:xx).
      */
     fun getButtonStats(): List<ButtonStats> {
         val db = readableDatabase
+        val cal = Calendar.getInstance()
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val thisHourStart = cal.timeInMillis
+        val lastHourStart = thisHourStart - 3_600_000L
         val now = System.currentTimeMillis()
-        val oneHourAgo = now - 3_600_000L
         val oneDayAgo = now - 86_400_000L
         val oneWeekAgo = now - 7 * 86_400_000L
 
@@ -239,7 +246,8 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
             """
             SELECT
                 $COL_BUTTON_VALUE,
-                SUM(CASE WHEN $COL_TIMESTAMP >= $oneHourAgo THEN 1 ELSE 0 END),
+                SUM(CASE WHEN $COL_TIMESTAMP >= $thisHourStart THEN 1 ELSE 0 END),
+                SUM(CASE WHEN $COL_TIMESTAMP >= $lastHourStart AND $COL_TIMESTAMP < $thisHourStart THEN 1 ELSE 0 END),
                 SUM(CASE WHEN $COL_TIMESTAMP >= $oneDayAgo THEN 1 ELSE 0 END),
                 COUNT(*)
             FROM $TABLE
@@ -258,9 +266,10 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
                 result.add(
                     ButtonStats(
                         amount = it.getInt(0),
-                        countLastHour = it.getInt(1),
-                        countLastDay = it.getInt(2),
-                        countLastWeek = it.getInt(3)
+                        countThisHour = it.getInt(1),
+                        countLastHour = it.getInt(2),
+                        countLastDay = it.getInt(3),
+                        countLastWeek = it.getInt(4)
                     )
                 )
             }

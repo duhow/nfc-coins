@@ -104,8 +104,9 @@
     <string name="ops_no_button_data">Aún no hay descuentos registrados</string>
     <string name="ops_legend_added">Añadido</string>
     <string name="ops_legend_subtracted">Descontado</string>
-    <string name="ops_price_usage">Descuentos por importe (últimos 7 días)</string>
+    <string name="ops_price_usage">Descuentos por importe</string>
     <string name="ops_col_price">Importe</string>
+    <string name="ops_col_this_hour">Esta hora</string>
     <string name="ops_col_last_hour">Última hora</string>
     <string name="ops_col_last_day">Últimas 24 h</string>
     <string name="ops_col_last_week">Últimos 7 días</string>
