@@ -79,7 +79,7 @@ class OperationsHistoryActivity : AppCompatActivity() {
     }
 
     private fun loadWeeklyData() {
-        val stats = db.getDailyStats(7)
+        val stats = db.getDailyStats(7, java.util.Locale.getDefault())
         val entries = stats.map { s ->
             BarChartView.Entry(s.dayLabel, s.added, s.subtracted)
         }
@@ -106,7 +106,7 @@ class OperationsHistoryActivity : AppCompatActivity() {
             val cell = TextView(this).apply {
                 text = getString(R.string.ops_no_button_data)
                 setPadding(8, 8, 8, 8)
-                setTextAppearance(android.R.style.TextAppearance_Small)
+                setTextAppearance(com.google.android.material.R.style.TextAppearance_MaterialComponents_Body2)
             }
             row.addView(cell)
             tableLayout.addView(row)

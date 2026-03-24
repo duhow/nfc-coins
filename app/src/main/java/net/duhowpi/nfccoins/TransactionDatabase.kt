@@ -4,7 +4,9 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Locale
 
 data class HourlyStats(val hourOffset: Int, val added: Int, val subtracted: Int)
 
@@ -113,9 +115,10 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
     /**
      * Returns daily aggregated stats for the past [days] days (oldest first).
      * dayOffset=0 is today, dayOffset=(days-1) is the oldest day.
+     * Day labels are locale-aware (e.g. "Mon", "Lun" in Spanish).
      */
-    fun getDailyStats(days: Int = 7): List<DailyStats> {
-        val dayAbbrevs = arrayOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+    fun getDailyStats(days: Int = 7, locale: Locale = Locale.getDefault()): List<DailyStats> {
+        val dayFormat = SimpleDateFormat("EEE", locale)
         val result = mutableListOf<DailyStats>()
         val db = readableDatabase
 
@@ -127,7 +130,7 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
             cal.set(Calendar.SECOND, 0)
             cal.set(Calendar.MILLISECOND, 0)
             val start = cal.timeInMillis
-            val dayOfWeek = cal.get(Calendar.DAY_OF_WEEK) - 1
+            val dayLabel = dayFormat.format(cal.time)
             cal.add(Calendar.DAY_OF_YEAR, 1)
             val end = cal.timeInMillis
 
@@ -143,7 +146,7 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
             )
             cursor.use {
                 if (it.moveToFirst()) {
-                    result.add(DailyStats(i, dayAbbrevs[dayOfWeek], it.getInt(0), it.getInt(1)))
+                    result.add(DailyStats(i, dayLabel, it.getInt(0), it.getInt(1)))
                 }
             }
         }
