@@ -41,9 +41,9 @@ object MifareClassicHelper {
     const val DEFAULT_USER_BYTE = 0x69
     const val USER_BIRTH_BASE_YEAR = 1900
 
-    /** Encodes birth year to trailer GPB user-byte domain (0..255). */
-    fun toUserBirthByte(userBirthYear: Int): Int =
-        (userBirthYear - USER_BIRTH_BASE_YEAR).coerceIn(0, 255)
+    /** Encodes birth year to trailer GPB user-byte domain. */
+    fun toUserBirthByte(userBirthYear: Int): Byte =
+        (userBirthYear - USER_BIRTH_BASE_YEAR).coerceIn(0, 255).toByte()
 
     /** Decodes trailer GPB user byte to a numeric birth year. */
     fun toUserBirthYear(userByte: Int): Int = USER_BIRTH_BASE_YEAR + (userByte and 0xFF)
@@ -147,13 +147,13 @@ object MifareClassicHelper {
      * restricted bits (FF 06 90) which block increment and write on block 0.
      * The [userByte] (GPB, General Purpose Byte) is placed at position 3 of the access bits.
      */
-    fun buildSectorTrailer(key: ByteArray, standard: Boolean, userByte: Int): ByteArray {
+    fun buildSectorTrailer(key: ByteArray, standard: Boolean, userByte: Byte): ByteArray {
         val ctrlBytes = if (standard) ACCESS_BITS_STANDARD_CTRL
                         else          ACCESS_BITS_SINGLE_RECHARGE_CTRL
         val trailer = ByteArray(MifareClassic.BLOCK_SIZE)
         System.arraycopy(key, 0, trailer, 0, KEY_LEN)
         System.arraycopy(ctrlBytes, 0, trailer, KEY_LEN, ctrlBytes.size)
-        trailer[KEY_LEN + ctrlBytes.size] = userByte.toByte()
+        trailer[KEY_LEN + ctrlBytes.size] = userByte
         System.arraycopy(key, 0, trailer, KEY_LEN + ctrlBytes.size + 1, KEY_LEN)
         return trailer
     }

@@ -406,13 +406,13 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     val newBalance = balance - amount
-                    val newCounterBlock = card.encodeBalance(newBalance)
+                    val newBalanceData = card.encodeBalance(newBalance)
                     val (updatedTxBlock, newTransactions) = card.buildUpdatedTxBlocks(
-                        data.transactions, newCounterBlock, TxOperation.SUBTRACT, amount
+                        data.transactions, newBalanceData, TxOperation.SUBTRACT, amount
                     )
 
                     // Retain the intended state in memory so an interrupted write can be retried.
-                    pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newCounterBlock, newTransactions)
+                    pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newBalanceData, newTransactions)
 
                     card.deductBalance(amount, newTransactions)
                     pendingWrite = null
@@ -942,13 +942,13 @@ class MainActivity : AppCompatActivity() {
                         return
                     }
 
-                    val newCounterBlock = card.encodeBalance(newBalance)
+                    val newBalanceData = card.encodeBalance(newBalance)
                     val (updatedTxBlock, newTransactions) = card.buildUpdatedTxBlocks(
-                        data.transactions, newCounterBlock, TxOperation.ADD, pendingAddAmount
+                        data.transactions, newBalanceData, TxOperation.ADD, pendingAddAmount
                     )
 
                     // Retain the intended state in memory so an interrupted write can be retried.
-                    pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newCounterBlock, newTransactions)
+                    pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newBalanceData, newTransactions)
 
                     val isFirstAdd = data.transactions.transactions.isEmpty()
                     if (data.isSingleRecharge) {

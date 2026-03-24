@@ -52,9 +52,9 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
         val userBirthYear: Int = 2005, // x69
         val isSingleRecharge: Boolean = false
     ) {
-        /** Birth year encoded to GPB user byte range (0..255). */
-        val userBirthByte: Int
-            get() = MifareClassicHelper.toUserBirthByte(userBirthYear)
+        /** Birth year encoded to GPB user byte. */
+        val userBirthByte: Byte
+            get() = (userBirthYear - 1900).coerceIn(0, 255).toByte()
 
         /** Rebuilds the full 32-byte transaction block using [transactions] + [checksum]. */
         val transactionsDataWithChecksum: ByteArray
@@ -70,7 +70,7 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
      */
     data class PendingWriteData(
         val uid: ByteArray,
-        val counterBlock: ByteArray,
+        val balanceData: ByteArray,
         val transactions: ByteArray
     ) {
         fun matchesUid(other: ByteArray): Boolean = uid.contentEquals(other)
@@ -218,13 +218,13 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
      */
     fun buildUpdatedTxBlocks(
         transactions: TransactionBlock,
-        newCounterBlock: ByteArray,
+        newBalanceData: ByteArray,
         operation: TxOperation,
         amount: Int
     ): Pair<TransactionBlock, ByteArray> {
         val nowSecs = System.currentTimeMillis() / 1000L
         val updated = transactions.addTransaction(nowSecs, operation, amount)
-        val updatedTransactions = updated.toBytesWithChecksum(newCounterBlock, uid, psk)
+        val updatedTransactions = updated.toBytesWithChecksum(newBalanceData, uid, psk)
         return updated to updatedTransactions
     }
 
@@ -235,9 +235,46 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
     companion object {
         /** Factory options needed to construct technology-specific card classes. */
         data class FactoryOptions(
-            val sector: Int,
             val psk: String,
-            val useDynamic: Boolean
+            val mifareClassic: MifareClassicOptions = MifareClassicOptions(),
+            val ntag: NtagOptions = NtagOptions()
+        )
+
+        /** Mifare Classic specific options. */
+        data class MifareClassicOptions(
+            val sector: Int = AdvancedSettingsActivity.DEFAULT_SECTOR,
+            val useDynamic: Boolean = true
+        )
+
+        /**
+         * Placeholder for future NTAG-specific options.
+         *
+         * Keeping this type in the base factory avoids changing call sites
+         * when NTAG support is added.
+         */
+        data class NtagOptions(
+            val userMemoryStartPage: Int = 4
+        )
+
+        private data class CardCreator(
+            val supports: (Tag) -> Boolean,
+            val create: (Tag, FactoryOptions) -> BaseCoinCard?
+        )
+
+        private val creators: List<CardCreator> = listOf(
+            CardCreator(
+                supports = { tag -> tag.techList.contains(MifareClassic::class.java.name) },
+                create = { tag, options ->
+                    runCatching {
+                        MifareClassicCoinCard(
+                            tag = tag,
+                            sector = options.mifareClassic.sector,
+                            psk = options.psk,
+                            useDynamic = options.mifareClassic.useDynamic
+                        )
+                    }.getOrNull()
+                }
+            )
         )
 
         /**
@@ -245,9 +282,11 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
          */
         fun fromTag(tag: Tag): BaseCoinCard? {
             val options = FactoryOptions(
-                sector = AdvancedSettingsActivity.DEFAULT_SECTOR,
                 psk = BuildConfig.NFC_PSK,
-                useDynamic = true
+                mifareClassic = MifareClassicOptions(
+                    sector = AdvancedSettingsActivity.DEFAULT_SECTOR,
+                    useDynamic = true
+                )
             )
             return fromTag(tag, options)
         }
@@ -258,9 +297,11 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
          */
         fun fromTag(tag: Tag, context: Context): BaseCoinCard? {
             val options = FactoryOptions(
-                sector = AdvancedSettingsActivity.getTargetSector(context),
                 psk = AdvancedSettingsActivity.getStaticKey(context),
-                useDynamic = AdvancedSettingsActivity.isDynamicKeyEnabled(context)
+                mifareClassic = MifareClassicOptions(
+                    sector = AdvancedSettingsActivity.getTargetSector(context),
+                    useDynamic = AdvancedSettingsActivity.isDynamicKeyEnabled(context)
+                )
             )
             return fromTag(tag, options)
         }
@@ -269,32 +310,19 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
          * Returns `true` when [tag] is a card type this app can work with.
          */
         fun isSupported(tag: Tag): Boolean =
-            tag.techList.contains(MifareClassic::class.java.name)
-            // Future: || tag.techList.contains(NfcA::class.java.name) for NTAG
+            creators.any { it.supports(tag) }
 
         /**
          * Creates the appropriate [BaseCoinCard] subclass for [tag], or `null`
          * when the tag technology is not supported or cannot be obtained.
          *
-         * [options.sector] is the target sector index (Mifare Classic only; ignored by
-         * other card types).
+         * [options] contains shared settings ([FactoryOptions.psk]) and optional
+         * per-technology settings.
          */
         fun fromTag(
             tag: Tag,
             options: FactoryOptions
-        ): BaseCoinCard? {
-            if (tag.techList.contains(MifareClassic::class.java.name)) {
-                return runCatching {
-                    MifareClassicCoinCard(
-                        tag = tag,
-                        sector = options.sector,
-                        psk = options.psk,
-                        useDynamic = options.useDynamic
-                    )
-                }.getOrNull()
-            }
-            // Future: NTAG, NFC Forum Type 2/4, etc.
-            return null
-        }
+        ): BaseCoinCard? =
+            creators.firstOrNull { it.supports(tag) }?.create?.invoke(tag, options)
     }
 }
