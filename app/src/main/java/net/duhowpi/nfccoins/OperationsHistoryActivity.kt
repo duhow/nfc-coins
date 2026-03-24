@@ -387,7 +387,7 @@ class OperationsHistoryActivity : AppCompatActivity() {
 
     /** Returns "count (amount)" when amount > 0, otherwise just "count". */
     private fun formatTotalCell(count: Int, amount: Int): String =
-        if (amount > 0) "$count ($amount)" else count.toString()
+        if (amount > 0) "$amount ($count)" else count.toString()
 
     private fun makeCell(text: String, isBold: Boolean = false): TextView {
         return TextView(this).apply {
