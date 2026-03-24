@@ -950,7 +950,7 @@ class MainActivity : AppCompatActivity() {
                     // Retain the intended state in memory so an interrupted write can be retried.
                     pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newCounterBlock, newTransactions)
 
-                    val isFirstAdd = data.transactions.isEmpty()
+                    val isFirstAdd = data.transactions.transactions.isEmpty()
                     if (data.isSingleRecharge) {
                         if (!isFirstAdd) {
                             // Card was already charged once; reject any further balance additions.
