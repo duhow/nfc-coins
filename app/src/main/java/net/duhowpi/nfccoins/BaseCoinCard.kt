@@ -3,6 +3,7 @@ package net.duhowpi.nfccoins
 import android.content.Context
 import android.nfc.Tag
 import android.nfc.tech.MifareClassic
+import android.nfc.tech.MifareUltralight
 import android.nfc.tech.NfcA
 import java.io.Closeable
 
@@ -278,7 +279,7 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
             CardCreator(
                 supports = { tag ->
                     tag.techList.contains(NfcA::class.java.name) &&
-                    !tag.techList.contains(MifareClassic::class.java.name)
+                    tag.techList.contains(MifareUltralight::class.java.name)
                 },
                 create = { tag, options ->
                     runCatching {
