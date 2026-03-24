@@ -3,6 +3,8 @@ package net.duhowpi.nfccoins
 import android.content.Context
 import android.nfc.Tag
 import android.nfc.tech.MifareClassic
+import android.nfc.tech.MifareUltralight
+import android.nfc.tech.NfcA
 import java.io.Closeable
 
 /**
@@ -247,13 +249,12 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
         )
 
         /**
-         * Placeholder for future NTAG-specific options.
-         *
-         * Keeping this type in the base factory avoids changing call sites
-         * when NTAG support is added.
+         * NTAG-specific options used by [NtagCoinCard].
          */
         data class NtagOptions(
-            val userMemoryStartPage: Int = 4
+            val userMemoryStartPage: Int = 4,
+            val reservedConfigAndLockPages: Int = 5,
+            val freeTailPages: Int = 10
         )
 
         private data class CardCreator(
@@ -271,6 +272,21 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
                             sector = options.mifareClassic.sector,
                             psk = options.psk,
                             useDynamic = options.mifareClassic.useDynamic
+                        )
+                    }.getOrNull()
+                }
+            ),
+            CardCreator(
+                supports = { tag ->
+                    tag.techList.contains(NfcA::class.java.name) &&
+                    tag.techList.contains(MifareUltralight::class.java.name)
+                },
+                create = { tag, options ->
+                    runCatching {
+                        NtagCoinCard(
+                            tag = tag,
+                            psk = options.psk,
+                            options = options.ntag
                         )
                     }.getOrNull()
                 }

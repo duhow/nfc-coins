@@ -1,7 +1,7 @@
 # 🪙 NFC Coins
 
 <p align="center">
-  <strong>An Android NFC Point-of-Sale manager for Mifare Classic cards - simple, fast, easy to use.</strong>
+  <strong>An Android NFC Point-of-Sale manager for Mifare Classic and NTAG2xx NFC cards - simple, fast, easy to use.</strong>
 </p>
 
 <p align="center">
@@ -10,14 +10,14 @@
   </a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-brightgreen?logo=android" alt="Android 8.0+">
   <img src="https://img.shields.io/badge/Kotlin-2.x-7F52FF?logo=kotlin" alt="Kotlin">
-  <img src="https://img.shields.io/badge/NFC-Mifare%20Classic-blue?logo=nfc" alt="NFC Mifare Classic">
+  <img src="https://img.shields.io/badge/NFC-Mifare%20Classic%20%7C%20NTAG-blue?logo=nfc" alt="NFC Mifare Classic | NTAG">
   <a href="https://sladge.net"><img src="https://sladge.net/badge.svg" alt="AI Slop Inside"></a>
   <img src="https://img.shields.io/badge/License-MIT-orange" alt="License">
 </p>
 
 ---
 
-**NFC Coins** is a Point-of-Sale Android application that reads, writes, and manages coin balances stored on Mifare Classic NFC cards.
+**NFC Coins** is a Point-of-Sale Android application that reads, writes, and manages coin balances stored on Mifare Classic and NTAG NFC cards (NTAG20x and NTAG21x series).
 It is designed for venues, events, or any environment where physical tokens need a digital equivalent.  
 Tap a card to pay, top it up, and issue new ones, in a simple interface.
 
@@ -33,7 +33,7 @@ Tap a card to pay, top it up, and issue new ones, in a simple interface.
 ## ✨ Features
 
 ### 💳 Card Operations
-- **Read balance** from Mifare Classic NFC cards with a single tap
+- **Read balance** from Mifare Classic or NTAG NFC cards with a single tap
 - **Add balance** to any card via the card management menu
 - **Deduct coins** instantly with one-tap preset buttons (-1 or -2). Button stays active for rapid back-to-back transactions
 - **Custom deduction**, tap the balance display and type any amount via the on-screen keyboard
@@ -70,7 +70,7 @@ Tap a card to pay, top it up, and issue new ones, in a simple interface.
 
 ## 🔧 How It Works
 
-### Card Data Layout (Sector 14, default)
+### Card Data Layout (Sector 14, default) - Mifare Classic
 
 Data is stored on a single sector, so you can have multiple applications, or serve NDEF messages (such as URLs).
 
@@ -80,6 +80,19 @@ Data is stored on a single sector, so you can have multiple applications, or ser
 | 1 | **Transaction history** - bytes 0-15 (init timestamp + first 2 transactions) |
 | 2 | **Transaction history** - bytes 16-31 (last 2 transactions + 4-byte HMAC checksum) |
 | 3 | **Sector Trailer** - Key A (derived), access bits, GPB (age byte), Key B (derived) |
+
+### Card Data Layout - NTAG20x / NTAG21x
+
+NTAG20x (e.g. NTAG203) and NTAG21x (e.g. NTAG213, NTAG215, NTAG216) tags are supported.
+Data is stored in user-memory pages as a contiguous 44-byte (11-page) block, placed at the end of user memory so that the beginning of user pages remains available for NDEF records.
+
+| Bytes | Pages | Contents |
+|-------|-------|----------|
+| 0–3   | +0    | **Magic** - `"COIN"` ASCII identifier |
+| 4–7   | +1    | **Meta** - version, flags (single-recharge), birth year |
+| 8–9   | +2    | **Balance** (uint16, big-endian) |
+| 10–41 | +3–10 | **Transactions + HMAC checksum** (4 records × 6 bytes + 4-byte HMAC) |
+| 42–43 | +10   | Padding |
 
 ### Transaction Record Format (6 bytes each, up to 4 records)
 
@@ -117,11 +130,11 @@ NFC Coins uses these to guarantee that a power loss or card removal during a tra
 | Requirement | Minimum |
 |-------------|---------|
 | Android version | **8.0 Oreo (API 26)** |
-| NFC hardware | **Required** (Mifare Classic support) |
+| NFC hardware | **Required** (Mifare Classic or NTAG support) |
 | Target SDK | **35** |
 
 > [!NOTE]
-> Some Android devices (notably many recent Google Pixel phones) do not include a Mifare Classic-compatible NFC controller. The app requires a device that exposes the `MifareClassic` technology class.
+> Some Android devices (notably many recent Google Pixel phones) do not include a Mifare Classic-compatible NFC controller. The app requires a device that exposes the `MifareClassic` or `MifareUltralight` technology class. NTAG20x and NTAG21x cards (which use the `MifareUltralight` / `NfcA` tech class) are supported on a broader range of devices.
 
 ---
 
