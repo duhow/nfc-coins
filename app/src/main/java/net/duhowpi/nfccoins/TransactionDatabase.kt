@@ -19,7 +19,7 @@ data class PeriodSummary(val added: Int, val subtracted: Int, val addOps: Int, v
     val totalOps: Int get() = addOps + subtractOps
 }
 
-data class ButtonStats(val amount: Int, val countThisHour: Int, val countLastHour: Int, val countLastDay: Int, val countLastWeek: Int)
+data class ButtonStats(val amount: Int, val countThisHour: Int, val countLastHour: Int, val countToday: Int, val countThisWeek: Int)
 
 class TransactionDatabase(context: Context) : SQLiteOpenHelper(
     context, DATABASE_NAME, null, DATABASE_VERSION
@@ -226,14 +226,14 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
     }
 
     /**
-     * Returns per-button-value usage counts (subtract operations only) for the current week.
+     * Returns per-button-value usage counts (subtract operations only).
      * All time windows are anchored to calendar boundaries, not rolling durations:
      * "This hour"  = from the start of the current calendar hour until now.
      * "Last hour"  = the previous calendar hour (e.g. 12:00–12:59 when current time is 13:xx).
-     * "Yesterday"  = the previous calendar day (yesterday midnight → today midnight).
-     * "This week"  = from Monday midnight of the current ISO week until now.
+     * "Today"      = from today's midnight until now.
+     * "This week"  = the ISO week identified by [weekOffset] (0 = current week, 1 = last week, …).
      */
-    fun getButtonStats(): List<ButtonStats> {
+    fun getButtonStats(weekOffset: Int = 0): List<ButtonStats> {
         val db = readableDatabase
 
         // Current calendar hour start
@@ -244,22 +244,26 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
         val thisHourStart = cal.timeInMillis
         val lastHourStart = thisHourStart - 3_600_000L
 
-        // Current calendar day start (midnight today) and yesterday boundaries
+        // Today's midnight
         cal.set(Calendar.HOUR_OF_DAY, 0)
         val todayStart = cal.timeInMillis
-        val yesterdayStart = todayStart - 86_400_000L
 
-        // Current ISO week start (Monday midnight)
-        // Calendar.DAY_OF_WEEK is Sunday=1…Saturday=7; (dow+5)%7 maps that to Mon=0…Sun=6.
-        val dow = cal.get(Calendar.DAY_OF_WEEK)
-        val daysFromMon = (dow + 5) % 7
-        cal.add(Calendar.DAY_OF_YEAR, -daysFromMon)
-        val thisWeekStart = cal.timeInMillis
+        // Start of the viewed ISO week (Monday midnight)
+        val weekCal = Calendar.getInstance().apply {
+            add(Calendar.WEEK_OF_YEAR, -weekOffset)
+            val dow = get(Calendar.DAY_OF_WEEK)
+            val daysFromMon = (dow + 5) % 7
+            add(Calendar.DAY_OF_YEAR, -daysFromMon)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val viewedWeekStart = weekCal.timeInMillis
+        val viewedWeekEnd = viewedWeekStart + 7 * 86_400_000L
 
-        // Use the earlier of the two start points as the WHERE lower bound.
-        // This ensures yesterday's data is always included, even on Mondays when
-        // yesterdayStart (Sunday midnight) falls before thisWeekStart (Monday midnight).
-        val filterStart = minOf(thisWeekStart, yesterdayStart)
+        // Lower bound of the WHERE clause: earliest of the four window starts
+        val filterStart = minOf(lastHourStart, todayStart, viewedWeekStart)
 
         val cursor = db.rawQuery(
             """
@@ -267,14 +271,14 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
                 $COL_BUTTON_VALUE,
                 SUM(CASE WHEN $COL_TIMESTAMP >= $thisHourStart THEN 1 ELSE 0 END),
                 SUM(CASE WHEN $COL_TIMESTAMP >= $lastHourStart AND $COL_TIMESTAMP < $thisHourStart THEN 1 ELSE 0 END),
-                SUM(CASE WHEN $COL_TIMESTAMP >= $yesterdayStart AND $COL_TIMESTAMP < $todayStart THEN 1 ELSE 0 END),
-                SUM(CASE WHEN $COL_TIMESTAMP >= $thisWeekStart THEN 1 ELSE 0 END)
+                SUM(CASE WHEN $COL_TIMESTAMP >= $todayStart THEN 1 ELSE 0 END),
+                SUM(CASE WHEN $COL_TIMESTAMP >= $viewedWeekStart AND $COL_TIMESTAMP < $viewedWeekEnd THEN 1 ELSE 0 END)
             FROM $TABLE
             WHERE $COL_TYPE = '$TYPE_SUBTRACT'
               AND $COL_TIMESTAMP >= $filterStart
               AND $COL_BUTTON_VALUE IS NOT NULL
             GROUP BY $COL_BUTTON_VALUE
-            ORDER BY SUM(CASE WHEN $COL_TIMESTAMP >= $thisWeekStart THEN 1 ELSE 0 END) DESC
+            ORDER BY SUM(CASE WHEN $COL_TIMESTAMP >= $viewedWeekStart AND $COL_TIMESTAMP < $viewedWeekEnd THEN 1 ELSE 0 END) DESC
             """.trimIndent(),
             null
         )
@@ -287,8 +291,8 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
                         amount = it.getInt(0),
                         countThisHour = it.getInt(1),
                         countLastHour = it.getInt(2),
-                        countLastDay = it.getInt(3),
-                        countLastWeek = it.getInt(4)
+                        countToday = it.getInt(3),
+                        countThisWeek = it.getInt(4)
                     )
                 )
             }

@@ -159,6 +159,7 @@
 
         <!-- Price usage table label -->
         <TextView
+            android:id="@+id/tvTableLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/ops_price_usage"
@@ -207,10 +208,11 @@
                     android:gravity="center" />
 
                 <TextView
+                    android:id="@+id/tvColLastDay"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/ops_col_last_day"
+                    android:text="@string/ops_col_today"
                     android:textStyle="bold"
                     android:padding="8dp"
                     android:gravity="center" />
