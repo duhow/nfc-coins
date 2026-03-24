@@ -100,35 +100,30 @@ class MifareClassicCoinCard(
     // Add
     // -------------------------------------------------------------------------
 
-    override fun addBalance(
-        amount: Int,
-        cardData: CardData,
-        newTransactions: ByteArray
-    ) {
+    override fun addBalance(amount: Int, newTransactions: ByteArray) {
         val (newTxBlock1, newTxBlock2) = TransactionBlock.toMifareBlocks(newTransactions)
-        val trailerIdx = sectorStart + blocksInSector - 1
-
-        if (cardData.isSingleRecharge) {
-            // Temporarily unlock block 0 so increment is allowed.
-            val openTrailer = MifareClassicHelper.buildSectorTrailer(
-                cardKey, standard = true, userByte = cardData.userBirthByte
-            )
-            mifare.writeBlock(trailerIdx, openTrailer)
-        }
 
         val blockIndex = sectorStart + MifareClassicHelper.DATA_BLOCK_OFFSET
         mifare.increment(blockIndex, amount)
         mifare.transfer(blockIndex)
         mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_1_OFFSET, newTxBlock1)
         mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_2_OFFSET, newTxBlock2)
+    }
 
-        if (cardData.isSingleRecharge) {
-            // Re-lock: restore restricted access bits.
-            val restrictedTrailer = MifareClassicHelper.buildSectorTrailer(
-                cardKey, standard = false, userByte = cardData.userBirthByte
-            )
-            mifare.writeBlock(trailerIdx, restrictedTrailer)
-        }
+    override fun unlockRecharge(cardData: CardData) {
+        val trailerIdx = sectorStart + blocksInSector - 1
+        val openTrailer = MifareClassicHelper.buildSectorTrailer(
+            cardKey, standard = true, userByte = cardData.userBirthByte
+        )
+        mifare.writeBlock(trailerIdx, openTrailer)
+    }
+
+    override fun lockRecharge(cardData: CardData) {
+        val trailerIdx = sectorStart + blocksInSector - 1
+        val restrictedTrailer = MifareClassicHelper.buildSectorTrailer(
+            cardKey, standard = false, userByte = cardData.userBirthByte
+        )
+        mifare.writeBlock(trailerIdx, restrictedTrailer)
     }
 
     // -------------------------------------------------------------------------

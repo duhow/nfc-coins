@@ -154,14 +154,21 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
 
     /**
      * Adds [amount] to the on-card balance and writes the updated transaction
-     * payload. For cards with single-recharge restrictions the implementation
-     * handles the unlock / relock dance transparently.
+     * payload.
      */
-    abstract fun addBalance(
-        amount: Int,
-        cardData: CardData,
-        newTransactions: ByteArray
-    )
+    abstract fun addBalance(amount: Int, newTransactions: ByteArray)
+
+    /**
+     * Temporarily unlocks recharge for single-recharge cards.
+     * For technologies without this concept it can be a no-op.
+     */
+    abstract fun unlockRecharge(cardData: CardData)
+
+    /**
+     * Re-applies recharge lock for single-recharge cards.
+     * For technologies without this concept it can be a no-op.
+     */
+    abstract fun lockRecharge(cardData: CardData)
 
     /**
      * Formats (or re-formats) the card, setting the balance to zero and
