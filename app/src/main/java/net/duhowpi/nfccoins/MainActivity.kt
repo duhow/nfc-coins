@@ -652,6 +652,7 @@ class MainActivity : AppCompatActivity() {
         if (scheduleAutoReset) {
             this.scheduleAutoReset()
         }
+        return
     }
 
     private fun setScreenStatusSuccess(
@@ -665,6 +666,7 @@ class MainActivity : AppCompatActivity() {
         if (scheduleAutoReset) {
             this.scheduleAutoReset()
         }
+        return
     }
 
     /**
