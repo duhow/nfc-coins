@@ -12,7 +12,6 @@ import android.media.AudioManager
 import android.media.ToneGenerator
 import android.nfc.NfcAdapter
 import android.nfc.Tag
-import android.nfc.tech.MifareClassic
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -231,25 +230,24 @@ class MainActivity : AppCompatActivity() {
     private fun handleTag(tag: Tag) {
         triggerVibration()
         if (!BaseCoinCard.isSupported(tag)) {
-            tvStatus.text = getString(R.string.unsupported_card)
-            playNfcErrorBeep()
-            scheduleAutoReset()
+            setScreenStatusError(getString(R.string.unsupported_card))
+            return
+        }
+        val card = createCard(tag) ?: run {
+            setScreenStatusError(getString(R.string.error_get_mifare))
             return
         }
 
+
         // Mifare Classic: validate that the configured sector exists on this card.
-        if (tag.techList.contains(MifareClassic::class.java.name)) {
-            val mifare = MifareClassic.get(tag)
+        if (card is MifareClassicCoinCard) {
             val sector = AdvancedSettingsActivity.getTargetSector(this)
-            if (mifare != null && sector >= mifare.sectorCount) {
-                tvStatus.text = getString(
+            if (sector >= card.mifare.sectorCount) {
+                setScreenStatusError(getString(
                     R.string.sector_unavailable,
                     sector,
-                    mifare.sectorCount - 1
-                )
-                flashBackground(R.color.error_orange)
-                playNfcErrorBeep()
-                scheduleAutoReset()
+                    card.mifare.sectorCount - 1
+                ))
                 return
             }
         }
@@ -300,27 +298,18 @@ class MainActivity : AppCompatActivity() {
     /** Modo sin botón activo: solo muestra el saldo en grande. */
     private fun readAndShowBalance(tag: Tag) {
         val card = createCard(tag) ?: run {
-            tvStatus.text = getString(R.string.error_get_mifare)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            scheduleAutoReset()
+            setScreenStatusError(getString(R.string.error_get_mifare))
             return
         }
         try {
             card.connect()
             when (val result = card.readCardData()) {
                 is BaseCoinCard.ReadResult.AuthFailed -> {
-                    tvStatus.text = getString(R.string.auth_failed)
-                    flashBackground(R.color.error_orange)
-                    playNfcErrorBeep()
-                    scheduleAutoReset()
+                    setScreenStatusError(getString(R.string.auth_failed))
                     return
                 }
                 is BaseCoinCard.ReadResult.InvalidData -> {
-                    tvStatus.text = getString(R.string.error_reading, result.reason)
-                    flashBackground(R.color.error_orange)
-                    playNfcErrorBeep()
-                    scheduleAutoReset()
+                    setScreenStatusError(getString(R.string.error_reading, result.reason))
                     return
                 }
                 is BaseCoinCard.ReadResult.Success -> {
@@ -348,10 +337,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (e: Exception) {
-            tvStatus.text = getString(R.string.error_reading, e.message)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            scheduleAutoReset()
+            setScreenStatusError(getString(R.string.error_reading, e.message))
         } finally {
             card.close()
         }
@@ -360,9 +346,10 @@ class MainActivity : AppCompatActivity() {
     /** Modo con botón activo: descuenta monedas y muestra saldo inicial → final en grande. */
     private fun readAndDeduct(tag: Tag, amount: Int, isCustomAmount: Boolean = false, isButtonMode: Boolean = false) {
         val card = createCard(tag) ?: run {
-            tvStatus.text = getString(R.string.error_get_mifare)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
+            setScreenStatusError(
+                message = getString(R.string.error_get_mifare),
+                scheduleAutoReset = false
+            )
             // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
             return
         }
@@ -370,16 +357,18 @@ class MainActivity : AppCompatActivity() {
             card.connect()
             when (val result = card.readCardData()) {
                 is BaseCoinCard.ReadResult.AuthFailed -> {
-                    tvStatus.text = getString(R.string.auth_failed)
-                    flashBackground(R.color.error_orange)
-                    playNfcErrorBeep()
+                    setScreenStatusError(
+                        message = getString(R.string.auth_failed),
+                        scheduleAutoReset = false
+                    )
                     // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                     return
                 }
                 is BaseCoinCard.ReadResult.InvalidData -> {
-                    tvStatus.text = getString(R.string.error_reading, result.reason)
-                    flashBackground(R.color.error_orange)
-                    playNfcErrorBeep()
+                    setScreenStatusError(
+                        message = getString(R.string.error_reading, result.reason),
+                        scheduleAutoReset = false
+                    )
                     // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                     return
                 }
@@ -474,9 +463,10 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (e: Exception) {
-            tvStatus.text = getString(R.string.error_writing, e.message)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
+            setScreenStatusError(
+                message = getString(R.string.error_writing, e.message),
+                scheduleAutoReset = false
+            )
             // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
         } finally {
             card.close()
@@ -662,6 +652,19 @@ class MainActivity : AppCompatActivity() {
     private fun scheduleAutoReset() {
         handler.removeCallbacks(autoResetRunnable)
         handler.postDelayed(autoResetRunnable, AUTO_RESET_DELAY_MS)
+    }
+
+    private fun setScreenStatusError(
+        message: String,
+        scheduleAutoReset: Boolean = true,
+        @ColorRes flashColorRes: Int = R.color.error_orange
+    ) {
+        tvStatus.text = message
+        flashBackground(flashColorRes)
+        playNfcErrorBeep()
+        if (scheduleAutoReset) {
+            this.scheduleAutoReset()
+        }
     }
 
     /**
@@ -891,27 +894,18 @@ class MainActivity : AppCompatActivity() {
         hideKeyboardFrom(etHiddenInput)
         isAddBalanceMode = false
         val card = createCard(tag) ?: run {
-            tvStatus.text = getString(R.string.error_get_mifare)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            scheduleAutoReset()
+            setScreenStatusError(getString(R.string.error_get_mifare))
             return
         }
         try {
             card.connect()
             when (val result = card.readCardData()) {
                 is BaseCoinCard.ReadResult.AuthFailed -> {
-                    tvStatus.text = getString(R.string.card_not_formatted)
-                    flashBackground(R.color.error_orange)
-                    playNfcErrorBeep()
-                    scheduleAutoReset()
+                    setScreenStatusError(getString(R.string.card_not_formatted))
                     return
                 }
                 is BaseCoinCard.ReadResult.InvalidData -> {
-                    tvStatus.text = getString(R.string.error_reading, result.reason)
-                    flashBackground(R.color.error_orange)
-                    playNfcErrorBeep()
-                    scheduleAutoReset()
+                    setScreenStatusError(getString(R.string.error_reading, result.reason))
                     return
                 }
                 is BaseCoinCard.ReadResult.Success -> {
@@ -961,10 +955,7 @@ class MainActivity : AppCompatActivity() {
                     val isFirstAdd = data.txBlock.transactions.isEmpty()
                     if (data.isSingleRecharge && !isFirstAdd) {
                         // Card was already charged once; reject any further balance additions.
-                        tvStatus.text = getString(R.string.single_recharge_already_used)
-                        flashBackground(R.color.error_orange)
-                        playNfcErrorBeep()
-                        scheduleAutoReset()
+                        setScreenStatusError(getString(R.string.single_recharge_already_used))
                         pendingWrite = null
                         return
                     }
@@ -994,10 +985,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (e: Exception) {
-            tvStatus.text = getString(R.string.error_writing, e.message)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            scheduleAutoReset()
+            setScreenStatusError(getString(R.string.error_writing, e.message))
         } finally {
             card.close()
         }
@@ -1010,10 +998,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun formatCard(tag: Tag) {
         val card = createCard(tag) ?: run {
-            tvStatus.text = getString(R.string.error_get_mifare)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            scheduleAutoReset()
+            setScreenStatusError(getString(R.string.error_get_mifare))
             return
         }
         try {
@@ -1055,23 +1040,14 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 is BaseCoinCard.FormatResult.NoKeyFound -> {
-                    tvStatus.text = getString(R.string.format_no_key_found)
-                    flashBackground(R.color.error_orange)
-                    playNfcErrorBeep()
-                    scheduleAutoReset()
+                    setScreenStatusError(getString(R.string.format_no_key_found))
                 }
                 is BaseCoinCard.FormatResult.AuthFailed -> {
-                    tvStatus.text = getString(R.string.auth_failed)
-                    flashBackground(R.color.error_orange)
-                    playNfcErrorBeep()
-                    scheduleAutoReset()
+                    setScreenStatusError(getString(R.string.auth_failed))
                 }
             }
         } catch (e: Exception) {
-            tvStatus.text = getString(R.string.error_writing, e.message)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            scheduleAutoReset()
+            setScreenStatusError(getString(R.string.error_writing, e.message))
         } finally {
             card.close()
         }
@@ -1083,19 +1059,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun resetCard(tag: Tag) {
         val card = createCard(tag) ?: run {
-            tvStatus.text = getString(R.string.error_get_mifare)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            scheduleAutoReset()
+            setScreenStatusError(getString(R.string.error_get_mifare))
             return
         }
         try {
             card.connect()
             if (!card.resetCard()) {
-                tvStatus.text = getString(R.string.reset_card_no_key)
-                flashBackground(R.color.error_orange)
-                playNfcErrorBeep()
-                scheduleAutoReset()
+                setScreenStatusError(getString(R.string.reset_card_no_key))
                 return
             }
 
@@ -1108,10 +1078,7 @@ class MainActivity : AppCompatActivity() {
             playSuccessBeep()
             scheduleAutoReset()
         } catch (e: Exception) {
-            tvStatus.text = getString(R.string.error_writing, e.message)
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            scheduleAutoReset()
+            setScreenStatusError(getString(R.string.error_writing, e.message))
         } finally {
             card.close()
         }
@@ -1122,10 +1089,7 @@ class MainActivity : AppCompatActivity() {
      * Returns null if the tag technology is not supported or cannot be obtained.
      */
     private fun createCard(tag: Tag): BaseCoinCard? {
-        val sector = AdvancedSettingsActivity.getTargetSector(this)
-        val psk = AdvancedSettingsActivity.getStaticKey(this)
-        val useDynamic = AdvancedSettingsActivity.isDynamicKeyEnabled(this)
-        return BaseCoinCard.fromTag(tag, sector, psk, useDynamic)
+        return BaseCoinCard.fromTag(tag, this)
     }
 
     // -------------------------------------------------------------------------

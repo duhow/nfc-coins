@@ -12,11 +12,14 @@ import android.nfc.tech.MifareClassic
  */
 class MifareClassicCoinCard(
     tag: Tag,
-    private val mifare: MifareClassic,
     private val sector: Int,
     psk: String,
     useDynamic: Boolean
 ) : BaseCoinCard(tag, psk) {
+
+    val mifare: MifareClassic = requireNotNull(MifareClassic.get(tag)) {
+        "MifareClassic tech unavailable for this tag"
+    }
 
     override val maxBalance: Int = MifareClassicHelper.MAX_BALANCE
 

@@ -1,5 +1,6 @@
 package net.duhowpi.nfccoins
 
+import android.content.Context
 import android.nfc.Tag
 import android.nfc.tech.MifareClassic
 import java.io.Closeable
@@ -14,7 +15,7 @@ import java.io.Closeable
  *
  * Typical lifecycle inside an Activity operation method:
  * ```
- * val card = BaseCoinCard.fromTag(tag, sector, psk, useDynamic) ?: return
+ * val card = BaseCoinCard.fromTag(tag) ?: return
  * try {
  *     card.connect()
  *     val result = card.readCardData()
@@ -218,6 +219,38 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
     // -------------------------------------------------------------------------
 
     companion object {
+        /** Factory options needed to construct technology-specific card classes. */
+        data class FactoryOptions(
+            val sector: Int,
+            val psk: String,
+            val useDynamic: Boolean
+        )
+
+        /**
+         * Creates the appropriate [BaseCoinCard] subclass for [tag] using built-in defaults.
+         */
+        fun fromTag(tag: Tag): BaseCoinCard? {
+            val options = FactoryOptions(
+                sector = AdvancedSettingsActivity.DEFAULT_SECTOR,
+                psk = BuildConfig.NFC_PSK,
+                useDynamic = true
+            )
+            return fromTag(tag, options)
+        }
+
+        /**
+         * Creates the appropriate [BaseCoinCard] subclass for [tag] using
+         * values from [AdvancedSettingsActivity].
+         */
+        fun fromTag(tag: Tag, context: Context): BaseCoinCard? {
+            val options = FactoryOptions(
+                sector = AdvancedSettingsActivity.getTargetSector(context),
+                psk = AdvancedSettingsActivity.getStaticKey(context),
+                useDynamic = AdvancedSettingsActivity.isDynamicKeyEnabled(context)
+            )
+            return fromTag(tag, options)
+        }
+
         /**
          * Returns `true` when [tag] is a card type this app can work with.
          */
@@ -229,18 +262,22 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
          * Creates the appropriate [BaseCoinCard] subclass for [tag], or `null`
          * when the tag technology is not supported or cannot be obtained.
          *
-         * [sector] is the target sector index (Mifare Classic only; ignored by
+         * [options.sector] is the target sector index (Mifare Classic only; ignored by
          * other card types).
          */
         fun fromTag(
             tag: Tag,
-            sector: Int,
-            psk: String,
-            useDynamic: Boolean
+            options: FactoryOptions
         ): BaseCoinCard? {
             if (tag.techList.contains(MifareClassic::class.java.name)) {
-                val mifare = MifareClassic.get(tag) ?: return null
-                return MifareClassicCoinCard(tag, mifare, sector, psk, useDynamic)
+                return runCatching {
+                    MifareClassicCoinCard(
+                        tag = tag,
+                        sector = options.sector,
+                        psk = options.psk,
+                        useDynamic = options.useDynamic
+                    )
+                }.getOrNull()
             }
             // Future: NTAG, NFC Forum Type 2/4, etc.
             return null
