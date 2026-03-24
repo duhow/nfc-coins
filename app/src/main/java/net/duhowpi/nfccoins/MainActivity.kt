@@ -306,9 +306,9 @@ class MainActivity : AppCompatActivity() {
             tvStatus.text = getString(
                 R.string.sector_unavailable,
                 sector,
-                mifare.sectorCount,
                 mifare.sectorCount - 1
             )
+            flashBackground(R.color.error_orange)
             playNfcErrorBeep()
             scheduleAutoReset()
             return

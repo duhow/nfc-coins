@@ -13,7 +13,7 @@
     <string name="card_read_ok">Tarjeta leída correctamente</string>
     <string name="auth_failed">Error de autenticación con la tarjeta</string>
     <string name="unsupported_card">Tarjeta no compatible (se requiere Mifare Classic)</string>
-    <string name="sector_unavailable">Sector %1$d no disponible en esta tarjeta (%2$d sectores: 0–%3$d)</string>
+    <string name="sector_unavailable">Tarjeta no tiene Sector %1$d (%2$d)</string>
     <string name="nfc_not_available">NFC no disponible en este dispositivo</string>
     <string name="no_card">No hay tarjeta. Acércala de nuevo.</string>
     <string name="insufficient_balance">Saldo insuficiente</string>
@@ -33,12 +33,12 @@
     <string name="action_reset_card">Reiniciar tarjeta</string>
     <string name="action_confirm">Confirmar</string>
     <string name="tap_card_to_add">Acerca la tarjeta para añadir saldo…</string>
-    <string name="tap_card_to_format">Acerca la tarjeta a formatear…</string>
-    <string name="tap_card_to_reset">Acerca la tarjeta a reiniciar…</string>
+    <string name="tap_card_to_deduct">Acerca la tarjeta para descontar…</string>
+    <string name="tap_card_to_format">Acerca la tarjeta para formatear…</string>
+    <string name="tap_card_to_reset">Acerca la tarjeta para reiniciar…</string>
     <string name="hint_add_amount">Cantidad a añadir</string>
     <string name="action_deduct_custom">Descontar cantidad</string>
     <string name="hint_deduct_amount">Cantidad a descontar</string>
-    <string name="tap_card_to_deduct">Acerca la tarjeta para descontar…</string>
     <string name="add_balance_title">Saldo actual: %d monedas</string>
     <string name="invalid_amount">Cantidad no válida</string>
     <string name="balance_too_high">El saldo máximo es 65535 monedas</string>
