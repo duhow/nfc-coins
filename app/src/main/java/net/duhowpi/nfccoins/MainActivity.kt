@@ -308,6 +308,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 is BaseCoinCard.ReadResult.Success -> {
                     val data = result.data
+                    val txBlock = TransactionBlock.fromBytes(data.transactions)
                     currentBalance = data.balance
                     setBalanceDisplay(currentBalance)
                     updateMinorIndicator(data.ageByte)
@@ -315,15 +316,15 @@ class MainActivity : AppCompatActivity() {
                     tvActualBalance.visibility = View.GONE
                     if (!card.isDataValid(data)) {
                         tvStatus.text = getString(R.string.card_tampered)
-                        showTransactionHistory(data.txBlock)
-                        showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
+                        showTransactionHistory(txBlock)
+                        showDebugChecksums(card, data.counterData, data.transactions)
                         flashRedBackground()
                         playNfcErrorBeep()
                         scheduleAutoReset()
                         return
                     }
-                    showTransactionHistory(data.txBlock)
-                    showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
+                    showTransactionHistory(txBlock)
+                    showDebugChecksums(card, data.counterData, data.transactions)
                     txDb.insertTransaction(TransactionDatabase.TYPE_READ, balanceBefore = currentBalance, cardUid = card.uid.toHex())
                     setScreenStatusSuccess(
                         message = getString(R.string.card_read_ok),
@@ -358,6 +359,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 is BaseCoinCard.ReadResult.Success -> {
                     val data = result.data
+                    val txBlock = TransactionBlock.fromBytes(data.transactions)
 
                     // Anti-tampering: verify checksum before performing any operation.
                     if (!card.isDataValid(data)) {
@@ -371,8 +373,8 @@ class MainActivity : AppCompatActivity() {
                             return
                         }
                         if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
-                            showTransactionHistory(data.txBlock)
-                            showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
+                            showTransactionHistory(txBlock)
+                            showDebugChecksums(card, data.counterData, data.transactions)
                             tvStatus.text = getString(R.string.card_tampered)
                             flashRedBackground()
                             playNfcErrorBeep()
@@ -396,8 +398,8 @@ class MainActivity : AppCompatActivity() {
                             tvActualBalance.visibility = View.GONE
                         }
                         layoutBeforeAfter.visibility = View.GONE
-                        showTransactionHistory(data.txBlock)
-                        showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
+                        showTransactionHistory(txBlock)
+                        showDebugChecksums(card, data.counterData, data.transactions)
                         tvStatus.text = getString(R.string.insufficient_balance)
                         flashRedBackground()
                         playInsufficientBalanceBeep()
@@ -407,14 +409,14 @@ class MainActivity : AppCompatActivity() {
 
                     val newBalance = balance - amount
                     val newCounterBlock = card.encodeBalance(newBalance)
-                    val (updatedTxBlock, newTxBlock1, newTxBlock2) = card.buildUpdatedTxBlocks(
-                        data.txBlock, newCounterBlock, TxOperation.SUBTRACT, amount
+                    val (updatedTxBlock, newTransactions) = card.buildUpdatedTxBlocks(
+                        data.transactions, newCounterBlock, TxOperation.SUBTRACT, amount
                     )
 
                     // Retain the intended state in memory so an interrupted write can be retried.
-                    pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newCounterBlock, newTxBlock1, newTxBlock2)
+                    pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newCounterBlock, newTransactions)
 
-                    card.deductBalance(amount, newTxBlock1, newTxBlock2)
+                    card.deductBalance(amount, newTransactions)
                     pendingWrite = null
 
                     currentBalance = newBalance
@@ -425,7 +427,7 @@ class MainActivity : AppCompatActivity() {
                     layoutBeforeAfter.visibility = View.VISIBLE
                     tvActualBalance.visibility = View.GONE
                     showTransactionHistory(updatedTxBlock)
-                    showDebugChecksums(card, newCounterBlock, newTxBlock1, newTxBlock2)
+                    showDebugChecksums(card, newCounterBlock, newTransactions)
                     txDb.insertTransaction(
                         type = TransactionDatabase.TYPE_SUBTRACT,
                         amount = -amount,
@@ -906,6 +908,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 is BaseCoinCard.ReadResult.Success -> {
                     val data = result.data
+                    val txBlock = TransactionBlock.fromBytes(data.transactions)
 
                     // Anti-tampering: verify checksum before performing any operation.
                     if (!card.isDataValid(data)) {
@@ -920,8 +923,8 @@ class MainActivity : AppCompatActivity() {
                         }
                         if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
                             tvStatus.text = getString(R.string.card_tampered)
-                            showTransactionHistory(data.txBlock)
-                            showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
+                            showTransactionHistory(txBlock)
+                            showDebugChecksums(card, data.counterData, data.transactions)
                             flashRedBackground()
                             playNfcErrorBeep()
                             scheduleAutoReset()
@@ -941,21 +944,21 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     val newCounterBlock = card.encodeBalance(newBalance)
-                    val (updatedTxBlock, newTxBlock1, newTxBlock2) = card.buildUpdatedTxBlocks(
-                        data.txBlock, newCounterBlock, TxOperation.ADD, pendingAddAmount
+                    val (updatedTxBlock, newTransactions) = card.buildUpdatedTxBlocks(
+                        data.transactions, newCounterBlock, TxOperation.ADD, pendingAddAmount
                     )
 
                     // Retain the intended state in memory so an interrupted write can be retried.
-                    pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newCounterBlock, newTxBlock1, newTxBlock2)
+                    pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newCounterBlock, newTransactions)
 
-                    val isFirstAdd = data.txBlock.transactions.isEmpty()
+                    val isFirstAdd = txBlock.transactions.isEmpty()
                     if (data.isSingleRecharge && !isFirstAdd) {
                         // Card was already charged once; reject any further balance additions.
                         pendingWrite = null
                         return setScreenStatusError(getString(R.string.single_recharge_already_used))
                     }
 
-                    card.addBalance(pendingAddAmount, data, newTxBlock1, newTxBlock2)
+                    card.addBalance(pendingAddAmount, data, newTransactions)
                     pendingWrite = null
 
                     currentBalance = newBalance
@@ -965,7 +968,7 @@ class MainActivity : AppCompatActivity() {
                     tvBalanceAfter.text = formatBalanceDisplay(newBalance)
                     layoutBeforeAfter.visibility = View.VISIBLE
                     showTransactionHistory(updatedTxBlock)
-                    showDebugChecksums(card, newCounterBlock, newTxBlock1, newTxBlock2)
+                    showDebugChecksums(card, newCounterBlock, newTransactions)
                     txDb.insertTransaction(
                         type = TransactionDatabase.TYPE_ADD,
                         amount = pendingAddAmount,
@@ -1001,7 +1004,7 @@ class MainActivity : AppCompatActivity() {
                     tvBalanceAfter.text = formatBalanceDisplay(0)
                     layoutBeforeAfter.visibility = View.VISIBLE
                     showTransactionHistory(result.txBlock)
-                    showDebugChecksums(card, result.counterData, result.txB1, result.txB2)
+                    showDebugChecksums(card, result.counterData, result.txB1 + result.txB2)
                     txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = card.uid.toHex())
                     setScreenStatusSuccess(
                         message = getString(R.string.format_reset_success),
@@ -1013,7 +1016,7 @@ class MainActivity : AppCompatActivity() {
                     setBalanceDisplay(0)
                     layoutBeforeAfter.visibility = View.GONE
                     showTransactionHistory(result.txBlock)
-                    showDebugChecksums(card, result.counterData, result.txB1, result.txB2)
+                    showDebugChecksums(card, result.counterData, result.txB1 + result.txB2)
                     txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = card.uid.toHex())
                     setScreenStatusSuccess(
                         message = getString(R.string.format_success),
@@ -1503,14 +1506,13 @@ class MainActivity : AppCompatActivity() {
     private fun showDebugChecksums(
         card: BaseCoinCard,
         counterData: ByteArray,
-        txBlock1: ByteArray,
-        txBlock2: ByteArray
+        txData: ByteArray
     ) {
         if (!AdvancedSettingsActivity.isDebugEnabled(this)) {
             tvTxDebug.visibility = View.GONE
             return
         }
-        val (stored, computed) = card.extractChecksums(counterData, txBlock1, txBlock2)
+        val (stored, computed) = card.extractChecksums(counterData, txData)
         tvTxDebug.text = getString(R.string.tx_debug_checksum, stored.toHex(), computed.toHex())
         layoutTransactionHistory.visibility = View.VISIBLE
         tvTxDebug.visibility = View.VISIBLE

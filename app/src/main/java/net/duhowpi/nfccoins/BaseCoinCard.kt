@@ -39,20 +39,17 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
     /**
      * All coin-relevant data read from the card in a single tap.
      *
-     * [counterData], [txBlock1], and [txBlock2] carry the raw bytes for
+     * [counterData] and [transactions] carry the raw bytes for
      * integrity verification ([isDataValid]) and debug display.
      */
     data class CardData(
         val balance: Int,
-        val txBlock: TransactionBlock,
+        /** Raw transaction payload bytes (32 B contiguous). */
+        val transactions: ByteArray,
         val ageByte: Int,
         val isSingleRecharge: Boolean,
         /** Raw counter / value block bytes as read from the card. */
-        val counterData: ByteArray,
-        /** Raw transaction block 1 bytes. */
-        val txBlock1: ByteArray,
-        /** Raw transaction block 2 bytes. */
-        val txBlock2: ByteArray
+        val counterData: ByteArray
     )
 
     /**
@@ -65,8 +62,7 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
     data class PendingWriteData(
         val uid: ByteArray,
         val counterBlock: ByteArray,
-        val txBlock1: ByteArray,
-        val txBlock2: ByteArray
+        val transactions: ByteArray
     ) {
         fun matchesUid(other: ByteArray): Boolean = uid.contentEquals(other)
     }
@@ -147,20 +143,19 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
 
     /**
      * Atomically deducts [amount] from the on-card balance and writes the
-     * updated transaction blocks.
+        * updated transaction payload.
      */
-    abstract fun deductBalance(amount: Int, newTxBlock1: ByteArray, newTxBlock2: ByteArray)
+    abstract fun deductBalance(amount: Int, newTransactions: ByteArray)
 
     /**
      * Adds [amount] to the on-card balance and writes the updated transaction
-     * blocks. For cards with single-recharge restrictions the implementation
+     * payload. For cards with single-recharge restrictions the implementation
      * handles the unlock / relock dance transparently.
      */
     abstract fun addBalance(
         amount: Int,
         cardData: CardData,
-        newTxBlock1: ByteArray,
-        newTxBlock2: ByteArray
+        newTransactions: ByteArray
     )
 
     /**
@@ -185,17 +180,17 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
      * application [psk].
      */
     fun isDataValid(data: CardData): Boolean =
-        data.txBlock.isValid(data.counterData, data.txBlock1, data.txBlock2, uid, psk)
+        TransactionBlock.fromBytes(data.transactions)
+            .isValid(data.counterData, data.transactions, uid, psk)
 
     /**
      * Returns the (stored, computed) checksum pair for debug display.
      */
     fun extractChecksums(
         counterData: ByteArray,
-        txBlock1: ByteArray,
-        txBlock2: ByteArray
+        txData: ByteArray
     ): Pair<ByteArray, ByteArray> =
-        TransactionBlock.extractChecksums(counterData, txBlock1, txBlock2, uid, psk)
+        TransactionBlock.extractChecksums(counterData, txData, uid, psk)
 
     /**
      * Builds updated transaction blocks after a balance operation.
@@ -203,15 +198,16 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
      * Returns a [Triple] of (updatedTxBlock, serialised block 1, serialised block 2).
      */
     fun buildUpdatedTxBlocks(
-        txBlock: TransactionBlock,
+        transactions: ByteArray,
         newCounterBlock: ByteArray,
         operation: TxOperation,
         amount: Int
-    ): Triple<TransactionBlock, ByteArray, ByteArray> {
+    ): Pair<TransactionBlock, ByteArray> {
         val nowSecs = System.currentTimeMillis() / 1000L
+        val txBlock = TransactionBlock.fromBytes(transactions)
         val updated = txBlock.addTransaction(nowSecs, operation, amount)
-        val (b1, b2) = updated.toBytes(newCounterBlock, uid, psk)
-        return Triple(updated, b1, b2)
+        val updatedTransactions = updated.toBytes(newCounterBlock, uid, psk)
+        return updated to updatedTransactions
     }
 
     // -------------------------------------------------------------------------

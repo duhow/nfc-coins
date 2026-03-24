@@ -27,7 +27,7 @@ class MifareClassicCoinCard(
 
     // Sector layout cached after the first successful read.
     private var sectorStart: Int = 0
-    private var blocksInSector: Int = 0
+    private var blocksInSector: Int = 4
 
     // -------------------------------------------------------------------------
     // Connection
@@ -57,12 +57,10 @@ class MifareClassicCoinCard(
         return ReadResult.Success(
             CardData(
                 balance = balance,
-                txBlock = sd.txBlock,
+                transactions = sd.transactions,
                 ageByte = MifareClassicHelper.getAgeByte(sd.trailerData),
                 isSingleRecharge = MifareClassicHelper.isSingleRecharge(sd.trailerData),
-                counterData = sd.counterData,
-                txBlock1 = sd.txBlock1,
-                txBlock2 = sd.txBlock2
+                counterData = sd.counterData
             )
         )
     }
@@ -79,16 +77,18 @@ class MifareClassicCoinCard(
     // -------------------------------------------------------------------------
 
     override fun retryPendingWrite(pending: PendingWriteData) {
+        val (txBlock1, txBlock2) = TransactionBlock.toMifareBlocks(pending.transactions)
         mifare.writeBlock(sectorStart + MifareClassicHelper.DATA_BLOCK_OFFSET, pending.counterBlock)
-        mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_1_OFFSET, pending.txBlock1)
-        mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_2_OFFSET, pending.txBlock2)
+        mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_1_OFFSET, txBlock1)
+        mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_2_OFFSET, txBlock2)
     }
 
     // -------------------------------------------------------------------------
     // Deduct
     // -------------------------------------------------------------------------
 
-    override fun deductBalance(amount: Int, newTxBlock1: ByteArray, newTxBlock2: ByteArray) {
+    override fun deductBalance(amount: Int, newTransactions: ByteArray) {
+        val (newTxBlock1, newTxBlock2) = TransactionBlock.toMifareBlocks(newTransactions)
         val blockIndex = sectorStart + MifareClassicHelper.DATA_BLOCK_OFFSET
         mifare.decrement(blockIndex, amount)
         mifare.transfer(blockIndex)
@@ -103,9 +103,9 @@ class MifareClassicCoinCard(
     override fun addBalance(
         amount: Int,
         cardData: CardData,
-        newTxBlock1: ByteArray,
-        newTxBlock2: ByteArray
+        newTransactions: ByteArray
     ) {
+        val (newTxBlock1, newTxBlock2) = TransactionBlock.toMifareBlocks(newTransactions)
         val trailerIdx = sectorStart + blocksInSector - 1
 
         if (cardData.isSingleRecharge) {
@@ -162,7 +162,8 @@ class MifareClassicCoinCard(
         val zeroValueBlock = MifareClassicHelper.makeValueBlock(0)
         val nowSecs = System.currentTimeMillis() / 1000L
         val freshTxBlock = TransactionBlock(nowSecs)
-        val (txB1, txB2) = freshTxBlock.toBytes(zeroValueBlock, uid, psk)
+        val txData = freshTxBlock.toBytes(zeroValueBlock, uid, psk)
+        val (txB1, txB2) = TransactionBlock.toMifareBlocks(txData)
 
         mifare.writeBlock(start + MifareClassicHelper.DATA_BLOCK_OFFSET, zeroValueBlock)
         mifare.writeBlock(start + MifareClassicHelper.TX_BLOCK_1_OFFSET, txB1)
@@ -212,7 +213,8 @@ class MifareClassicCoinCard(
         val zeroValueBlock = MifareClassicHelper.makeValueBlock(0)
         val nowSecs = System.currentTimeMillis() / 1000L
         val freshTxBlock = TransactionBlock(nowSecs)
-        val (txB1, txB2) = freshTxBlock.toBytes(zeroValueBlock, uid, psk)
+        val txData = freshTxBlock.toBytes(zeroValueBlock, uid, psk)
+        val (txB1, txB2) = TransactionBlock.toMifareBlocks(txData)
 
         mifare.writeBlock(start + MifareClassicHelper.DATA_BLOCK_OFFSET, zeroValueBlock)
         mifare.writeBlock(start + MifareClassicHelper.TX_BLOCK_1_OFFSET, txB1)

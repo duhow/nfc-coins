@@ -208,10 +208,8 @@ object MifareClassicHelper {
         val sectorStart: Int,
         val blocksInSector: Int,
         val counterData: ByteArray,
-        val txBlock1: ByteArray,
-        val txBlock2: ByteArray,
-        val trailerData: ByteArray,
-        val txBlock: TransactionBlock
+        val transactions: ByteArray,
+        val trailerData: ByteArray
     )
 
     /**
@@ -226,9 +224,9 @@ object MifareClassicHelper {
         val counterData = mifare.readBlock(sectorStart + DATA_BLOCK_OFFSET)
         val txBlock1    = mifare.readBlock(sectorStart + TX_BLOCK_1_OFFSET)
         val txBlock2    = mifare.readBlock(sectorStart + TX_BLOCK_2_OFFSET)
+        val transactions = txBlock1 + txBlock2
         val trailerData = mifare.readBlock(sectorStart + blocksInSector - 1)
-        val txBlock     = TransactionBlock.fromBytes(txBlock1, txBlock2)
-        return SectorData(sectorStart, blocksInSector, counterData, txBlock1, txBlock2, trailerData, txBlock)
+        return SectorData(sectorStart, blocksInSector, counterData, transactions, trailerData)
     }
 
     /**

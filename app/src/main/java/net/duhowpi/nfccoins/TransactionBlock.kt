@@ -23,9 +23,9 @@ data class TransactionEntry(
 )
 
 /**
- * Transaction history stored in 2 consecutive Mifare Classic data blocks (32 bytes total).
+ * Transaction history stored as a contiguous 32-byte payload.
  *
- * Memory layout across block1 (16 B) and block2 (16 B):
+ * Memory layout inside txData (32 B):
  *
  *   Byte  0– 3 : Init timestamp (uint32 big-endian, Unix seconds)
  *   Byte  4– 9 : Transaction 0  (3 B seconds offset | 1 B op | 2 B amount)
@@ -57,12 +57,12 @@ class TransactionBlock(
         private const val MAX_SECONDS_OFFSET = 0xFF_FFFFL
 
         /**
-         * Deserialises two 16-byte blocks into a [TransactionBlock].
+         * Deserialises a contiguous 32-byte tx payload into a [TransactionBlock].
          * Invalid or empty transaction slots are silently ignored.
          */
-        fun fromBytes(block1: ByteArray, block2: ByteArray): TransactionBlock {
-            require(block1.size == 16 && block2.size == 16)
-            val data = block1 + block2  // 32 bytes
+        fun fromBytes(txData: ByteArray): TransactionBlock {
+            require(txData.size == TOTAL_SIZE)
+            val data = txData
 
             val ts = ((data[0].toLong() and 0xFF) shl 24) or
                      ((data[1].toLong() and 0xFF) shl 16) or
@@ -129,49 +129,52 @@ class TransactionBlock(
 
         /**
          * Returns the (storedChecksum, computedChecksum) pair for debugging.
-         * [storedChecksum] is the 4-byte value embedded in [block1]+[block2];
+         * [storedChecksum] is the 4-byte value embedded in [txData];
          * [computedChecksum] is freshly calculated from the given inputs.
          */
         fun extractChecksums(
             counterBlock: ByteArray,
-            block1: ByteArray,
-            block2: ByteArray,
+            txData: ByteArray,
             uid: ByteArray,
             psk: String
         ): Pair<ByteArray, ByteArray> {
-            require(block1.size == 16 && block2.size == 16)
-            val data = block1 + block2
+            require(txData.size == TOTAL_SIZE)
+            val data = txData
             val payload = data.copyOfRange(0, TX_PAYLOAD_SIZE)
             val stored = data.copyOfRange(TX_PAYLOAD_SIZE, TOTAL_SIZE)
             val computed = computeChecksum(counterBlock, payload, uid, psk)
             return stored to computed
         }
+
+        /** Splits a contiguous tx payload into two 16-byte Mifare Classic blocks. */
+        fun toMifareBlocks(txData: ByteArray): Pair<ByteArray, ByteArray> {
+            require(txData.size == TOTAL_SIZE)
+            return txData.copyOfRange(0, 16) to txData.copyOfRange(16, 32)
+        }
     }
 
     /**
-     * Serialises this block to two 16-byte arrays (block1, block2) ready to write to the card,
-     * including a freshly computed checksum.
+     * Serialises this block to a contiguous 32-byte payload including a freshly
+     * computed checksum.
      */
-    fun toBytes(counterBlock: ByteArray, uid: ByteArray, psk: String): Pair<ByteArray, ByteArray> {
+    fun toBytes(counterBlock: ByteArray, uid: ByteArray, psk: String): ByteArray {
         val payload = buildPayload()
         val checksum = computeChecksum(counterBlock, payload, uid, psk)
-        val full = payload + checksum  // 32 bytes
-        return full.copyOfRange(0, 16) to full.copyOfRange(16, 32)
+        return payload + checksum
     }
 
     /**
-     * Returns `true` when the checksum stored in [block1]+[block2] matches the expected value
+     * Returns `true` when the checksum stored in [txData] matches the expected value
      * computed from [counterBlock], the card [uid], and the application [psk].
      */
     fun isValid(
         counterBlock: ByteArray,
-        block1: ByteArray,
-        block2: ByteArray,
+        txData: ByteArray,
         uid: ByteArray,
         psk: String
     ): Boolean {
-        require(block1.size == 16 && block2.size == 16)
-        val data = block1 + block2
+        require(txData.size == TOTAL_SIZE)
+        val data = txData
         val payload = data.copyOfRange(0, TX_PAYLOAD_SIZE)
         val stored = data.copyOfRange(TX_PAYLOAD_SIZE, TOTAL_SIZE)
         val expected = computeChecksum(counterBlock, payload, uid, psk)
