@@ -11,6 +11,7 @@
   <img src="https://img.shields.io/badge/Android-8.0%2B-brightgreen?logo=android" alt="Android 8.0+">
   <img src="https://img.shields.io/badge/Kotlin-2.x-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/NFC-Mifare%20Classic-blue?logo=nfc" alt="NFC Mifare Classic">
+  <a href="https://sladge.net"><img src="https://sladge.net/badge.svg" alt="AI Slop Inside"></a>
   <img src="https://img.shields.io/badge/License-MIT-orange" alt="License">
 </p>
 
