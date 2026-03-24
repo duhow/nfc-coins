@@ -1,7 +1,7 @@
 # 🪙 NFC Coins
 
 <p align="center">
-  <strong>An Android NFC Point-of-Sale manager for Mifare Classic and NTAG NFC cards - simple, fast, easy to use.</strong>
+  <strong>An Android NFC Point-of-Sale manager for Mifare Classic and NTAG2xx NFC cards - simple, fast, easy to use.</strong>
 </p>
 
 <p align="center">
@@ -70,7 +70,7 @@ Tap a card to pay, top it up, and issue new ones, in a simple interface.
 
 ## 🔧 How It Works
 
-### Card Data Layout (Sector 14, default) — Mifare Classic
+### Card Data Layout (Sector 14, default) - Mifare Classic
 
 Data is stored on a single sector, so you can have multiple applications, or serve NDEF messages (such as URLs).
 
@@ -81,7 +81,7 @@ Data is stored on a single sector, so you can have multiple applications, or ser
 | 2 | **Transaction history** - bytes 16-31 (last 2 transactions + 4-byte HMAC checksum) |
 | 3 | **Sector Trailer** - Key A (derived), access bits, GPB (age byte), Key B (derived) |
 
-### Card Data Layout — NTAG20x / NTAG21x
+### Card Data Layout - NTAG20x / NTAG21x
 
 NTAG20x (e.g. NTAG203) and NTAG21x (e.g. NTAG213, NTAG215, NTAG216) tags are supported.
 Data is stored in user-memory pages as a contiguous 44-byte (11-page) block, placed at the end of user memory so that the beginning of user pages remains available for NDEF records.
