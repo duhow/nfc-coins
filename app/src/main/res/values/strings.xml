@@ -102,4 +102,23 @@
     <string name="tx_debug_checksum">stored: %1$s  calc: %2$s</string>
     <string name="card_tampered">Card tampered. Operation cancelled.</string>
     <string name="write_retried">Write retried after previous interruption</string>
+
+    <!-- Operations History -->
+    <string name="ops_history_title">Operations History</string>
+    <string name="ops_hourly">Hourly</string>
+    <string name="ops_weekly">Weekly</string>
+    <string name="ops_chart_label">Balance Overview</string>
+    <string name="ops_no_data">No data for the selected period</string>
+    <string name="ops_no_button_data">No withdrawals recorded yet</string>
+    <string name="ops_legend_added">Added</string>
+    <string name="ops_legend_subtracted">Subtracted</string>
+    <string name="ops_price_usage">Withdrawals by Amount (last 7 days)</string>
+    <string name="ops_col_price">Amount</string>
+    <string name="ops_col_last_hour">Last hour</string>
+    <string name="ops_col_last_day">Last 24 h</string>
+    <string name="ops_col_last_week">Last 7 days</string>
+    <string name="ops_col_total">Total</string>
+    <string name="ops_nav_prev">Previous</string>
+    <string name="ops_nav_next">Next</string>
+    <string name="ops_summary">+%1$d add (%2$d ops) · -%3$d withdraw (%4$d ops)</string>
 </resources>

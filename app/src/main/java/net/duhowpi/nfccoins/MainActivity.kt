@@ -168,6 +168,7 @@ class MainActivity : AppCompatActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
     private val autoResetRunnable = Runnable { resetToWaiting() }
+    private val txDb: TransactionDatabase by lazy { TransactionDatabase(this) }
 
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AdvancedSettingsActivity.wrapContextWithLocale(newBase))
@@ -224,6 +225,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_history -> {
+                startActivity(Intent(this, OperationsHistoryActivity::class.java))
+                true
+            }
             R.id.action_management -> {
                 showCardManagementDialog()
                 true
@@ -391,6 +396,7 @@ class MainActivity : AppCompatActivity() {
             tvStatus.text = getString(R.string.card_read_ok)
             showTransactionHistory(txBlock)
             showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
+            txDb.insertTransaction(TransactionDatabase.TYPE_READ, balanceBefore = currentBalance, cardUid = uid.toHex())
             playSuccessBeep()
             scheduleAutoReset()
         } catch (e: Exception) {
@@ -518,6 +524,14 @@ class MainActivity : AppCompatActivity() {
             tvStatus.text = getString(R.string.deduct_ok, formatBalanceDisplay(amount))
             showTransactionHistory(updatedTxBlock)
             showDebugChecksums(newCounterBlock, newTxBlock1, newTxBlock2, uid, psk)
+            txDb.insertTransaction(
+                type = TransactionDatabase.TYPE_SUBTRACT,
+                amount = -amount,
+                balanceBefore = balance,
+                balanceAfter = newBalance,
+                cardUid = uid.toHex(),
+                buttonValue = amount
+            )
             playSuccessBeep()
             if (isButtonMode) {
                 // Button remains active: keep WITHDRAW_BALANCE state for additional transactions.
@@ -1099,6 +1113,13 @@ class MainActivity : AppCompatActivity() {
             tvStatus.text = getString(R.string.balance_added_ok, formatBalanceDisplay(pendingAddAmount))
             showTransactionHistory(updatedTxBlock)
             showDebugChecksums(newCounterBlock, newTxBlock1, newTxBlock2, uid, psk)
+            txDb.insertTransaction(
+                type = TransactionDatabase.TYPE_ADD,
+                amount = pendingAddAmount,
+                balanceBefore = oldBalance,
+                balanceAfter = newBalance,
+                cardUid = uid.toHex()
+            )
             flashBackground(R.color.success_green)
             playSuccessBeep()
             scheduleAutoReset()
@@ -1166,6 +1187,7 @@ class MainActivity : AppCompatActivity() {
                 showTransactionHistory(freshTxBlock)
                 showDebugChecksums(zeroValueBlock, txB1, txB2, uid, psk)
                 tvStatus.text = getString(R.string.format_reset_success)
+                txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = uid.toHex())
                 flashBackground(R.color.success_purple_dark)
                 playSuccessBeep()
                 scheduleAutoReset()
@@ -1241,6 +1263,7 @@ class MainActivity : AppCompatActivity() {
             showTransactionHistory(freshTxBlock)
             showDebugChecksums(zeroValueBlock, txB1, txB2, uid, psk)
             tvStatus.text = getString(R.string.format_success)
+            txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = uid.toHex())
             flashBackground(R.color.success_purple_dark)
             playSuccessBeep()
             scheduleAutoReset()
@@ -1370,6 +1393,7 @@ class MainActivity : AppCompatActivity() {
             resetBalanceToInitial()
             layoutBeforeAfter.visibility = View.GONE
             tvStatus.text = getString(R.string.reset_card_success)
+            txDb.insertTransaction(TransactionDatabase.TYPE_RESET, cardUid = uid.toHex())
             flashBackground(R.color.success_purple_dark)
             playSuccessBeep()
             scheduleAutoReset()

@@ -3,6 +3,13 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/action_history"
+        android:icon="@drawable/ic_book"
+        android:title="@string/ops_history_title"
+        android:contentDescription="@string/ops_history_title"
+        app:showAsAction="always" />
+
+    <item
         android:id="@+id/action_management"
         android:title="@string/card_management"
         app:showAsAction="never" />
