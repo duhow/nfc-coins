@@ -57,10 +57,10 @@ class MifareClassicCoinCard(
         return ReadResult.Success(
             CardData(
                 balance = balance,
+                checksum = sd.transactions.copyOfRange(28, 32),
                 transactions = TransactionBlock.fromBytes(sd.transactions),
                 userBirthYear = MifareClassicHelper.getUserBirthYear(sd.trailerData),
-                isSingleRecharge = MifareClassicHelper.isSingleRecharge(sd.trailerData),
-                transactionsData = sd.transactions
+                isSingleRecharge = MifareClassicHelper.isSingleRecharge(sd.trailerData)
             )
         )
     }
@@ -130,7 +130,9 @@ class MifareClassicCoinCard(
     // Format
     // -------------------------------------------------------------------------
 
-    override fun formatCard(singleRecharge: Boolean, userBirthYear: Int): FormatResult {
+    override fun formatCard(formatOptions: CardData): FormatResult {
+        val singleRecharge = formatOptions.isSingleRecharge
+        val userBirthYear = formatOptions.userBirthYear
         // Path 1: already formatted with the derived key → re-format (reset balance).
         if (mifare.authenticateSectorWithKeyA(sector, cardKey)) {
             return reformatExistingCard(singleRecharge, userBirthYear)
@@ -158,7 +160,7 @@ class MifareClassicCoinCard(
         val zeroValueBlock = MifareClassicHelper.makeValueBlock(0)
         val nowSecs = System.currentTimeMillis() / 1000L
         val freshTxBlock = TransactionBlock(nowSecs)
-        val txData = freshTxBlock.toBytes(zeroValueBlock, uid, psk)
+        val txData = freshTxBlock.toBytesWithChecksum(zeroValueBlock, uid, psk)
         val (txB1, txB2) = TransactionBlock.toMifareBlocks(txData)
 
         mifare.writeBlock(start + MifareClassicHelper.DATA_BLOCK_OFFSET, zeroValueBlock)
@@ -208,7 +210,7 @@ class MifareClassicCoinCard(
         val zeroValueBlock = MifareClassicHelper.makeValueBlock(0)
         val nowSecs = System.currentTimeMillis() / 1000L
         val freshTxBlock = TransactionBlock(nowSecs)
-        val txData = freshTxBlock.toBytes(zeroValueBlock, uid, psk)
+        val txData = freshTxBlock.toBytesWithChecksum(zeroValueBlock, uid, psk)
         val (txB1, txB2) = TransactionBlock.toMifareBlocks(txData)
 
         mifare.writeBlock(start + MifareClassicHelper.DATA_BLOCK_OFFSET, zeroValueBlock)

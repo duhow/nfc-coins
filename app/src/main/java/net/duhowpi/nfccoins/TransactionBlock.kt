@@ -40,7 +40,7 @@ data class TransactionEntry(
  */
 class TransactionBlock(
     /** Unix timestamp (seconds) when the card was initialised; 0 = not initialised. */
-    val initTimestamp: Long,
+    val initTimestamp: Long = 0L,
     /** Up to [MAX_TRANSACTIONS] entries; oldest first. */
     val transactions: List<TransactionEntry> = emptyList()
 ) {
@@ -154,11 +154,17 @@ class TransactionBlock(
     }
 
     /**
+     * Contiguous 28-byte payload (timestamp + transactions) without checksum.
+     */
+    val toBytes: ByteArray
+        get() = buildPayload()
+
+    /**
      * Serialises this block to a contiguous 32-byte payload including a freshly
      * computed checksum.
      */
-    fun toBytes(counterBlock: ByteArray, uid: ByteArray, psk: String): ByteArray {
-        val payload = buildPayload()
+    fun toBytesWithChecksum(counterBlock: ByteArray, uid: ByteArray, psk: String): ByteArray {
+        val payload = toBytes
         val checksum = computeChecksum(counterBlock, payload, uid, psk)
         return payload + checksum
     }

@@ -39,22 +39,26 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
     /**
      * All coin-relevant data read from the card in a single tap.
      *
-     * [transactionsData] carries the raw bytes for
+     * [checksum] carries the stored integrity bytes for
      * integrity verification ([isDataValid]) and debug display.
      */
     data class CardData(
-        val balance: Int,
+        val balance: Int = 0,
         /** Parsed transaction history domain model. */
-        val transactions: TransactionBlock,
-        /** User birth year decoded from trailer GPB byte (e.g. 2001). */
-        val userBirthYear: Int,
-        val isSingleRecharge: Boolean,
-        /** Raw transaction payload bytes (32 B contiguous). */
-        val transactionsData: ByteArray
+        val transactions: TransactionBlock = TransactionBlock(),
+        /** Stored checksum bytes (4 B) from transaction data. */
+        val checksum: ByteArray = ByteArray(4),
+        /** User birth year decoded from trailer GPB byte (e.g. 2005). */
+        val userBirthYear: Int = 2005, // x69
+        val isSingleRecharge: Boolean = false
     ) {
         /** Birth year encoded to GPB user byte range (0..255). */
         val userBirthByte: Int
             get() = MifareClassicHelper.toUserBirthByte(userBirthYear)
+
+        /** Rebuilds the full 32-byte transaction block using [transactions] + [checksum]. */
+        val transactionsDataWithChecksum: ByteArray
+            get() = transactions.toBytes + checksum
     }
 
     /**
@@ -174,7 +178,7 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
      * Formats (or re-formats) the card, setting the balance to zero and
      * writing a fresh transaction block with a new timestamp.
      */
-    abstract fun formatCard(singleRecharge: Boolean, userBirthYear: Int): FormatResult
+    abstract fun formatCard(formatOptions: CardData): FormatResult
 
     /**
      * Resets the card to factory defaults (clears data, restores factory key).
@@ -192,7 +196,12 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
      * application [psk].
      */
     fun isDataValid(data: CardData): Boolean =
-        data.transactions.isValid(encodeBalance(data.balance), data.transactionsData, uid, psk)
+        data.transactions.isValid(
+            encodeBalance(data.balance),
+            data.transactionsDataWithChecksum,
+            uid,
+            psk
+        )
 
     /**
      * Returns the (stored, computed) checksum pair for debug display.
@@ -215,7 +224,7 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
     ): Pair<TransactionBlock, ByteArray> {
         val nowSecs = System.currentTimeMillis() / 1000L
         val updated = transactions.addTransaction(nowSecs, operation, amount)
-        val updatedTransactions = updated.toBytes(newCounterBlock, uid, psk)
+        val updatedTransactions = updated.toBytesWithChecksum(newCounterBlock, uid, psk)
         return updated to updatedTransactions
     }
 

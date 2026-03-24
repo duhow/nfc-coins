@@ -317,14 +317,14 @@ class MainActivity : AppCompatActivity() {
                     if (!card.isDataValid(data)) {
                         tvStatus.text = getString(R.string.card_tampered)
                         showTransactionHistory(txBlock)
-                        showDebugChecksums(card, data.balance, data.transactionsData)
+                        showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
                         flashRedBackground()
                         playNfcErrorBeep()
                         scheduleAutoReset()
                         return
                     }
                     showTransactionHistory(txBlock)
-                    showDebugChecksums(card, data.balance, data.transactionsData)
+                    showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
                     txDb.insertTransaction(TransactionDatabase.TYPE_READ, balanceBefore = currentBalance, cardUid = card.uid.toHex())
                     setScreenStatusSuccess(
                         message = getString(R.string.card_read_ok),
@@ -372,7 +372,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
                             showTransactionHistory(data.transactions)
-                            showDebugChecksums(card, data.balance, data.transactionsData)
+                            showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
                             tvStatus.text = getString(R.string.card_tampered)
                             flashRedBackground()
                             playNfcErrorBeep()
@@ -397,7 +397,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         layoutBeforeAfter.visibility = View.GONE
                         showTransactionHistory(data.transactions)
-                        showDebugChecksums(card, data.balance, data.transactionsData)
+                        showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
                         tvStatus.text = getString(R.string.insufficient_balance)
                         flashRedBackground()
                         playInsufficientBalanceBeep()
@@ -923,7 +923,7 @@ class MainActivity : AppCompatActivity() {
                         if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
                             tvStatus.text = getString(R.string.card_tampered)
                             showTransactionHistory(txBlock)
-                            showDebugChecksums(card, data.balance, data.transactionsData)
+                            showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
                             flashRedBackground()
                             playNfcErrorBeep()
                             scheduleAutoReset()
@@ -1003,7 +1003,12 @@ class MainActivity : AppCompatActivity() {
     private fun formatCard(card: BaseCoinCard) {
         try {
             card.connect()
-            when (val result = card.formatCard(singleRecharge = pendingSingleRecharge, userBirthYear = pendingUserBirthYear)) {
+            val formatOptions = BaseCoinCard.CardData(
+                balance = 0,
+                userBirthYear = pendingUserBirthYear,
+                isSingleRecharge = pendingSingleRecharge
+            )
+            when (val result = card.formatCard(formatOptions)) {
                 is BaseCoinCard.FormatResult.Reformatted -> {
                     currentBalance = 0
                     setBalanceDisplay(0)
