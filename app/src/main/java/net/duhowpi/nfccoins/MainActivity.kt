@@ -230,12 +230,16 @@ class MainActivity : AppCompatActivity() {
     private fun handleTag(tag: Tag) {
         triggerVibration()
         if (!BaseCoinCard.isSupported(tag)) {
-            setScreenStatusError(getString(R.string.unsupported_card))
-            return
+            return setScreenStatusError(
+                message = getString(R.string.unsupported_card),
+                background = null
+            )
         }
         val card = createCard(tag) ?: run {
-            setScreenStatusError(getString(R.string.error_get_mifare))
-            return
+            return setScreenStatusError(
+                message = getString(R.string.error_get_mifare),
+                background = null
+            )
         }
 
 
@@ -243,12 +247,11 @@ class MainActivity : AppCompatActivity() {
         if (card is MifareClassicCoinCard) {
             val sector = AdvancedSettingsActivity.getTargetSector(this)
             if (sector >= card.mifare.sectorCount) {
-                setScreenStatusError(getString(
+                return setScreenStatusError(getString(
                     R.string.sector_unavailable,
                     sector,
                     card.mifare.sectorCount - 1
                 ))
-                return
             }
         }
 
@@ -298,19 +301,16 @@ class MainActivity : AppCompatActivity() {
     /** Modo sin botón activo: solo muestra el saldo en grande. */
     private fun readAndShowBalance(tag: Tag) {
         val card = createCard(tag) ?: run {
-            setScreenStatusError(getString(R.string.error_get_mifare))
-            return
+            return setScreenStatusError(getString(R.string.error_get_mifare))
         }
         try {
             card.connect()
             when (val result = card.readCardData()) {
                 is BaseCoinCard.ReadResult.AuthFailed -> {
-                    setScreenStatusError(getString(R.string.auth_failed))
-                    return
+                    return setScreenStatusError(getString(R.string.auth_failed))
                 }
                 is BaseCoinCard.ReadResult.InvalidData -> {
-                    setScreenStatusError(getString(R.string.error_reading, result.reason))
-                    return
+                    return setScreenStatusError(getString(R.string.error_reading, result.reason))
                 }
                 is BaseCoinCard.ReadResult.Success -> {
                     val data = result.data
@@ -328,12 +328,13 @@ class MainActivity : AppCompatActivity() {
                         scheduleAutoReset()
                         return
                     }
-                    tvStatus.text = getString(R.string.card_read_ok)
                     showTransactionHistory(data.txBlock)
                     showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
                     txDb.insertTransaction(TransactionDatabase.TYPE_READ, balanceBefore = currentBalance, cardUid = card.uid.toHex())
-                    playSuccessBeep()
-                    scheduleAutoReset()
+                    setScreenStatusSuccess(
+                        message = getString(R.string.card_read_ok),
+                        background = null
+                    )
                 }
             }
         } catch (e: Exception) {
@@ -356,21 +357,18 @@ class MainActivity : AppCompatActivity() {
         try {
             card.connect()
             when (val result = card.readCardData()) {
+                // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                 is BaseCoinCard.ReadResult.AuthFailed -> {
-                    setScreenStatusError(
+                    return setScreenStatusError(
                         message = getString(R.string.auth_failed),
                         scheduleAutoReset = false
                     )
-                    // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
-                    return
                 }
                 is BaseCoinCard.ReadResult.InvalidData -> {
-                    setScreenStatusError(
+                    return setScreenStatusError(
                         message = getString(R.string.error_reading, result.reason),
                         scheduleAutoReset = false
                     )
-                    // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
-                    return
                 }
                 is BaseCoinCard.ReadResult.Success -> {
                     val data = result.data
@@ -440,7 +438,6 @@ class MainActivity : AppCompatActivity() {
                     tvBalanceAfter.text = formatBalanceDisplay(newBalance)
                     layoutBeforeAfter.visibility = View.VISIBLE
                     tvActualBalance.visibility = View.GONE
-                    tvStatus.text = getString(R.string.deduct_ok, formatBalanceDisplay(amount))
                     showTransactionHistory(updatedTxBlock)
                     showDebugChecksums(card, newCounterBlock, newTxBlock1, newTxBlock2)
                     txDb.insertTransaction(
@@ -451,7 +448,11 @@ class MainActivity : AppCompatActivity() {
                         cardUid = card.uid.toHex(),
                         buttonValue = amount
                     )
-                    playSuccessBeep()
+                    setScreenStatusSuccess(
+                        message = getString(R.string.deduct_ok, formatBalanceDisplay(amount)),
+                        scheduleAutoReset = false,
+                        background = null
+                    )
                     if (isButtonMode) {
                         // Button remains active: keep WITHDRAW_BALANCE state for additional transactions.
                         // No auto-reset scheduled; the user can tap another card immediately.
@@ -657,11 +658,24 @@ class MainActivity : AppCompatActivity() {
     private fun setScreenStatusError(
         message: String,
         scheduleAutoReset: Boolean = true,
-        @ColorRes flashColorRes: Int = R.color.error_orange
+        @ColorRes background: Int = R.color.error_orange
     ) {
         tvStatus.text = message
-        flashBackground(flashColorRes)
+        if (background != 0) flashBackground(background)
         playNfcErrorBeep()
+        if (scheduleAutoReset) {
+            this.scheduleAutoReset()
+        }
+    }
+
+    private fun setScreenStatusSuccess(
+        message: String,
+        scheduleAutoReset: Boolean = true,
+        @ColorRes background: Int = R.color.success_green
+    ) {
+        tvStatus.text = message
+        if (background != 0) flashBackground(background)
+        playSuccessBeep()
         if (scheduleAutoReset) {
             this.scheduleAutoReset()
         }
@@ -894,19 +908,16 @@ class MainActivity : AppCompatActivity() {
         hideKeyboardFrom(etHiddenInput)
         isAddBalanceMode = false
         val card = createCard(tag) ?: run {
-            setScreenStatusError(getString(R.string.error_get_mifare))
-            return
+            return setScreenStatusError(getString(R.string.error_get_mifare))
         }
         try {
             card.connect()
             when (val result = card.readCardData()) {
                 is BaseCoinCard.ReadResult.AuthFailed -> {
-                    setScreenStatusError(getString(R.string.card_not_formatted))
-                    return
+                    return setScreenStatusError(getString(R.string.card_not_formatted))
                 }
                 is BaseCoinCard.ReadResult.InvalidData -> {
-                    setScreenStatusError(getString(R.string.error_reading, result.reason))
-                    return
+                    return setScreenStatusError(getString(R.string.error_reading, result.reason))
                 }
                 is BaseCoinCard.ReadResult.Success -> {
                     val data = result.data
@@ -955,9 +966,8 @@ class MainActivity : AppCompatActivity() {
                     val isFirstAdd = data.txBlock.transactions.isEmpty()
                     if (data.isSingleRecharge && !isFirstAdd) {
                         // Card was already charged once; reject any further balance additions.
-                        setScreenStatusError(getString(R.string.single_recharge_already_used))
                         pendingWrite = null
-                        return
+                        return setScreenStatusError(getString(R.string.single_recharge_already_used))
                     }
 
                     card.addBalance(pendingAddAmount, data, newTxBlock1, newTxBlock2)
@@ -969,7 +979,6 @@ class MainActivity : AppCompatActivity() {
                     tvBalanceBefore.text = formatBalanceDisplay(oldBalance)
                     tvBalanceAfter.text = formatBalanceDisplay(newBalance)
                     layoutBeforeAfter.visibility = View.VISIBLE
-                    tvStatus.text = getString(R.string.balance_added_ok, formatBalanceDisplay(pendingAddAmount))
                     showTransactionHistory(updatedTxBlock)
                     showDebugChecksums(card, newCounterBlock, newTxBlock1, newTxBlock2)
                     txDb.insertTransaction(
@@ -979,9 +988,9 @@ class MainActivity : AppCompatActivity() {
                         balanceAfter = newBalance,
                         cardUid = card.uid.toHex()
                     )
-                    flashBackground(R.color.success_green)
-                    playSuccessBeep()
-                    scheduleAutoReset()
+                    setScreenStatusSuccess(
+                        getString(R.string.balance_added_ok, formatBalanceDisplay(pendingAddAmount))
+                    )
                 }
             }
         } catch (e: Exception) {
@@ -998,8 +1007,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun formatCard(tag: Tag) {
         val card = createCard(tag) ?: run {
-            setScreenStatusError(getString(R.string.error_get_mifare))
-            return
+            return setScreenStatusError(getString(R.string.error_get_mifare))
         }
         try {
             card.connect()
@@ -1012,11 +1020,11 @@ class MainActivity : AppCompatActivity() {
                     layoutBeforeAfter.visibility = View.VISIBLE
                     showTransactionHistory(result.txBlock)
                     showDebugChecksums(card, result.counterData, result.txB1, result.txB2)
-                    tvStatus.text = getString(R.string.format_reset_success)
                     txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = card.uid.toHex())
-                    flashBackground(R.color.success_purple_dark)
-                    playSuccessBeep()
-                    scheduleAutoReset()
+                    setScreenStatusSuccess(
+                        message = getString(R.string.format_reformat_success),
+                        background = R.color.success_purple_dark
+                    )
                 }
                 is BaseCoinCard.FormatResult.NewlyFormatted -> {
                     currentBalance = 0
@@ -1024,11 +1032,11 @@ class MainActivity : AppCompatActivity() {
                     layoutBeforeAfter.visibility = View.GONE
                     showTransactionHistory(result.txBlock)
                     showDebugChecksums(card, result.counterData, result.txB1, result.txB2)
-                    tvStatus.text = getString(R.string.format_success)
                     txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = card.uid.toHex())
-                    flashBackground(R.color.success_purple_dark)
-                    playSuccessBeep()
-                    scheduleAutoReset()
+                    setScreenStatusSuccess(
+                        message = getString(R.string.format_success),
+                        background = R.color.success_purple_dark
+                    )
 
                     if (AdvancedSettingsActivity.isDebugEnabled(this) && result.foundKeyType != null) {
                         val debugDialog = AlertDialog.Builder(this)
@@ -1059,24 +1067,22 @@ class MainActivity : AppCompatActivity() {
 
     private fun resetCard(tag: Tag) {
         val card = createCard(tag) ?: run {
-            setScreenStatusError(getString(R.string.error_get_mifare))
-            return
+            return setScreenStatusError(getString(R.string.error_get_mifare))
         }
         try {
             card.connect()
             if (!card.resetCard()) {
-                setScreenStatusError(getString(R.string.reset_card_no_key))
-                return
+                return setScreenStatusError(getString(R.string.reset_card_no_key))
             }
 
             currentBalance = -1
             resetBalanceToInitial()
             layoutBeforeAfter.visibility = View.GONE
-            tvStatus.text = getString(R.string.reset_card_success)
             txDb.insertTransaction(TransactionDatabase.TYPE_RESET, cardUid = card.uid.toHex())
-            flashBackground(R.color.success_purple_dark)
-            playSuccessBeep()
-            scheduleAutoReset()
+            setScreenStatusSuccess(
+                message = getString(R.string.reset_card_success),
+                background = R.color.success_purple_dark
+            )
         } catch (e: Exception) {
             setScreenStatusError(getString(R.string.error_writing, e.message))
         } finally {
