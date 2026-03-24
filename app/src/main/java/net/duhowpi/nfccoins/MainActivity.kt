@@ -82,7 +82,6 @@ class MainActivity : AppCompatActivity() {
     private var nfcAdapter: NfcAdapter? = null
 
     private var currentBalance: Int = -1
-    private var currentTag: Tag? = null
     private var pendingAction: PendingAction = PendingAction.NONE
     private var pendingAddAmount: Int = 0
     private var customDeductAmount: Int = 0
@@ -256,39 +255,37 @@ class MainActivity : AppCompatActivity() {
         }
 
         handler.removeCallbacks(autoResetRunnable)
-        currentTag = tag
-        val uid = tag.id
-        tvCardId.text = getString(R.string.card_id_format, uid.toHex())
+        tvCardId.text = getString(R.string.card_id_format, card.uid.toHex())
 
         when (pendingAction) {
             PendingAction.ADD_BALANCE -> {
                 pendingAction = PendingAction.NONE
-                addBalanceToCard(tag)
+                addBalanceToCard(card)
             }
             PendingAction.FORMAT_CARD -> {
                 pendingAction = PendingAction.NONE
-                formatCard(tag)
+                formatCard(card)
             }
             PendingAction.RESET_CARD -> {
                 pendingAction = PendingAction.NONE
-                resetCard(tag)
+                resetCard(card)
             }
             PendingAction.WITHDRAW_BALANCE -> {
                 // Do not clear pendingAction here; readAndDeduct manages state depending on
                 // success/failure and whether a toggle button or custom amount is active.
                 when {
-                    toggleGroup.checkedButtonId == R.id.btnDeduct1 -> readAndDeduct(tag, deductUnitAmount(1), isButtonMode = true)
-                    toggleGroup.checkedButtonId == R.id.btnDeduct2 -> readAndDeduct(tag, deductUnitAmount(2), isButtonMode = true)
+                    toggleGroup.checkedButtonId == R.id.btnDeduct1 -> readAndDeduct(card, deductUnitAmount(1), isButtonMode = true)
+                    toggleGroup.checkedButtonId == R.id.btnDeduct2 -> readAndDeduct(card, deductUnitAmount(2), isButtonMode = true)
                     customDeductAmount > 0 -> {
                         isCustomAmountMode = false
                         clearHiddenInput()
-                        readAndDeduct(tag, customDeductAmount, isCustomAmount = true)
+                        readAndDeduct(card, customDeductAmount, isCustomAmount = true)
                     }
                     else -> setPendingAction(PendingAction.NONE)
                 }
             }
             PendingAction.NONE -> {
-                readAndShowBalance(tag)
+                readAndShowBalance(card)
             }
         }
     }
@@ -299,10 +296,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Modo sin botón activo: solo muestra el saldo en grande. */
-    private fun readAndShowBalance(tag: Tag) {
-        val card = createCard(tag) ?: run {
-            return setScreenStatusError(getString(R.string.error_get_mifare))
-        }
+    private fun readAndShowBalance(card: BaseCoinCard) {
         try {
             card.connect()
             when (val result = card.readCardData()) {
@@ -345,15 +339,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Modo con botón activo: descuenta monedas y muestra saldo inicial → final en grande. */
-    private fun readAndDeduct(tag: Tag, amount: Int, isCustomAmount: Boolean = false, isButtonMode: Boolean = false) {
-        val card = createCard(tag) ?: run {
-            setScreenStatusError(
-                message = getString(R.string.error_get_mifare),
-                scheduleAutoReset = false
-            )
-            // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
-            return
-        }
+    private fun readAndDeduct(card: BaseCoinCard, amount: Int, isCustomAmount: Boolean = false, isButtonMode: Boolean = false) {
         try {
             card.connect()
             when (val result = card.readCardData()) {
@@ -385,9 +371,9 @@ class MainActivity : AppCompatActivity() {
                             return
                         }
                         if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
-                            tvStatus.text = getString(R.string.card_tampered)
                             showTransactionHistory(data.txBlock)
                             showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
+                            tvStatus.text = getString(R.string.card_tampered)
                             flashRedBackground()
                             playNfcErrorBeep()
                             // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
@@ -410,9 +396,9 @@ class MainActivity : AppCompatActivity() {
                             tvActualBalance.visibility = View.GONE
                         }
                         layoutBeforeAfter.visibility = View.GONE
-                        tvStatus.text = getString(R.string.insufficient_balance)
                         showTransactionHistory(data.txBlock)
                         showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
+                        tvStatus.text = getString(R.string.insufficient_balance)
                         flashRedBackground()
                         playInsufficientBalanceBeep()
                         // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
@@ -904,12 +890,9 @@ class MainActivity : AppCompatActivity() {
      * Aplica el saldo pendiente a la tarjeta. Solo intenta con la clave derivada del UID;
      * si falla la autenticación, la tarjeta no está formateada y se muestra un error.
      */
-    private fun addBalanceToCard(tag: Tag) {
+    private fun addBalanceToCard(card: BaseCoinCard) {
         hideKeyboardFrom(etHiddenInput)
         isAddBalanceMode = false
-        val card = createCard(tag) ?: run {
-            return setScreenStatusError(getString(R.string.error_get_mifare))
-        }
         try {
             card.connect()
             when (val result = card.readCardData()) {
@@ -1005,10 +988,7 @@ class MainActivity : AppCompatActivity() {
      * First tries the derived key: if already formatted, resets the balance to zero.
      * Otherwise searches for a standard key and writes the sector with the derived key.
      */
-    private fun formatCard(tag: Tag) {
-        val card = createCard(tag) ?: run {
-            return setScreenStatusError(getString(R.string.error_get_mifare))
-        }
+    private fun formatCard(card: BaseCoinCard) {
         try {
             card.connect()
             when (val result = card.formatCard(singleRecharge = pendingSingleRecharge, ageByte = pendingAgeByte)) {
@@ -1065,10 +1045,7 @@ class MainActivity : AppCompatActivity() {
     // Reset card
     // -------------------------------------------------------------------------
 
-    private fun resetCard(tag: Tag) {
-        val card = createCard(tag) ?: run {
-            return setScreenStatusError(getString(R.string.error_get_mifare))
-        }
+    private fun resetCard(card: BaseCoinCard) {
         try {
             card.connect()
             if (!card.resetCard()) {
