@@ -41,31 +41,15 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * NFC POS – Monedero con Mifare Classic
+ * NFC POS – Monedero NFC
  *
- * Lee el sector 14 de una tarjeta Mifare Classic.
- * Genera una clave única por tarjeta derivada del UID + PSK.
+ * Point-of-sale activity that reads, writes, and manages NFC coin cards.
+ * Card-technology-specific operations are delegated to [BaseCoinCard]
+ * subclasses (currently [MifareClassicCoinCard]; NTAG support planned).
+ *
  * Los botones de descuento actúan como toggles: si ninguno está activo,
  * acercar la tarjeta muestra el saldo; si uno está activo, descuenta automáticamente.
  * Incluye gestión de tarjetas: añadir saldo y formatear con claves estándar.
- *
- * Mifare-specific operations (value-block encoding, key derivation, sector I/O,
- * and trailer construction) are delegated to [MifareClassicHelper].
- *
- * Formato del bloque contador (bloque 56 = primer bloque del sector 14):
- *   Mifare Classic Value Block (16 bytes, little-endian):
- *   Bytes  0– 3: valor int32 (saldo) en little-endian
- *   Bytes  4– 7: ~valor (complemento bit a bit)
- *   Bytes  8–11: valor (copia redundante)
- *   Byte  12   : dirección del bloque (addr)
- *   Byte  13   : ~addr
- *   Byte  14   : addr
- *   Byte  15   : ~addr
- *
- * Las operaciones de incremento/decremento del chip se realizan con
- * MifareClassic.increment() / decrement() + transfer(), que son atómicas
- * a nivel de chip. La recuperación de escrituras interrumpidas se hace
- * con writeBlock() del bloque en formato Value Block.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -106,20 +90,7 @@ class MainActivity : AppCompatActivity() {
     private var isCustomAmountMode = false
     private var isAddBalanceMode = false
 
-    /**
-     * Holds the full intended card state (counter + 2 transaction blocks) that was computed
-     * just before a write operation. If the write is interrupted (e.g. card removed mid-write),
-     * the data here lets us retry on the next tap instead of flagging the card as tampered.
-     */
-    private data class PendingWrite(
-        val uid: ByteArray,
-        val counterBlock: ByteArray,
-        val txBlock1: ByteArray,
-        val txBlock2: ByteArray
-    ) {
-        fun matchesUid(other: ByteArray) = uid.contentEquals(other)
-    }
-    private var pendingWrite: PendingWrite? = null
+    private var pendingWrite: BaseCoinCard.PendingWriteData? = null
 
     // Format card dialog options
     private var pendingSingleRecharge: Boolean = false
@@ -259,25 +230,28 @@ class MainActivity : AppCompatActivity() {
     /** Entry point for tags discovered via reader mode (called on main thread). */
     private fun handleTag(tag: Tag) {
         triggerVibration()
-        if (!tag.techList.contains(MifareClassic::class.java.name)) {
+        if (!BaseCoinCard.isSupported(tag)) {
             tvStatus.text = getString(R.string.unsupported_card)
             playNfcErrorBeep()
             scheduleAutoReset()
             return
         }
 
-        val mifare = MifareClassic.get(tag)
-        val sector = AdvancedSettingsActivity.getTargetSector(this)
-        if (mifare != null && sector >= mifare.sectorCount) {
-            tvStatus.text = getString(
-                R.string.sector_unavailable,
-                sector,
-                mifare.sectorCount - 1
-            )
-            flashBackground(R.color.error_orange)
-            playNfcErrorBeep()
-            scheduleAutoReset()
-            return
+        // Mifare Classic: validate that the configured sector exists on this card.
+        if (tag.techList.contains(MifareClassic::class.java.name)) {
+            val mifare = MifareClassic.get(tag)
+            val sector = AdvancedSettingsActivity.getTargetSector(this)
+            if (mifare != null && sector >= mifare.sectorCount) {
+                tvStatus.text = getString(
+                    R.string.sector_unavailable,
+                    sector,
+                    mifare.sectorCount - 1
+                )
+                flashBackground(R.color.error_orange)
+                playNfcErrorBeep()
+                scheduleAutoReset()
+                return
+            }
         }
 
         handler.removeCallbacks(autoResetRunnable)
@@ -301,21 +275,19 @@ class MainActivity : AppCompatActivity() {
             PendingAction.WITHDRAW_BALANCE -> {
                 // Do not clear pendingAction here; readAndDeduct manages state depending on
                 // success/failure and whether a toggle button or custom amount is active.
-                val cardKey = deriveCardKey(uid)
                 when {
-                    toggleGroup.checkedButtonId == R.id.btnDeduct1 -> readAndDeduct(tag, cardKey, deductUnitAmount(1), isButtonMode = true)
-                    toggleGroup.checkedButtonId == R.id.btnDeduct2 -> readAndDeduct(tag, cardKey, deductUnitAmount(2), isButtonMode = true)
+                    toggleGroup.checkedButtonId == R.id.btnDeduct1 -> readAndDeduct(tag, deductUnitAmount(1), isButtonMode = true)
+                    toggleGroup.checkedButtonId == R.id.btnDeduct2 -> readAndDeduct(tag, deductUnitAmount(2), isButtonMode = true)
                     customDeductAmount > 0 -> {
                         isCustomAmountMode = false
                         clearHiddenInput()
-                        readAndDeduct(tag, cardKey, customDeductAmount, isCustomAmount = true)
+                        readAndDeduct(tag, customDeductAmount, isCustomAmount = true)
                     }
                     else -> setPendingAction(PendingAction.NONE)
                 }
             }
             PendingAction.NONE -> {
-                val cardKey = deriveCardKey(uid)
-                readAndShowBalance(tag, cardKey)
+                readAndShowBalance(tag)
             }
         }
     }
@@ -326,11 +298,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Modo sin botón activo: solo muestra el saldo en grande. */
-    private fun readAndShowBalance(tag: Tag, cardKey: ByteArray) {
-        val sector = AdvancedSettingsActivity.getTargetSector(this)
-        val uid = tag.id
-        val psk = AdvancedSettingsActivity.getStaticKey(this)
-        val mifare = MifareClassic.get(tag) ?: run {
+    private fun readAndShowBalance(tag: Tag) {
+        val card = createCard(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
             playNfcErrorBeep()
@@ -338,61 +307,59 @@ class MainActivity : AppCompatActivity() {
             return
         }
         try {
-            mifare.connect()
-            val sd = MifareClassicHelper.readSector(mifare, sector, cardKey) ?: run {
-                tvStatus.text = getString(R.string.auth_failed)
-                flashBackground(R.color.error_orange)
-                playNfcErrorBeep()
-                scheduleAutoReset()
-                return
+            card.connect()
+            when (val result = card.readCardData()) {
+                is BaseCoinCard.ReadResult.AuthFailed -> {
+                    tvStatus.text = getString(R.string.auth_failed)
+                    flashBackground(R.color.error_orange)
+                    playNfcErrorBeep()
+                    scheduleAutoReset()
+                    return
+                }
+                is BaseCoinCard.ReadResult.InvalidData -> {
+                    tvStatus.text = getString(R.string.error_reading, result.reason)
+                    flashBackground(R.color.error_orange)
+                    playNfcErrorBeep()
+                    scheduleAutoReset()
+                    return
+                }
+                is BaseCoinCard.ReadResult.Success -> {
+                    val data = result.data
+                    currentBalance = data.balance
+                    setBalanceDisplay(currentBalance)
+                    updateMinorIndicator(data.ageByte)
+                    layoutBeforeAfter.visibility = View.GONE
+                    tvActualBalance.visibility = View.GONE
+                    if (!card.isDataValid(data)) {
+                        tvStatus.text = getString(R.string.card_tampered)
+                        showTransactionHistory(data.txBlock)
+                        showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
+                        flashRedBackground()
+                        playNfcErrorBeep()
+                        scheduleAutoReset()
+                        return
+                    }
+                    tvStatus.text = getString(R.string.card_read_ok)
+                    showTransactionHistory(data.txBlock)
+                    showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
+                    txDb.insertTransaction(TransactionDatabase.TYPE_READ, balanceBefore = currentBalance, cardUid = card.uid.toHex())
+                    playSuccessBeep()
+                    scheduleAutoReset()
+                }
             }
-            val counterData = sd.counterData
-            val txBlock1 = sd.txBlock1
-            val txBlock2 = sd.txBlock2
-            val trailerData = sd.trailerData
-            currentBalance = MifareClassicHelper.readValueBlock(counterData) ?: run {
-                tvStatus.text = getString(R.string.error_reading, "invalid value block")
-                flashBackground(R.color.error_orange)
-                playNfcErrorBeep()
-                scheduleAutoReset()
-                return
-            }
-            val txBlock = sd.txBlock
-            setBalanceDisplay(currentBalance)
-            updateMinorIndicator(MifareClassicHelper.getAgeByte(trailerData))
-            layoutBeforeAfter.visibility = View.GONE
-            tvActualBalance.visibility = View.GONE
-            if (!txBlock.isValid(counterData, txBlock1, txBlock2, uid, psk)) {
-                tvStatus.text = getString(R.string.card_tampered)
-                showTransactionHistory(txBlock)
-                showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
-                flashRedBackground()
-                playNfcErrorBeep()
-                scheduleAutoReset()
-                return
-            }
-            tvStatus.text = getString(R.string.card_read_ok)
-            showTransactionHistory(txBlock)
-            showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
-            txDb.insertTransaction(TransactionDatabase.TYPE_READ, balanceBefore = currentBalance, cardUid = uid.toHex())
-            playSuccessBeep()
-            scheduleAutoReset()
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_reading, e.message)
             flashBackground(R.color.error_orange)
             playNfcErrorBeep()
             scheduleAutoReset()
         } finally {
-            runCatching { mifare.close() }
+            card.close()
         }
     }
 
     /** Modo con botón activo: descuenta monedas y muestra saldo inicial → final en grande. */
-    private fun readAndDeduct(tag: Tag, cardKey: ByteArray, amount: Int, isCustomAmount: Boolean = false, isButtonMode: Boolean = false) {
-        val sector = AdvancedSettingsActivity.getTargetSector(this)
-        val uid = tag.id
-        val psk = AdvancedSettingsActivity.getStaticKey(this)
-        val mifare = MifareClassic.get(tag) ?: run {
+    private fun readAndDeduct(tag: Tag, amount: Int, isCustomAmount: Boolean = false, isButtonMode: Boolean = false) {
+        val card = createCard(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
             playNfcErrorBeep()
@@ -400,132 +367,119 @@ class MainActivity : AppCompatActivity() {
             return
         }
         try {
-            mifare.connect()
-            val sd = MifareClassicHelper.readSector(mifare, sector, cardKey) ?: run {
-                tvStatus.text = getString(R.string.auth_failed)
-                flashBackground(R.color.error_orange)
-                playNfcErrorBeep()
-                // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
-                return
-            }
-            val sectorStart = sd.sectorStart
-            val counterData = sd.counterData
-            val txBlock1 = sd.txBlock1
-            val txBlock2 = sd.txBlock2
-            val trailerData = sd.trailerData
-            val txBlock = sd.txBlock
-
-            // Anti-tampering: verify checksum before performing any operation.
-            if (!txBlock.isValid(counterData, txBlock1, txBlock2, uid, psk)) {
-                val pw = pendingWrite
-                if (pw != null && pw.matchesUid(uid)) {
-                    // Interrupted write detected – retry the previous write and continue.
-                    mifare.writeBlock(sectorStart + MifareClassicHelper.DATA_BLOCK_OFFSET, pw.counterBlock)
-                    mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_1_OFFSET, pw.txBlock1)
-                    mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_2_OFFSET, pw.txBlock2)
-                    pendingWrite = null
-                    tvStatus.text = getString(R.string.write_retried)
-                    // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
-                    return
-                }
-                if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
-                    tvStatus.text = getString(R.string.card_tampered)
-                    showTransactionHistory(txBlock)
-                    showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
-                    flashRedBackground()
+            card.connect()
+            when (val result = card.readCardData()) {
+                is BaseCoinCard.ReadResult.AuthFailed -> {
+                    tvStatus.text = getString(R.string.auth_failed)
+                    flashBackground(R.color.error_orange)
                     playNfcErrorBeep()
                     // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                     return
                 }
-                // Integrity check disabled: invalid checksum is ignored and the transaction
-                // proceeds. The new write will produce a fresh valid checksum.
-            }
-            pendingWrite = null  // Previous write (if any) was successful.
-
-            val balance = MifareClassicHelper.readValueBlock(counterData) ?: run {
-                tvStatus.text = getString(R.string.error_reading, "invalid value block")
-                flashBackground(R.color.error_orange)
-                playNfcErrorBeep()
-                // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
-                return
-            }
-
-            if (balance < amount) {
-                currentBalance = balance
-                if (isCustomAmount) {
-                    setBalanceDisplay(amount)
-                    tvActualBalance.text = formatBalanceDisplay(balance)
-                    tvActualBalance.visibility = View.VISIBLE
-                } else {
-                    setBalanceDisplay(balance)
-                    tvActualBalance.visibility = View.GONE
+                is BaseCoinCard.ReadResult.InvalidData -> {
+                    tvStatus.text = getString(R.string.error_reading, result.reason)
+                    flashBackground(R.color.error_orange)
+                    playNfcErrorBeep()
+                    // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
+                    return
                 }
-                layoutBeforeAfter.visibility = View.GONE
-                tvStatus.text = getString(R.string.insufficient_balance)
-                showTransactionHistory(txBlock)
-                showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
-                flashRedBackground()
-                playInsufficientBalanceBeep()
-                // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
-                return
+                is BaseCoinCard.ReadResult.Success -> {
+                    val data = result.data
+
+                    // Anti-tampering: verify checksum before performing any operation.
+                    if (!card.isDataValid(data)) {
+                        val pw = pendingWrite
+                        if (pw != null && pw.matchesUid(card.uid)) {
+                            // Interrupted write detected – retry the previous write and continue.
+                            card.retryPendingWrite(pw)
+                            pendingWrite = null
+                            tvStatus.text = getString(R.string.write_retried)
+                            // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
+                            return
+                        }
+                        if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
+                            tvStatus.text = getString(R.string.card_tampered)
+                            showTransactionHistory(data.txBlock)
+                            showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
+                            flashRedBackground()
+                            playNfcErrorBeep()
+                            // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
+                            return
+                        }
+                        // Integrity check disabled: invalid checksum is ignored and the transaction
+                        // proceeds. The new write will produce a fresh valid checksum.
+                    }
+                    pendingWrite = null  // Previous write (if any) was successful.
+
+                    val balance = data.balance
+                    if (balance < amount) {
+                        currentBalance = balance
+                        if (isCustomAmount) {
+                            setBalanceDisplay(amount)
+                            tvActualBalance.text = formatBalanceDisplay(balance)
+                            tvActualBalance.visibility = View.VISIBLE
+                        } else {
+                            setBalanceDisplay(balance)
+                            tvActualBalance.visibility = View.GONE
+                        }
+                        layoutBeforeAfter.visibility = View.GONE
+                        tvStatus.text = getString(R.string.insufficient_balance)
+                        showTransactionHistory(data.txBlock)
+                        showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
+                        flashRedBackground()
+                        playInsufficientBalanceBeep()
+                        // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
+                        return
+                    }
+
+                    val newBalance = balance - amount
+                    val newCounterBlock = card.encodeBalance(newBalance)
+                    val (updatedTxBlock, newTxBlock1, newTxBlock2) = card.buildUpdatedTxBlocks(
+                        data.txBlock, newCounterBlock, TxOperation.SUBTRACT, amount
+                    )
+
+                    // Retain the intended state in memory so an interrupted write can be retried.
+                    pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newCounterBlock, newTxBlock1, newTxBlock2)
+
+                    card.deductBalance(amount, newTxBlock1, newTxBlock2)
+                    pendingWrite = null
+
+                    currentBalance = newBalance
+                    setBalanceDisplay(newBalance)
+                    updateMinorIndicator(data.ageByte)
+                    tvBalanceBefore.text = formatBalanceDisplay(balance)
+                    tvBalanceAfter.text = formatBalanceDisplay(newBalance)
+                    layoutBeforeAfter.visibility = View.VISIBLE
+                    tvActualBalance.visibility = View.GONE
+                    tvStatus.text = getString(R.string.deduct_ok, formatBalanceDisplay(amount))
+                    showTransactionHistory(updatedTxBlock)
+                    showDebugChecksums(card, newCounterBlock, newTxBlock1, newTxBlock2)
+                    txDb.insertTransaction(
+                        type = TransactionDatabase.TYPE_SUBTRACT,
+                        amount = -amount,
+                        balanceBefore = balance,
+                        balanceAfter = newBalance,
+                        cardUid = card.uid.toHex(),
+                        buttonValue = amount
+                    )
+                    playSuccessBeep()
+                    if (isButtonMode) {
+                        // Button remains active: keep WITHDRAW_BALANCE state for additional transactions.
+                        // No auto-reset scheduled; the user can tap another card immediately.
+                    } else {
+                        // Custom-amount is a one-shot transaction: clear it and schedule a full reset.
+                        customDeductAmount = 0
+                        scheduleAutoReset()
+                    }
+                }
             }
-
-            val newBalance = balance - amount
-            // Build the Value Block bytes that the chip will hold after decrement+transfer.
-            // These bytes are passed to the checksum so the transaction blocks are bound
-            // to the expected new counter state, not the old one.
-            val newCounterBlock = MifareClassicHelper.makeValueBlock(newBalance)
-
-            val nowSecs = System.currentTimeMillis() / 1000L
-            val updatedTxBlock = txBlock.addTransaction(nowSecs, TxOperation.SUBTRACT, amount)
-            val (newTxBlock1, newTxBlock2) = updatedTxBlock.toBytes(newCounterBlock, uid, psk)
-
-            // Retain the intended state in memory so an interrupted write can be retried.
-            pendingWrite = PendingWrite(uid, newCounterBlock, newTxBlock1, newTxBlock2)
-
-            // Atomically decrement the value block on the chip, then commit with transfer.
-            val blockIndex = sectorStart + MifareClassicHelper.DATA_BLOCK_OFFSET
-            mifare.decrement(blockIndex, amount)
-            mifare.transfer(blockIndex)
-            mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_1_OFFSET, newTxBlock1)
-            mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_2_OFFSET, newTxBlock2)
-            pendingWrite = null
-
-            currentBalance = newBalance
-            setBalanceDisplay(newBalance)
-            updateMinorIndicator(MifareClassicHelper.getAgeByte(trailerData))
-            tvBalanceBefore.text = formatBalanceDisplay(balance)
-            tvBalanceAfter.text = formatBalanceDisplay(newBalance)
-            layoutBeforeAfter.visibility = View.VISIBLE
-            tvActualBalance.visibility = View.GONE
-            tvStatus.text = getString(R.string.deduct_ok, formatBalanceDisplay(amount))
-            showTransactionHistory(updatedTxBlock)
-            showDebugChecksums(newCounterBlock, newTxBlock1, newTxBlock2, uid, psk)
-            txDb.insertTransaction(
-                type = TransactionDatabase.TYPE_SUBTRACT,
-                amount = -amount,
-                balanceBefore = balance,
-                balanceAfter = newBalance,
-                cardUid = uid.toHex(),
-                buttonValue = amount
-            )
-            playSuccessBeep()
-            if (isButtonMode) {
-                // Button remains active: keep WITHDRAW_BALANCE state for additional transactions.
-                // No auto-reset scheduled; the user can tap another card immediately.
-            } else {
-                // Custom-amount is a one-shot transaction: clear it and schedule a full reset.
-                customDeductAmount = 0
-                scheduleAutoReset()
-            }
-
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
             flashBackground(R.color.error_orange)
             playNfcErrorBeep()
             // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
         } finally {
-            runCatching { mifare.close() }
+            card.close()
         }
     }
 
@@ -936,11 +890,7 @@ class MainActivity : AppCompatActivity() {
     private fun addBalanceToCard(tag: Tag) {
         hideKeyboardFrom(etHiddenInput)
         isAddBalanceMode = false
-        val sector = AdvancedSettingsActivity.getTargetSector(this)
-        val uid = tag.id
-        val cardKey = deriveCardKey(uid)
-        val psk = AdvancedSettingsActivity.getStaticKey(this)
-        val mifare = MifareClassic.get(tag) ?: run {
+        val card = createCard(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
             playNfcErrorBeep()
@@ -948,139 +898,108 @@ class MainActivity : AppCompatActivity() {
             return
         }
         try {
-            mifare.connect()
-            val sd = MifareClassicHelper.readSector(mifare, sector, cardKey) ?: run {
-                tvStatus.text = getString(R.string.card_not_formatted)
-                flashBackground(R.color.error_orange)
-                playNfcErrorBeep()
-                scheduleAutoReset()
-                return
-            }
-            val sectorStart = sd.sectorStart
-            val counterData = sd.counterData
-            val txBlock1 = sd.txBlock1
-            val txBlock2 = sd.txBlock2
-            val trailerData = sd.trailerData
-            val txBlock = sd.txBlock
-
-            // Anti-tampering: verify checksum before performing any operation.
-            if (!txBlock.isValid(counterData, txBlock1, txBlock2, uid, psk)) {
-                val pw = pendingWrite
-                if (pw != null && pw.matchesUid(uid)) {
-                    // Interrupted write detected – retry the previous write and continue.
-                    mifare.writeBlock(sectorStart + MifareClassicHelper.DATA_BLOCK_OFFSET, pw.counterBlock)
-                    mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_1_OFFSET, pw.txBlock1)
-                    mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_2_OFFSET, pw.txBlock2)
-                    pendingWrite = null
-                    tvStatus.text = getString(R.string.write_retried)
-                    scheduleAutoReset()
-                    return
-                }
-                if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
-                    tvStatus.text = getString(R.string.card_tampered)
-                    showTransactionHistory(txBlock)
-                    showDebugChecksums(counterData, txBlock1, txBlock2, uid, psk)
-                    flashRedBackground()
+            card.connect()
+            when (val result = card.readCardData()) {
+                is BaseCoinCard.ReadResult.AuthFailed -> {
+                    tvStatus.text = getString(R.string.card_not_formatted)
+                    flashBackground(R.color.error_orange)
                     playNfcErrorBeep()
                     scheduleAutoReset()
                     return
                 }
-                // Integrity check disabled: invalid checksum is ignored and the transaction
-                // proceeds. The new write will produce a fresh valid checksum.
+                is BaseCoinCard.ReadResult.InvalidData -> {
+                    tvStatus.text = getString(R.string.error_reading, result.reason)
+                    flashBackground(R.color.error_orange)
+                    playNfcErrorBeep()
+                    scheduleAutoReset()
+                    return
+                }
+                is BaseCoinCard.ReadResult.Success -> {
+                    val data = result.data
+
+                    // Anti-tampering: verify checksum before performing any operation.
+                    if (!card.isDataValid(data)) {
+                        val pw = pendingWrite
+                        if (pw != null && pw.matchesUid(card.uid)) {
+                            // Interrupted write detected – retry the previous write and continue.
+                            card.retryPendingWrite(pw)
+                            pendingWrite = null
+                            tvStatus.text = getString(R.string.write_retried)
+                            scheduleAutoReset()
+                            return
+                        }
+                        if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
+                            tvStatus.text = getString(R.string.card_tampered)
+                            showTransactionHistory(data.txBlock)
+                            showDebugChecksums(card, data.counterData, data.txBlock1, data.txBlock2)
+                            flashRedBackground()
+                            playNfcErrorBeep()
+                            scheduleAutoReset()
+                            return
+                        }
+                        // Integrity check disabled: proceed with fresh checksum.
+                    }
+                    pendingWrite = null
+
+                    val oldBalance = data.balance
+                    val newBalance = oldBalance + pendingAddAmount
+                    if (newBalance > card.maxBalance) {
+                        Toast.makeText(this, getString(R.string.balance_too_high), Toast.LENGTH_SHORT).show()
+                        pendingAddAmount = 0
+                        scheduleAutoReset()
+                        return
+                    }
+
+                    val newCounterBlock = card.encodeBalance(newBalance)
+                    val (updatedTxBlock, newTxBlock1, newTxBlock2) = card.buildUpdatedTxBlocks(
+                        data.txBlock, newCounterBlock, TxOperation.ADD, pendingAddAmount
+                    )
+
+                    // Retain the intended state in memory so an interrupted write can be retried.
+                    pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newCounterBlock, newTxBlock1, newTxBlock2)
+
+                    val isFirstAdd = data.txBlock.transactions.isEmpty()
+                    if (data.isSingleRecharge && !isFirstAdd) {
+                        // Card was already charged once; reject any further balance additions.
+                        tvStatus.text = getString(R.string.single_recharge_already_used)
+                        flashBackground(R.color.error_orange)
+                        playNfcErrorBeep()
+                        scheduleAutoReset()
+                        pendingWrite = null
+                        return
+                    }
+
+                    card.addBalance(pendingAddAmount, data, newTxBlock1, newTxBlock2)
+                    pendingWrite = null
+
+                    currentBalance = newBalance
+                    setBalanceDisplay(newBalance)
+                    updateMinorIndicator(data.ageByte)
+                    tvBalanceBefore.text = formatBalanceDisplay(oldBalance)
+                    tvBalanceAfter.text = formatBalanceDisplay(newBalance)
+                    layoutBeforeAfter.visibility = View.VISIBLE
+                    tvStatus.text = getString(R.string.balance_added_ok, formatBalanceDisplay(pendingAddAmount))
+                    showTransactionHistory(updatedTxBlock)
+                    showDebugChecksums(card, newCounterBlock, newTxBlock1, newTxBlock2)
+                    txDb.insertTransaction(
+                        type = TransactionDatabase.TYPE_ADD,
+                        amount = pendingAddAmount,
+                        balanceBefore = oldBalance,
+                        balanceAfter = newBalance,
+                        cardUid = card.uid.toHex()
+                    )
+                    flashBackground(R.color.success_green)
+                    playSuccessBeep()
+                    scheduleAutoReset()
+                }
             }
-            pendingWrite = null
-
-            val oldBalance = MifareClassicHelper.readValueBlock(counterData) ?: run {
-                tvStatus.text = getString(R.string.error_reading, "invalid value block")
-                flashBackground(R.color.error_orange)
-                playNfcErrorBeep()
-                scheduleAutoReset()
-                return
-            }
-            val newBalance = oldBalance + pendingAddAmount
-            if (newBalance > MifareClassicHelper.MAX_BALANCE) {
-                Toast.makeText(this, getString(R.string.balance_too_high), Toast.LENGTH_SHORT).show()
-                pendingAddAmount = 0
-                scheduleAutoReset()
-                return
-            }
-
-            // Build the Value Block bytes that the chip will hold after increment+transfer.
-            val newCounterBlock = MifareClassicHelper.makeValueBlock(newBalance)
-
-            val nowSecs = System.currentTimeMillis() / 1000L
-            val updatedTxBlock = txBlock.addTransaction(nowSecs, TxOperation.ADD, pendingAddAmount)
-            val (newTxBlock1, newTxBlock2) = updatedTxBlock.toBytes(newCounterBlock, uid, psk)
-
-            // Retain the intended state in memory so an interrupted write can be retried.
-            pendingWrite = PendingWrite(uid, newCounterBlock, newTxBlock1, newTxBlock2)
-
-            // Detect single-recharge mode by reading the sector trailer directly from the card.
-            // A single-recharge card has ACCESS_BITS_SINGLE_RECHARGE_CTRL in bytes 6-8 of the
-            // trailer. The ageByte (GPB) lives at byte 9. No per-device SharedPreferences are
-            // used so that the recharge can be performed on any device/instance.
-            val trailerIdx = sectorStart + sd.blocksInSector - 1
-            val isSingleRecharge = MifareClassicHelper.isSingleRecharge(trailerData)
-            val ageByte = MifareClassicHelper.getAgeByte(trailerData)
-            val isFirstAdd = txBlock.transactions.isEmpty()
-
-            if (isSingleRecharge && !isFirstAdd) {
-                // Card was already charged once; reject any further balance additions.
-                tvStatus.text = getString(R.string.single_recharge_already_used)
-                flashBackground(R.color.error_orange)
-                playNfcErrorBeep()
-                scheduleAutoReset()
-                pendingWrite = null
-                return
-            }
-
-            if (isSingleRecharge) {
-                // First and only allowed recharge: temporarily unlock block 0, increment, then
-                // re-lock with the original restricted bits and preserved ageByte.
-                val openTrailer = MifareClassicHelper.buildSectorTrailer(cardKey, standard = true, userByte = ageByte)
-                mifare.writeBlock(trailerIdx, openTrailer)
-            }
-
-            // Atomically increment the value block on the chip, then commit with transfer.
-            val blockIndex = sectorStart + MifareClassicHelper.DATA_BLOCK_OFFSET
-            mifare.increment(blockIndex, pendingAddAmount)
-            mifare.transfer(blockIndex)
-            mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_1_OFFSET, newTxBlock1)
-            mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_2_OFFSET, newTxBlock2)
-            pendingWrite = null
-
-            if (isSingleRecharge) {
-                // Re-lock: restore restricted access bits so further increments are blocked.
-                val restrictedTrailer = MifareClassicHelper.buildSectorTrailer(cardKey, standard = false, userByte = ageByte)
-                mifare.writeBlock(trailerIdx, restrictedTrailer)
-            }
-
-            currentBalance = newBalance
-            setBalanceDisplay(newBalance)
-            updateMinorIndicator(ageByte)
-            tvBalanceBefore.text = formatBalanceDisplay(oldBalance)
-            tvBalanceAfter.text = formatBalanceDisplay(newBalance)
-            layoutBeforeAfter.visibility = View.VISIBLE
-            tvStatus.text = getString(R.string.balance_added_ok, formatBalanceDisplay(pendingAddAmount))
-            showTransactionHistory(updatedTxBlock)
-            showDebugChecksums(newCounterBlock, newTxBlock1, newTxBlock2, uid, psk)
-            txDb.insertTransaction(
-                type = TransactionDatabase.TYPE_ADD,
-                amount = pendingAddAmount,
-                balanceBefore = oldBalance,
-                balanceAfter = newBalance,
-                cardUid = uid.toHex()
-            )
-            flashBackground(R.color.success_green)
-            playSuccessBeep()
-            scheduleAutoReset()
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
             flashBackground(R.color.error_orange)
             playNfcErrorBeep()
             scheduleAutoReset()
         } finally {
-            runCatching { mifare.close() }
+            card.close()
         }
     }
 
@@ -1090,197 +1009,89 @@ class MainActivity : AppCompatActivity() {
      * Otherwise searches for a standard key and writes the sector with the derived key.
      */
     private fun formatCard(tag: Tag) {
-        val sector = AdvancedSettingsActivity.getTargetSector(this)
-        val uid = tag.id
-        val derivedKey = deriveCardKey(uid)
-        val psk = AdvancedSettingsActivity.getStaticKey(this)
-        val mifare = MifareClassic.get(tag) ?: run {
+        val card = createCard(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
             playNfcErrorBeep()
             scheduleAutoReset()
             return
         }
-
         try {
-            mifare.connect()
-
-            // If already formatted with the derived key, reset balance to 0 and transaction history
-            if (mifare.authenticateSectorWithKeyA(sector, derivedKey)) {
-                val sectorStart = mifare.sectorToBlock(sector)
-                val blocksInSector = mifare.getBlockCountInSector(sector)
-                val trailerIdx = sectorStart + blocksInSector - 1
-
-                // Always write open access bits first so block 0 is writable even if the card
-                // was previously formatted with single-recharge restricted bits.
-                mifare.writeBlock(trailerIdx, MifareClassicHelper.buildSectorTrailer(derivedKey, standard = true, userByte = pendingAgeByte))
-
-                val counterData = mifare.readBlock(sectorStart + MifareClassicHelper.DATA_BLOCK_OFFSET)
-                val oldBalance = MifareClassicHelper.readValueBlock(counterData) ?: 0
-
-                val zeroValueBlock = MifareClassicHelper.makeValueBlock(0)
-                val nowSecs = System.currentTimeMillis() / 1000L
-                val freshTxBlock = TransactionBlock(nowSecs)
-                val (txB1, txB2) = freshTxBlock.toBytes(zeroValueBlock, uid, psk)
-
-                mifare.writeBlock(sectorStart + MifareClassicHelper.DATA_BLOCK_OFFSET, zeroValueBlock)
-                mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_1_OFFSET, txB1)
-                mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_2_OFFSET, txB2)
-
-                // Write the target access bits (restricted or standard)
-                mifare.writeBlock(trailerIdx, MifareClassicHelper.buildSectorTrailer(derivedKey, standard = !pendingSingleRecharge, userByte = pendingAgeByte))
-
-                currentBalance = 0
-                setBalanceDisplay(0)
-                tvBalanceBefore.text = formatBalanceDisplay(oldBalance)
-                tvBalanceAfter.text = formatBalanceDisplay(0)
-                layoutBeforeAfter.visibility = View.VISIBLE
-                showTransactionHistory(freshTxBlock)
-                showDebugChecksums(zeroValueBlock, txB1, txB2, uid, psk)
-                tvStatus.text = getString(R.string.format_reset_success)
-                txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = uid.toHex())
-                flashBackground(R.color.success_purple_dark)
-                playSuccessBeep()
-                scheduleAutoReset()
-                return
-            }
-
-            // Search for a standard key that grants access to the sector
-            var foundKey: ByteArray? = null
-            var usedKeyA = true
-
-            for (key in MifareClassicHelper.STANDARD_KEYS) {
-                if (mifare.authenticateSectorWithKeyA(sector, key)) {
-                    foundKey = key
-                    usedKeyA = true
-                    break
+            card.connect()
+            when (val result = card.formatCard(singleRecharge = pendingSingleRecharge, ageByte = pendingAgeByte)) {
+                is BaseCoinCard.FormatResult.Reformatted -> {
+                    currentBalance = 0
+                    setBalanceDisplay(0)
+                    tvBalanceBefore.text = formatBalanceDisplay(result.oldBalance)
+                    tvBalanceAfter.text = formatBalanceDisplay(0)
+                    layoutBeforeAfter.visibility = View.VISIBLE
+                    showTransactionHistory(result.txBlock)
+                    showDebugChecksums(card, result.counterData, result.txB1, result.txB2)
+                    tvStatus.text = getString(R.string.format_reset_success)
+                    txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = card.uid.toHex())
+                    flashBackground(R.color.success_purple_dark)
+                    playSuccessBeep()
+                    scheduleAutoReset()
                 }
-                if (mifare.authenticateSectorWithKeyB(sector, key)) {
-                    foundKey = key
-                    usedKeyA = false
-                    break
+                is BaseCoinCard.FormatResult.NewlyFormatted -> {
+                    currentBalance = 0
+                    setBalanceDisplay(0)
+                    layoutBeforeAfter.visibility = View.GONE
+                    showTransactionHistory(result.txBlock)
+                    showDebugChecksums(card, result.counterData, result.txB1, result.txB2)
+                    tvStatus.text = getString(R.string.format_success)
+                    txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = card.uid.toHex())
+                    flashBackground(R.color.success_purple_dark)
+                    playSuccessBeep()
+                    scheduleAutoReset()
+
+                    if (AdvancedSettingsActivity.isDebugEnabled(this) && result.foundKeyType != null) {
+                        val debugDialog = AlertDialog.Builder(this)
+                            .setTitle(R.string.format_success)
+                            .setMessage(getString(R.string.format_success_message, result.foundKeyType, result.foundKeyHex, result.newKeyHex))
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show()
+                        applyThemeToDialog(debugDialog)
+                    }
+                }
+                is BaseCoinCard.FormatResult.NoKeyFound -> {
+                    tvStatus.text = getString(R.string.format_no_key_found)
+                    flashBackground(R.color.error_orange)
+                    playNfcErrorBeep()
+                    scheduleAutoReset()
+                }
+                is BaseCoinCard.FormatResult.AuthFailed -> {
+                    tvStatus.text = getString(R.string.auth_failed)
+                    flashBackground(R.color.error_orange)
+                    playNfcErrorBeep()
+                    scheduleAutoReset()
                 }
             }
-
-            if (foundKey == null) {
-                tvStatus.text = getString(R.string.format_no_key_found)
-                flashBackground(R.color.error_orange)
-                playNfcErrorBeep()
-                scheduleAutoReset()
-                return
-            }
-
-            // Reautenticar con la clave encontrada
-            val reAuthed = if (usedKeyA) {
-                mifare.authenticateSectorWithKeyA(sector, foundKey)
-            } else {
-                mifare.authenticateSectorWithKeyB(sector, foundKey)
-            }
-            if (!reAuthed) {
-                tvStatus.text = getString(R.string.auth_failed)
-                flashBackground(R.color.error_orange)
-                playNfcErrorBeep()
-                scheduleAutoReset()
-                return
-            }
-
-            // Initialize counter as a Value Block (value=0) and transaction blocks
-            val sectorStart = mifare.sectorToBlock(sector)
-            val blocksInSector = mifare.getBlockCountInSector(sector)
-            val zeroValueBlock = MifareClassicHelper.makeValueBlock(0)
-            val nowSecs = System.currentTimeMillis() / 1000L
-            val freshTxBlock = TransactionBlock(nowSecs)
-            val (txB1, txB2) = freshTxBlock.toBytes(zeroValueBlock, uid, psk)
-
-            mifare.writeBlock(sectorStart + MifareClassicHelper.DATA_BLOCK_OFFSET, zeroValueBlock)
-            mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_1_OFFSET, txB1)
-            mifare.writeBlock(sectorStart + MifareClassicHelper.TX_BLOCK_2_OFFSET, txB2)
-
-            // Write sector trailer with the derived key and the chosen access bits.
-            // Single-recharge cards get restricted bits immediately so block 0 is locked.
-            // [Key A (6 bytes)] [Access bits (4 bytes)] [Key B (6 bytes)]
-            mifare.writeBlock(
-                sectorStart + blocksInSector - 1,
-                MifareClassicHelper.buildSectorTrailer(derivedKey, standard = !pendingSingleRecharge, userByte = pendingAgeByte)
-            )
-
-            val foundKeyHex = foundKey.toHex()
-            val newKeyHex = derivedKey.toHex()
-            val keyType = if (usedKeyA) "A" else "B"
-
-            currentBalance = 0
-            setBalanceDisplay(0)
-            layoutBeforeAfter.visibility = View.GONE
-            showTransactionHistory(freshTxBlock)
-            showDebugChecksums(zeroValueBlock, txB1, txB2, uid, psk)
-            tvStatus.text = getString(R.string.format_success)
-            txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = uid.toHex())
-            flashBackground(R.color.success_purple_dark)
-            playSuccessBeep()
-            scheduleAutoReset()
-
-            if (AdvancedSettingsActivity.isDebugEnabled(this)) {
-                val debugDialog = AlertDialog.Builder(this)
-                    .setTitle(R.string.format_success)
-                    .setMessage(getString(R.string.format_success_message, keyType, foundKeyHex, newKeyHex))
-                    .setPositiveButton(android.R.string.ok, null)
-                    .show()
-                applyThemeToDialog(debugDialog)
-            }
-
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
             flashBackground(R.color.error_orange)
             playNfcErrorBeep()
             scheduleAutoReset()
         } finally {
-            runCatching { mifare.close() }
+            card.close()
         }
     }
 
     // -------------------------------------------------------------------------
-    // Key derivation (delegates to MifareClassicHelper)
-    // -------------------------------------------------------------------------
-
-    private fun deriveCardKey(uid: ByteArray): ByteArray {
-        val psk = AdvancedSettingsActivity.getStaticKey(this)
-        val useDynamic = AdvancedSettingsActivity.isDynamicKeyEnabled(this)
-        return MifareClassicHelper.deriveCardKey(uid, psk, useDynamic)
-    }
-
-    // -------------------------------------------------------------------------
-    // Reinicio de tarjeta: pone datos a 0x00 y restaura clave de fábrica FF:FF
+    // Reset card
     // -------------------------------------------------------------------------
 
     private fun resetCard(tag: Tag) {
-        val sector = AdvancedSettingsActivity.getTargetSector(this)
-        val uid = tag.id
-        val derivedKey = deriveCardKey(uid)
-
-        val mifare = MifareClassic.get(tag) ?: run {
+        val card = createCard(tag) ?: run {
             tvStatus.text = getString(R.string.error_get_mifare)
             flashBackground(R.color.error_orange)
             playNfcErrorBeep()
             scheduleAutoReset()
             return
         }
-
         try {
-            mifare.connect()
-
-            // Intentar con clave derivada primero, luego con claves estándar
-            var authenticated = mifare.authenticateSectorWithKeyA(sector, derivedKey)
-            if (!authenticated) {
-                for (key in MifareClassicHelper.STANDARD_KEYS) {
-                    if (mifare.authenticateSectorWithKeyA(sector, key) ||
-                        mifare.authenticateSectorWithKeyB(sector, key)) {
-                        authenticated = true
-                        break
-                    }
-                }
-            }
-
-            if (!authenticated) {
+            card.connect()
+            if (!card.resetCard()) {
                 tvStatus.text = getString(R.string.reset_card_no_key)
                 flashBackground(R.color.error_orange)
                 playNfcErrorBeep()
@@ -1288,39 +1099,33 @@ class MainActivity : AppCompatActivity() {
                 return
             }
 
-            // Limpiar bloques de datos del sector (poner a 0x00)
-            val sectorStart = mifare.sectorToBlock(sector)
-            val blocksInSector = mifare.getBlockCountInSector(sector)
-            val emptyBlock = ByteArray(MifareClassic.BLOCK_SIZE)
-            for (i in 0 until blocksInSector - 1) {
-                mifare.writeBlock(sectorStart + i, emptyBlock)
-            }
-
-            // Escribir trailer con clave de fábrica FF:FF y bits de acceso estándar
-            val trailer = MifareClassicHelper.buildSectorTrailer(
-                MifareClassicHelper.FACTORY_KEY,
-                standard = true,
-                userByte = MifareClassicHelper.DEFAULT_USER_BYTE
-            )
-            mifare.writeBlock(sectorStart + blocksInSector - 1, trailer)
-
             currentBalance = -1
             resetBalanceToInitial()
             layoutBeforeAfter.visibility = View.GONE
             tvStatus.text = getString(R.string.reset_card_success)
-            txDb.insertTransaction(TransactionDatabase.TYPE_RESET, cardUid = uid.toHex())
+            txDb.insertTransaction(TransactionDatabase.TYPE_RESET, cardUid = card.uid.toHex())
             flashBackground(R.color.success_purple_dark)
             playSuccessBeep()
             scheduleAutoReset()
-
         } catch (e: Exception) {
             tvStatus.text = getString(R.string.error_writing, e.message)
             flashBackground(R.color.error_orange)
             playNfcErrorBeep()
             scheduleAutoReset()
         } finally {
-            runCatching { mifare.close() }
+            card.close()
         }
+    }
+
+    /**
+     * Creates a [BaseCoinCard] for the given [tag] using the current app settings.
+     * Returns null if the tag technology is not supported or cannot be obtained.
+     */
+    private fun createCard(tag: Tag): BaseCoinCard? {
+        val sector = AdvancedSettingsActivity.getTargetSector(this)
+        val psk = AdvancedSettingsActivity.getStaticKey(this)
+        val useDynamic = AdvancedSettingsActivity.isDynamicKeyEnabled(this)
+        return BaseCoinCard.fromTag(tag, sector, psk, useDynamic)
     }
 
     // -------------------------------------------------------------------------
@@ -1747,17 +1552,16 @@ class MainActivity : AppCompatActivity() {
      * transaction history section.
      */
     private fun showDebugChecksums(
+        card: BaseCoinCard,
         counterData: ByteArray,
         txBlock1: ByteArray,
-        txBlock2: ByteArray,
-        uid: ByteArray,
-        psk: String
+        txBlock2: ByteArray
     ) {
         if (!AdvancedSettingsActivity.isDebugEnabled(this)) {
             tvTxDebug.visibility = View.GONE
             return
         }
-        val (stored, computed) = TransactionBlock.extractChecksums(counterData, txBlock1, txBlock2, uid, psk)
+        val (stored, computed) = card.extractChecksums(counterData, txBlock1, txBlock2)
         tvTxDebug.text = getString(R.string.tx_debug_checksum, stored.toHex(), computed.toHex())
         layoutTransactionHistory.visibility = View.VISIBLE
         tvTxDebug.visibility = View.VISIBLE
