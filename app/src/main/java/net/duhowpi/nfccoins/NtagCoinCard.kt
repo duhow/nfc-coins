@@ -3,6 +3,10 @@ package net.duhowpi.nfccoins
 import android.nfc.Tag
 import android.nfc.tech.NfcA
 import java.io.IOException
+import java.security.MessageDigest
+import javax.crypto.Cipher
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.SecretKeySpec
 
 /**
  * [BaseCoinCard] implementation for NTAG cards over [NfcA].
@@ -54,11 +58,13 @@ class NtagCoinCard(
 
     override fun readCardData(): ReadResult {
         ensureLayoutResolved()
-        val payload = readPayload44()
+        val rawPayload = readPayload44()
 
-        if (!payload.copyOfRange(0, MAGIC.size).contentEquals(MAGIC)) {
+        if (!rawPayload.copyOfRange(0, MAGIC.size).contentEquals(MAGIC)) {
             return ReadResult.InvalidData("Unformatted or invalid NTAG payload")
         }
+
+        val payload = decryptStoredPayload(rawPayload)
 
         val meta = decodeMeta(payload.copyOfRange(OFFSET_META, OFFSET_BALANCE))
         val balance = decodeBalance(payload.copyOfRange(OFFSET_BALANCE, OFFSET_TX))
@@ -108,14 +114,20 @@ class NtagCoinCard(
     override fun formatCard(formatOptions: CardData): FormatResult {
         ensureLayoutResolved()
 
-        val existing = runCatching { readPayload44() }.getOrNull()
-        val hadMagic = existing
+        val existingRaw = runCatching { readPayload44() }.getOrNull()
+        val hadMagic = existingRaw
             ?.copyOfRange(0, MAGIC.size)
             ?.contentEquals(MAGIC)
             ?: false
 
-        val oldBalance = if (hadMagic) {
-            decodeBalance(existing!!.copyOfRange(OFFSET_BALANCE, OFFSET_TX))
+        val existing = if (hadMagic && existingRaw != null) {
+            runCatching { decryptStoredPayload(existingRaw) }.getOrNull()
+        } else {
+            null
+        }
+
+        val oldBalance = if (hadMagic && existing != null) {
+            decodeBalance(existing.copyOfRange(OFFSET_BALANCE, OFFSET_TX))
         } else {
             0
         }
@@ -211,19 +223,56 @@ class NtagCoinCard(
     private fun writeState(balance: Int, txData: ByteArray, meta: HeaderMeta) {
         require(txData.size == TX_WITH_CHECKSUM_BYTES) { "Invalid tx payload size" }
 
-        val payload = ByteArray(TOTAL_BYTES)
-        System.arraycopy(MAGIC, 0, payload, OFFSET_MAGIC, MAGIC.size)
+        val plainPayload = ByteArray(TOTAL_BYTES)
+        System.arraycopy(MAGIC, 0, plainPayload, OFFSET_MAGIC, MAGIC.size)
 
         val metaBytes = encodeMeta(meta)
-        System.arraycopy(metaBytes, 0, payload, OFFSET_META, metaBytes.size)
+        System.arraycopy(metaBytes, 0, plainPayload, OFFSET_META, metaBytes.size)
 
         val balanceBytes = encodeBalanceCompact(balance)
-        System.arraycopy(balanceBytes, 0, payload, OFFSET_BALANCE, balanceBytes.size)
+        System.arraycopy(balanceBytes, 0, plainPayload, OFFSET_BALANCE, balanceBytes.size)
 
-        System.arraycopy(txData, 0, payload, OFFSET_TX, txData.size)
+        System.arraycopy(txData, 0, plainPayload, OFFSET_TX, txData.size)
         // Last 2 bytes are left as 0x00 padding.
 
+        val payload = encryptStoredPayload(plainPayload)
         writePages(dataStartPage, payload)
+    }
+
+    private fun encryptStoredPayload(plainPayload: ByteArray): ByteArray {
+        require(plainPayload.size == TOTAL_BYTES)
+        val encrypted = plainPayload.copyOf()
+        val body = plainPayload.copyOfRange(OFFSET_META, TOTAL_BYTES)
+        val encryptedBody = cryptBody(body)
+        System.arraycopy(encryptedBody, 0, encrypted, OFFSET_META, encryptedBody.size)
+        return encrypted
+    }
+
+    private fun decryptStoredPayload(rawPayload: ByteArray): ByteArray {
+        require(rawPayload.size == TOTAL_BYTES)
+        val decrypted = rawPayload.copyOf()
+        val body = rawPayload.copyOfRange(OFFSET_META, TOTAL_BYTES)
+        val decryptedBody = cryptBody(body)
+        System.arraycopy(decryptedBody, 0, decrypted, OFFSET_META, decryptedBody.size)
+        return decrypted
+    }
+
+    private fun cryptBody(data: ByteArray): ByteArray {
+        val cipher = Cipher.getInstance(CIPHER_TRANSFORMATION)
+        val key = SecretKeySpec(deriveBytes(KEY_DERIVE_LABEL, AES_KEY_SIZE_BYTES), "AES")
+        val iv = IvParameterSpec(deriveBytes(IV_DERIVE_LABEL, AES_BLOCK_SIZE_BYTES))
+        cipher.init(Cipher.ENCRYPT_MODE, key, iv)
+        return cipher.doFinal(data)
+    }
+
+    private fun deriveBytes(label: String, length: Int): ByteArray {
+        val digest = MessageDigest.getInstance("SHA-256")
+        digest.update(label.toByteArray(Charsets.US_ASCII))
+        digest.update(0x00)
+        digest.update(psk.toByteArray(Charsets.UTF_8))
+        digest.update(0x00)
+        digest.update(uid)
+        return digest.digest().copyOf(length)
     }
 
     private fun readPages(startPage: Int, pageCount: Int): ByteArray {
@@ -389,6 +438,12 @@ class NtagCoinCard(
 
         private const val CURRENT_VERSION = 0x1
         private const val FLAG_SINGLE_RECHARGE = 0x1
+
+        private const val CIPHER_TRANSFORMATION = "AES/CTR/NoPadding"
+        private const val AES_KEY_SIZE_BYTES = 16
+        private const val AES_BLOCK_SIZE_BYTES = 16
+        private const val KEY_DERIVE_LABEL = "NTAG-DATA-KEY"
+        private const val IV_DERIVE_LABEL = "NTAG-DATA-IV"
 
         private const val CMD_READ: Byte = 0x30
         private const val CMD_FAST_READ: Byte = 0x3A
