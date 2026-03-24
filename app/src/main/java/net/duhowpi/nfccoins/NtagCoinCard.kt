@@ -270,11 +270,25 @@ class NtagCoinCard(
                 data[offset + 2],
                 data[offset + 3]
             )
-            transceive(cmd)
+            val response = transceive(cmd)
+            validateWriteAck(response, page)
             page++
         }
     }
 
+    /**
+     * Validate that an NTAG/Type 2 WRITE command returned a proper ACK frame.
+     *
+     * According to the NTAG/Type 2 protocol, successful writes return a single-byte
+     * ACK frame (0x0A). Any other response length or value indicates a NAK or
+     * malformed response and should be treated as a write failure.
+     */
+    private fun validateWriteAck(response: ByteArray, page: Int) {
+        val isAck = response.size == 1 && response[0] == 0x0A.toByte()
+        require(isAck) {
+            "NTAG write to page $page failed: NAK or unexpected response (${response.joinToString { String.format(\"0x%02X\", it) }})"
+        }
+    }
     private fun transceive(command: ByteArray): ByteArray = nfcA.transceive(command)
 
     private fun isFastReadSupported(): Boolean =
