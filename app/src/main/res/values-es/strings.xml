@@ -101,13 +101,15 @@
     <string name="ops_weekly">Semanal</string>
     <string name="ops_chart_label">Resumen de saldo</string>
     <string name="ops_no_data">Sin datos para el período seleccionado</string>
-    <string name="ops_no_button_data">Aún no hay usos de botones registrados</string>
+    <string name="ops_no_button_data">Aún no hay usos de precios registrados</string>
     <string name="ops_legend_added">Añadido</string>
     <string name="ops_legend_subtracted">Descontado</string>
-    <string name="ops_button_usage">Uso de botones (últimos 7 días)</string>
-    <string name="ops_col_button">Botón</string>
+    <string name="ops_price_usage">Uso por precio (últimos 7 días)</string>
+    <string name="ops_col_price">Precio</string>
     <string name="ops_col_last_hour">Última hora</string>
     <string name="ops_col_last_day">Últimas 24 h</string>
     <string name="ops_col_last_week">Últimos 7 días</string>
-    <string name="ops_now">Ahora</string>
+    <string name="ops_nav_prev">Anterior</string>
+    <string name="ops_nav_next">Siguiente</string>
+    <string name="ops_summary">+%1$d añadido · -%2$d descontado · %3$d operaciones</string>
 </resources>

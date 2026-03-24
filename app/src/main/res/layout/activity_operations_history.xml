@@ -11,6 +11,42 @@
         android:orientation="vertical"
         android:padding="16dp">
 
+        <!-- Day / week navigator row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="8dp">
+
+            <ImageButton
+                android:id="@+id/btnNavPrev"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@android:drawable/ic_media_previous"
+                android:contentDescription="@string/ops_nav_prev"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+
+            <TextView
+                android:id="@+id/tvNavLabel"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <ImageButton
+                android:id="@+id/btnNavNext"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@android:drawable/ic_media_next"
+                android:contentDescription="@string/ops_nav_next"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:alpha="0.3" />
+
+        </LinearLayout>
+
         <!-- Period toggle -->
         <com.google.android.material.button.MaterialButtonToggleGroup
             android:id="@+id/togglePeriod"
@@ -71,7 +107,7 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:layout_gravity="center_horizontal"
-            android:layout_marginBottom="16dp">
+            android:layout_marginBottom="8dp">
 
             <View
                 android:layout_width="16dp"
@@ -102,6 +138,17 @@
 
         </LinearLayout>
 
+        <!-- Period summary totals -->
+        <TextView
+            android:id="@+id/tvSummary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textSize="13sp"
+            android:layout_marginBottom="16dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp" />
+
         <!-- Divider -->
         <View
             android:layout_width="match_parent"
@@ -110,16 +157,16 @@
             android:alpha="0.3"
             android:layout_marginBottom="16dp" />
 
-        <!-- Button usage table label -->
+        <!-- Price usage table label -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/ops_button_usage"
+            android:text="@string/ops_price_usage"
             android:textStyle="bold"
             android:textSize="16sp"
             android:layout_marginBottom="8dp" />
 
-        <!-- Button stats table -->
+        <!-- Price stats table -->
         <TableLayout
             android:id="@+id/tableButtonStats"
             android:layout_width="match_parent"
@@ -136,7 +183,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/ops_col_button"
+                    android:text="@string/ops_col_price"
                     android:textStyle="bold"
                     android:padding="8dp"
                     android:gravity="center" />

@@ -8,9 +8,14 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
-data class HourlyStats(val hourOffset: Int, val added: Int, val subtracted: Int)
+/** Stats for one clock hour (0–23) within a specific calendar day. */
+data class HourlyStats(val hour: Int, val added: Int, val subtracted: Int)
 
-data class DailyStats(val dayOffset: Int, val dayLabel: String, val added: Int, val subtracted: Int)
+/** Stats for one calendar day inside a specific week (Mon=0 … Sun=6). */
+data class DailyStats(val weekdayIndex: Int, val dayLabel: String, val added: Int, val subtracted: Int)
+
+/** Aggregated totals for a period. */
+data class PeriodSummary(val added: Int, val subtracted: Int, val totalOps: Int)
 
 data class ButtonStats(val amount: Int, val countLastHour: Int, val countLastDay: Int, val countLastWeek: Int)
 
@@ -82,17 +87,23 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
     }
 
     /**
-     * Returns hourly aggregated stats for the past [hours] hours (oldest first).
-     * hourOffset=0 is the current hour, hourOffset=(hours-1) is the oldest hour.
+     * Returns 24 hourly buckets (hour 0 = midnight … hour 23 = 11 pm) for the calendar day
+     * that is [dayOffset] days before today (dayOffset=0 → today, 1 → yesterday, …).
      */
-    fun getHourlyStats(hours: Int = 24): List<HourlyStats> {
-        val now = System.currentTimeMillis()
+    fun getHourlyStats(dayOffset: Int = 0): List<HourlyStats> {
+        val cal = Calendar.getInstance()
+        cal.add(Calendar.DAY_OF_YEAR, -dayOffset)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val dayStart = cal.timeInMillis
+
         val result = mutableListOf<HourlyStats>()
         val db = readableDatabase
-
-        for (i in (hours - 1) downTo 0) {
-            val end = now - i * 3_600_000L
-            val start = end - 3_600_000L
+        for (hour in 0..23) {
+            val start = dayStart + hour * 3_600_000L
+            val end = start + 3_600_000L
             val cursor = db.rawQuery(
                 """
                 SELECT
@@ -104,31 +115,37 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
                 arrayOf(start.toString(), end.toString())
             )
             cursor.use {
-                if (it.moveToFirst()) {
-                    result.add(HourlyStats(i, it.getInt(0), it.getInt(1)))
-                }
+                if (it.moveToFirst()) result.add(HourlyStats(hour, it.getInt(0), it.getInt(1)))
             }
         }
         return result
     }
 
     /**
-     * Returns daily aggregated stats for the past [days] days (oldest first).
-     * dayOffset=0 is today, dayOffset=(days-1) is the oldest day.
-     * Day labels are locale-aware (e.g. "Mon", "Lun" in Spanish).
+     * Returns 7 daily buckets Mon–Sun for the ISO week that is [weekOffset] weeks before the
+     * current one (weekOffset=0 → this week, 1 → last week, …).
+     * Day labels are locale-aware.
      */
-    fun getDailyStats(days: Int = 7, locale: Locale = Locale.getDefault()): List<DailyStats> {
+    fun getDailyStats(weekOffset: Int = 0, locale: Locale = Locale.getDefault()): List<DailyStats> {
         val dayFormat = SimpleDateFormat("EEE", locale)
+
+        // Find the Monday of the target week.
+        val cal = Calendar.getInstance().apply {
+            // Move to the requested week.
+            add(Calendar.WEEK_OF_YEAR, -weekOffset)
+            // Normalise to Monday regardless of the device's firstDayOfWeek setting.
+            val dow = get(Calendar.DAY_OF_WEEK)   // 1=Sun … 7=Sat
+            val daysFromMon = (dow + 5) % 7        // 0=Mon … 6=Sun
+            add(Calendar.DAY_OF_YEAR, -daysFromMon)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+
         val result = mutableListOf<DailyStats>()
         val db = readableDatabase
-
-        for (i in (days - 1) downTo 0) {
-            val cal = Calendar.getInstance()
-            cal.add(Calendar.DAY_OF_YEAR, -i)
-            cal.set(Calendar.HOUR_OF_DAY, 0)
-            cal.set(Calendar.MINUTE, 0)
-            cal.set(Calendar.SECOND, 0)
-            cal.set(Calendar.MILLISECOND, 0)
+        for (idx in 0..6) {
             val start = cal.timeInMillis
             val dayLabel = dayFormat.format(cal.time)
             cal.add(Calendar.DAY_OF_YEAR, 1)
@@ -145,12 +162,64 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
                 arrayOf(start.toString(), end.toString())
             )
             cursor.use {
-                if (it.moveToFirst()) {
-                    result.add(DailyStats(i, dayLabel, it.getInt(0), it.getInt(1)))
-                }
+                if (it.moveToFirst()) result.add(DailyStats(idx, dayLabel, it.getInt(0), it.getInt(1)))
             }
         }
         return result
+    }
+
+    /**
+     * Returns summary totals (added, subtracted, total operations) for a full calendar day.
+     * dayOffset=0 → today, 1 → yesterday, etc.
+     */
+    fun getDaySummary(dayOffset: Int = 0): PeriodSummary {
+        val cal = Calendar.getInstance()
+        cal.add(Calendar.DAY_OF_YEAR, -dayOffset)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val start = cal.timeInMillis
+        val end = start + 86_400_000L
+        return querySummary(start, end)
+    }
+
+    /**
+     * Returns summary totals for the ISO week that is [weekOffset] weeks before the current one.
+     */
+    fun getWeekSummary(weekOffset: Int = 0): PeriodSummary {
+        val cal = Calendar.getInstance().apply {
+            add(Calendar.WEEK_OF_YEAR, -weekOffset)
+            val dow = get(Calendar.DAY_OF_WEEK)
+            val daysFromMon = (dow + 5) % 7
+            add(Calendar.DAY_OF_YEAR, -daysFromMon)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val start = cal.timeInMillis
+        val end = start + 7 * 86_400_000L
+        return querySummary(start, end)
+    }
+
+    private fun querySummary(start: Long, end: Long): PeriodSummary {
+        val db = readableDatabase
+        val cursor = db.rawQuery(
+            """
+            SELECT
+                COALESCE(SUM(CASE WHEN $COL_TYPE = '$TYPE_ADD' THEN $COL_AMOUNT ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN $COL_TYPE = '$TYPE_SUBTRACT' THEN ABS($COL_AMOUNT) ELSE 0 END), 0),
+                COUNT(*)
+            FROM $TABLE
+            WHERE $COL_TIMESTAMP >= ? AND $COL_TIMESTAMP < ?
+            """.trimIndent(),
+            arrayOf(start.toString(), end.toString())
+        )
+        return cursor.use {
+            if (it.moveToFirst()) PeriodSummary(it.getInt(0), it.getInt(1), it.getInt(2))
+            else PeriodSummary(0, 0, 0)
+        }
     }
 
     /**
