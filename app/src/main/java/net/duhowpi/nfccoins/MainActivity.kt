@@ -223,6 +223,12 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
+    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        val sellerMode = AdvancedSettingsActivity.isSellerModeEnabled(this)
+        menu.findItem(R.id.action_management)?.isVisible = !sellerMode
+        return super.onPrepareOptionsMenu(menu)
+    }
+
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_history -> {
@@ -263,6 +269,7 @@ class MainActivity : AppCompatActivity() {
             window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
         applyThemeColor()
+        invalidateOptionsMenu()
     }
 
     override fun onPause() {

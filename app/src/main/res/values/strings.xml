@@ -82,6 +82,7 @@
     <string name="setting_dynamic_key">Enable dynamic key (mix UID with static key)</string>
     <string name="setting_flash_enabled">Enable background color change</string>
     <string name="setting_verify_integrity">Verify card integrity</string>
+    <string name="setting_seller_mode">Seller mode</string>
     <string name="setting_debug_mode">Debug mode</string>
     <string name="setting_keep_screen_on">Keep screen on</string>
     <string name="setting_sound_enabled">Enable sound</string>
