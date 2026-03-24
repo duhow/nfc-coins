@@ -151,6 +151,15 @@
             android:checked="true"
             android:layout_marginBottom="8dp" />
 
+        <!-- Seller mode checkbox -->
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/cbSellerMode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/setting_seller_mode"
+            android:checked="false"
+            android:layout_marginBottom="8dp" />
+
         <!-- Debug mode checkbox -->
         <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/cbDebugEnabled"

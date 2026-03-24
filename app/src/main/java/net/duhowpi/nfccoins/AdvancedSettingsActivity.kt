@@ -36,6 +36,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         const val KEY_FLASH_ENABLED = "flash_enabled"
         const val KEY_VERIFY_INTEGRITY = "verify_integrity"
         const val KEY_DEBUG_ENABLED = "debug_enabled"
+        const val KEY_SELLER_MODE = "seller_mode"
         const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
         const val KEY_SOUND_ENABLED = "sound_enabled"
         const val KEY_VIBRATION_ENABLED = "vibration_enabled"
@@ -109,6 +110,11 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         fun isDebugEnabled(context: Context): Boolean {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             return prefs.getBoolean(KEY_DEBUG_ENABLED, false)
+        }
+
+        fun isSellerModeEnabled(context: Context): Boolean {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            return prefs.getBoolean(KEY_SELLER_MODE, false)
         }
 
         fun isKeepScreenOnEnabled(context: Context): Boolean {
@@ -195,6 +201,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private lateinit var cbFlashEnabled: MaterialCheckBox
     private lateinit var cbVerifyIntegrity: MaterialCheckBox
     private lateinit var cbDebugEnabled: MaterialCheckBox
+    private lateinit var cbSellerMode: MaterialCheckBox
     private lateinit var cbKeepScreenOn: MaterialCheckBox
     private lateinit var cbSoundEnabled: MaterialCheckBox
     private lateinit var cbVibrationEnabled: MaterialCheckBox
@@ -232,6 +239,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         cbFlashEnabled         = findViewById(R.id.cbFlashEnabled)
         cbVerifyIntegrity      = findViewById(R.id.cbVerifyIntegrity)
         cbDebugEnabled         = findViewById(R.id.cbDebugEnabled)
+        cbSellerMode           = findViewById(R.id.cbSellerMode)
         cbKeepScreenOn         = findViewById(R.id.cbKeepScreenOn)
         cbSoundEnabled         = findViewById(R.id.cbSoundEnabled)
         cbVibrationEnabled     = findViewById(R.id.cbVibrationEnabled)
@@ -286,7 +294,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             intArrayOf(color, Color.GRAY)
         )
         for (cb in listOf(cbDynamicKey, cbFlashEnabled, cbVerifyIntegrity,
-                          cbDebugEnabled, cbKeepScreenOn, cbSoundEnabled, cbVibrationEnabled,
+                          cbSellerMode, cbDebugEnabled, cbKeepScreenOn, cbSoundEnabled, cbVibrationEnabled,
                           cbDecimalMode)) {
             CompoundButtonCompat.setButtonTintList(cb, checkboxTint)
         }
@@ -317,6 +325,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         cbDynamicKey.isChecked = isDynamicKeyEnabled(this)
         cbFlashEnabled.isChecked = isFlashEnabled(this)
         cbVerifyIntegrity.isChecked = isVerifyIntegrityEnabled(this)
+        cbSellerMode.isChecked = isSellerModeEnabled(this)
         cbDebugEnabled.isChecked = isDebugEnabled(this)
         cbKeepScreenOn.isChecked = isKeepScreenOnEnabled(this)
         cbSoundEnabled.isChecked = isSoundEnabled(this)
@@ -495,6 +504,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         val dynamicKeyEnabled = cbDynamicKey.isChecked
         val flashEnabled = cbFlashEnabled.isChecked
         val verifyIntegrity = cbVerifyIntegrity.isChecked
+        val sellerMode = cbSellerMode.isChecked
         val debugEnabled = cbDebugEnabled.isChecked
         val keepScreenOn = cbKeepScreenOn.isChecked
         val soundEnabled = cbSoundEnabled.isChecked
@@ -509,6 +519,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             .putBoolean(KEY_DYNAMIC_KEY_ENABLED, dynamicKeyEnabled)
             .putBoolean(KEY_FLASH_ENABLED, flashEnabled)
             .putBoolean(KEY_VERIFY_INTEGRITY, verifyIntegrity)
+            .putBoolean(KEY_SELLER_MODE, sellerMode)
             .putBoolean(KEY_DEBUG_ENABLED, debugEnabled)
             .putBoolean(KEY_KEEP_SCREEN_ON, keepScreenOn)
             .putBoolean(KEY_SOUND_ENABLED, soundEnabled)
