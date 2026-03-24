@@ -39,6 +39,14 @@ object MifareClassicHelper {
     // -------------------------------------------------------------------------
 
     const val DEFAULT_USER_BYTE = 0x69
+    const val USER_BIRTH_BASE_YEAR = 1900
+
+    /** Encodes birth year to trailer GPB user-byte domain (0..255). */
+    fun toUserBirthByte(userBirthYear: Int): Int =
+        (userBirthYear - USER_BIRTH_BASE_YEAR).coerceIn(0, 255)
+
+    /** Decodes trailer GPB user byte to a numeric birth year. */
+    fun toUserBirthYear(userByte: Int): Int = USER_BIRTH_BASE_YEAR + (userByte and 0xFF)
 
     // -------------------------------------------------------------------------
     // Key helpers
@@ -230,9 +238,12 @@ object MifareClassicHelper {
     }
 
     /**
-     * Returns the age byte stored in the GPB position of the sector trailer.
+     * Returns the user birth year decoded from GPB (birthYear - 1900).
      */
-    fun getAgeByte(trailerData: ByteArray): Int = trailerData[KEY_LEN + 3].toInt() and 0xFF
+    fun getUserBirthYear(trailerData: ByteArray): Int {
+        val userByte = trailerData[KEY_LEN + 3].toInt() and 0xFF
+        return toUserBirthYear(userByte)
+    }
 
     /**
      * Checks whether the sector trailer has single-recharge restricted access bits.

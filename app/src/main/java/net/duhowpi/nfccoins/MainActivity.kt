@@ -92,7 +92,7 @@ class MainActivity : AppCompatActivity() {
 
     // Format card dialog options
     private var pendingSingleRecharge: Boolean = false
-    private var pendingAgeByte: Int = MifareClassicHelper.DEFAULT_USER_BYTE
+    private var pendingUserBirthYear: Int = MifareClassicHelper.toUserBirthYear(MifareClassicHelper.DEFAULT_USER_BYTE)
 
     private val handler = Handler(Looper.getMainLooper())
     private val autoResetRunnable = Runnable { resetToWaiting() }
@@ -308,23 +308,23 @@ class MainActivity : AppCompatActivity() {
                 }
                 is BaseCoinCard.ReadResult.Success -> {
                     val data = result.data
-                    val txBlock = TransactionBlock.fromBytes(data.transactions)
+                    val txBlock = data.transactions
                     currentBalance = data.balance
                     setBalanceDisplay(currentBalance)
-                    updateMinorIndicator(data.ageByte)
+                    updateMinorIndicator(data.userBirthYear)
                     layoutBeforeAfter.visibility = View.GONE
                     tvActualBalance.visibility = View.GONE
                     if (!card.isDataValid(data)) {
                         tvStatus.text = getString(R.string.card_tampered)
                         showTransactionHistory(txBlock)
-                        showDebugChecksums(card, data.counterData, data.transactions)
+                        showDebugChecksums(card, data.balance, data.transactionsData)
                         flashRedBackground()
                         playNfcErrorBeep()
                         scheduleAutoReset()
                         return
                     }
                     showTransactionHistory(txBlock)
-                    showDebugChecksums(card, data.counterData, data.transactions)
+                    showDebugChecksums(card, data.balance, data.transactionsData)
                     txDb.insertTransaction(TransactionDatabase.TYPE_READ, balanceBefore = currentBalance, cardUid = card.uid.toHex())
                     setScreenStatusSuccess(
                         message = getString(R.string.card_read_ok),
@@ -359,8 +359,6 @@ class MainActivity : AppCompatActivity() {
                 }
                 is BaseCoinCard.ReadResult.Success -> {
                     val data = result.data
-                    val txBlock = TransactionBlock.fromBytes(data.transactions)
-
                     // Anti-tampering: verify checksum before performing any operation.
                     if (!card.isDataValid(data)) {
                         val pw = pendingWrite
@@ -373,8 +371,8 @@ class MainActivity : AppCompatActivity() {
                             return
                         }
                         if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
-                            showTransactionHistory(txBlock)
-                            showDebugChecksums(card, data.counterData, data.transactions)
+                            showTransactionHistory(data.transactions)
+                            showDebugChecksums(card, data.balance, data.transactionsData)
                             tvStatus.text = getString(R.string.card_tampered)
                             flashRedBackground()
                             playNfcErrorBeep()
@@ -398,8 +396,8 @@ class MainActivity : AppCompatActivity() {
                             tvActualBalance.visibility = View.GONE
                         }
                         layoutBeforeAfter.visibility = View.GONE
-                        showTransactionHistory(txBlock)
-                        showDebugChecksums(card, data.counterData, data.transactions)
+                        showTransactionHistory(data.transactions)
+                        showDebugChecksums(card, data.balance, data.transactionsData)
                         tvStatus.text = getString(R.string.insufficient_balance)
                         flashRedBackground()
                         playInsufficientBalanceBeep()
@@ -421,13 +419,13 @@ class MainActivity : AppCompatActivity() {
 
                     currentBalance = newBalance
                     setBalanceDisplay(newBalance)
-                    updateMinorIndicator(data.ageByte)
+                    updateMinorIndicator(data.userBirthYear)
                     tvBalanceBefore.text = formatBalanceDisplay(balance)
                     tvBalanceAfter.text = formatBalanceDisplay(newBalance)
                     layoutBeforeAfter.visibility = View.VISIBLE
                     tvActualBalance.visibility = View.GONE
                     showTransactionHistory(updatedTxBlock)
-                    showDebugChecksums(card, newCounterBlock, newTransactions)
+                    showDebugChecksums(card, newBalance, newTransactions)
                     txDb.insertTransaction(
                         type = TransactionDatabase.TYPE_SUBTRACT,
                         amount = -amount,
@@ -826,7 +824,7 @@ class MainActivity : AppCompatActivity() {
             .setView(layout)
             .setPositiveButton(R.string.action_confirm) { _, _ ->
                 pendingSingleRecharge = checkboxSingleRecharge.isChecked
-                pendingAgeByte = parseAgeByte(editAge.text.toString())
+                pendingUserBirthYear = parseUserBirthYear(editAge.text.toString())
                 cancelAddBalance()
                 toggleGroup.clearChecked()
                 setPendingAction(PendingAction.FORMAT_CARD)
@@ -839,20 +837,21 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Interprets [input] as an age (1–99, resolved to currentYear − age) or birth year
-     * (1900–currentYear) and returns the value to store in the GPB user byte (birthYear − 1900).
-     * Returns [MifareClassicHelper.DEFAULT_USER_BYTE] when the input is empty or out of range.
+     * (1900–currentYear) and returns the birth year directly.
+     * Returns the default birth year when the input is empty or out of range.
      */
-    private fun parseAgeByte(input: String): Int {
+    private fun parseUserBirthYear(input: String): Int {
         val trimmed = input.trim()
-        if (trimmed.isEmpty()) return MifareClassicHelper.DEFAULT_USER_BYTE
-        val value = trimmed.toIntOrNull() ?: return MifareClassicHelper.DEFAULT_USER_BYTE
+        val defaultBirthYear = MifareClassicHelper.toUserBirthYear(MifareClassicHelper.DEFAULT_USER_BYTE)
+        if (trimmed.isEmpty()) return defaultBirthYear
+        val value = trimmed.toIntOrNull() ?: return defaultBirthYear
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
         val birthYear = when {
             value in 1..99 -> currentYear - value
             value in 1900..currentYear -> value
-            else -> return MifareClassicHelper.DEFAULT_USER_BYTE
+            else -> return defaultBirthYear
         }
-        return (birthYear - 1900).coerceIn(0, 255)
+        return birthYear
     }
 
     /**
@@ -908,7 +907,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 is BaseCoinCard.ReadResult.Success -> {
                     val data = result.data
-                    val txBlock = TransactionBlock.fromBytes(data.transactions)
+                    val txBlock = data.transactions
 
                     // Anti-tampering: verify checksum before performing any operation.
                     if (!card.isDataValid(data)) {
@@ -924,7 +923,7 @@ class MainActivity : AppCompatActivity() {
                         if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
                             tvStatus.text = getString(R.string.card_tampered)
                             showTransactionHistory(txBlock)
-                            showDebugChecksums(card, data.counterData, data.transactions)
+                            showDebugChecksums(card, data.balance, data.transactionsData)
                             flashRedBackground()
                             playNfcErrorBeep()
                             scheduleAutoReset()
@@ -963,12 +962,12 @@ class MainActivity : AppCompatActivity() {
 
                     currentBalance = newBalance
                     setBalanceDisplay(newBalance)
-                    updateMinorIndicator(data.ageByte)
+                    updateMinorIndicator(data.userBirthYear)
                     tvBalanceBefore.text = formatBalanceDisplay(oldBalance)
                     tvBalanceAfter.text = formatBalanceDisplay(newBalance)
                     layoutBeforeAfter.visibility = View.VISIBLE
                     showTransactionHistory(updatedTxBlock)
-                    showDebugChecksums(card, newCounterBlock, newTransactions)
+                    showDebugChecksums(card, newBalance, newTransactions)
                     txDb.insertTransaction(
                         type = TransactionDatabase.TYPE_ADD,
                         amount = pendingAddAmount,
@@ -996,15 +995,15 @@ class MainActivity : AppCompatActivity() {
     private fun formatCard(card: BaseCoinCard) {
         try {
             card.connect()
-            when (val result = card.formatCard(singleRecharge = pendingSingleRecharge, ageByte = pendingAgeByte)) {
+            when (val result = card.formatCard(singleRecharge = pendingSingleRecharge, userBirthYear = pendingUserBirthYear)) {
                 is BaseCoinCard.FormatResult.Reformatted -> {
                     currentBalance = 0
                     setBalanceDisplay(0)
                     tvBalanceBefore.text = formatBalanceDisplay(result.oldBalance)
                     tvBalanceAfter.text = formatBalanceDisplay(0)
                     layoutBeforeAfter.visibility = View.VISIBLE
-                    showTransactionHistory(result.txBlock)
-                    showDebugChecksums(card, result.counterData, result.txB1 + result.txB2)
+                    showTransactionHistory(TransactionBlock(result.formattedAtSeconds))
+                    showDebugChecksums(card, 0, result.transactionsData)
                     txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = card.uid.toHex())
                     setScreenStatusSuccess(
                         message = getString(R.string.format_reset_success),
@@ -1015,8 +1014,8 @@ class MainActivity : AppCompatActivity() {
                     currentBalance = 0
                     setBalanceDisplay(0)
                     layoutBeforeAfter.visibility = View.GONE
-                    showTransactionHistory(result.txBlock)
-                    showDebugChecksums(card, result.counterData, result.txB1 + result.txB2)
+                    showTransactionHistory(TransactionBlock(result.formattedAtSeconds))
+                    showDebugChecksums(card, 0, result.transactionsData)
                     txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = card.uid.toHex())
                     setScreenStatusSuccess(
                         message = getString(R.string.format_success),
@@ -1149,16 +1148,14 @@ class MainActivity : AppCompatActivity() {
     /**
      * Shows or hides the minor-age indicator icon next to the balance display.
      *
-     * [ageByte] is the GPB byte stored in the sector trailer, where the birth year is
-     * encoded as `birthYear - 1900`. The icon is shown when the computed age is below the
-     * configured legal adult age and the byte represents a plausible birth year.
+     * The icon is shown when the computed age from [userBirthYear] is below the
+     * configured legal adult age and the year is plausible.
      */
-    private fun updateMinorIndicator(ageByte: Int) {
+    private fun updateMinorIndicator(userBirthYear: Int) {
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
-        val birthYear = 1900 + ageByte
-        val age = currentYear - birthYear
+        val age = currentYear - userBirthYear
         val legalAge = AdvancedSettingsActivity.getLegalAge(this)
-        tvMinorIcon.visibility = if (age in 0 until legalAge) View.VISIBLE else View.GONE
+        tvMinorIcon.visibility = if (userBirthYear in 1900..currentYear && age in 0 until legalAge) View.VISIBLE else View.GONE
     }
 
     /**
@@ -1505,14 +1502,14 @@ class MainActivity : AppCompatActivity() {
      */
     private fun showDebugChecksums(
         card: BaseCoinCard,
-        counterData: ByteArray,
+        balance: Int,
         txData: ByteArray
     ) {
         if (!AdvancedSettingsActivity.isDebugEnabled(this)) {
             tvTxDebug.visibility = View.GONE
             return
         }
-        val (stored, computed) = card.extractChecksums(counterData, txData)
+        val (stored, computed) = card.extractChecksums(balance, txData)
         tvTxDebug.text = getString(R.string.tx_debug_checksum, stored.toHex(), computed.toHex())
         layoutTransactionHistory.visibility = View.VISIBLE
         tvTxDebug.visibility = View.VISIBLE

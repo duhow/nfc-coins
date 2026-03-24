@@ -39,18 +39,23 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
     /**
      * All coin-relevant data read from the card in a single tap.
      *
-     * [counterData] and [transactions] carry the raw bytes for
+     * [transactionsData] carries the raw bytes for
      * integrity verification ([isDataValid]) and debug display.
      */
     data class CardData(
         val balance: Int,
-        /** Raw transaction payload bytes (32 B contiguous). */
-        val transactions: ByteArray,
-        val ageByte: Int,
+        /** Parsed transaction history domain model. */
+        val transactions: TransactionBlock,
+        /** User birth year decoded from trailer GPB byte (e.g. 2001). */
+        val userBirthYear: Int,
         val isSingleRecharge: Boolean,
-        /** Raw counter / value block bytes as read from the card. */
-        val counterData: ByteArray
-    )
+        /** Raw transaction payload bytes (32 B contiguous). */
+        val transactionsData: ByteArray
+    ) {
+        /** Birth year encoded to GPB user byte range (0..255). */
+        val userBirthByte: Int
+            get() = MifareClassicHelper.toUserBirthByte(userBirthYear)
+    }
 
     /**
      * Snapshot of the intended card state taken just before a write.
@@ -85,18 +90,18 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
         /** Card was already formatted; balance has been reset to zero. */
         data class Reformatted(
             val oldBalance: Int,
-            val txBlock: TransactionBlock,
-            val counterData: ByteArray,
-            val txB1: ByteArray,
-            val txB2: ByteArray
+            /** Init timestamp written during format (Unix seconds). */
+            val formattedAtSeconds: Long,
+            /** Raw transaction payload bytes written to card (32 B contiguous). */
+            val transactionsData: ByteArray
         ) : FormatResult()
 
         /** Card formatted for the first time with a derived key. */
         data class NewlyFormatted(
-            val txBlock: TransactionBlock,
-            val counterData: ByteArray,
-            val txB1: ByteArray,
-            val txB2: ByteArray,
+            /** Init timestamp written during format (Unix seconds). */
+            val formattedAtSeconds: Long,
+            /** Raw transaction payload bytes written to card (32 B contiguous). */
+            val transactionsData: ByteArray,
             /** Key type used (e.g. "A"/"B"), or null when not applicable. */
             val foundKeyType: String? = null,
             /** Hex string of the standard key that was found. */
@@ -162,7 +167,7 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
      * Formats (or re-formats) the card, setting the balance to zero and
      * writing a fresh transaction block with a new timestamp.
      */
-    abstract fun formatCard(singleRecharge: Boolean, ageByte: Int): FormatResult
+    abstract fun formatCard(singleRecharge: Boolean, userBirthYear: Int): FormatResult
 
     /**
      * Resets the card to factory defaults (clears data, restores factory key).
@@ -180,32 +185,29 @@ abstract class BaseCoinCard(val tag: Tag, protected val psk: String) : Closeable
      * application [psk].
      */
     fun isDataValid(data: CardData): Boolean =
-        TransactionBlock.fromBytes(data.transactions)
-            .isValid(data.counterData, data.transactions, uid, psk)
+        data.transactions.isValid(encodeBalance(data.balance), data.transactionsData, uid, psk)
 
     /**
      * Returns the (stored, computed) checksum pair for debug display.
      */
     fun extractChecksums(
-        counterData: ByteArray,
+        balance: Int,
         txData: ByteArray
     ): Pair<ByteArray, ByteArray> =
-        TransactionBlock.extractChecksums(counterData, txData, uid, psk)
+        TransactionBlock.extractChecksums(encodeBalance(balance), txData, uid, psk)
 
     /**
-     * Builds updated transaction blocks after a balance operation.
-     *
-     * Returns a [Triple] of (updatedTxBlock, serialised block 1, serialised block 2).
+    * Builds updated transaction payload after a balance operation.
+    * Returns (updated model, serialised contiguous payload).
      */
     fun buildUpdatedTxBlocks(
-        transactions: ByteArray,
+        transactions: TransactionBlock,
         newCounterBlock: ByteArray,
         operation: TxOperation,
         amount: Int
     ): Pair<TransactionBlock, ByteArray> {
         val nowSecs = System.currentTimeMillis() / 1000L
-        val txBlock = TransactionBlock.fromBytes(transactions)
-        val updated = txBlock.addTransaction(nowSecs, operation, amount)
+        val updated = transactions.addTransaction(nowSecs, operation, amount)
         val updatedTransactions = updated.toBytes(newCounterBlock, uid, psk)
         return updated to updatedTransactions
     }

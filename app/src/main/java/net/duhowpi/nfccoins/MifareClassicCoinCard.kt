@@ -57,10 +57,10 @@ class MifareClassicCoinCard(
         return ReadResult.Success(
             CardData(
                 balance = balance,
-                transactions = sd.transactions,
-                ageByte = MifareClassicHelper.getAgeByte(sd.trailerData),
+                transactions = TransactionBlock.fromBytes(sd.transactions),
+                userBirthYear = MifareClassicHelper.getUserBirthYear(sd.trailerData),
                 isSingleRecharge = MifareClassicHelper.isSingleRecharge(sd.trailerData),
-                counterData = sd.counterData
+                transactionsData = sd.transactions
             )
         )
     }
@@ -111,7 +111,7 @@ class MifareClassicCoinCard(
         if (cardData.isSingleRecharge) {
             // Temporarily unlock block 0 so increment is allowed.
             val openTrailer = MifareClassicHelper.buildSectorTrailer(
-                cardKey, standard = true, userByte = cardData.ageByte
+                cardKey, standard = true, userByte = cardData.userBirthByte
             )
             mifare.writeBlock(trailerIdx, openTrailer)
         }
@@ -125,7 +125,7 @@ class MifareClassicCoinCard(
         if (cardData.isSingleRecharge) {
             // Re-lock: restore restricted access bits.
             val restrictedTrailer = MifareClassicHelper.buildSectorTrailer(
-                cardKey, standard = false, userByte = cardData.ageByte
+                cardKey, standard = false, userByte = cardData.userBirthByte
             )
             mifare.writeBlock(trailerIdx, restrictedTrailer)
         }
@@ -135,17 +135,18 @@ class MifareClassicCoinCard(
     // Format
     // -------------------------------------------------------------------------
 
-    override fun formatCard(singleRecharge: Boolean, ageByte: Int): FormatResult {
+    override fun formatCard(singleRecharge: Boolean, userBirthYear: Int): FormatResult {
         // Path 1: already formatted with the derived key → re-format (reset balance).
         if (mifare.authenticateSectorWithKeyA(sector, cardKey)) {
-            return reformatExistingCard(singleRecharge, ageByte)
+            return reformatExistingCard(singleRecharge, userBirthYear)
         }
 
         // Path 2: search for a standard key → format from scratch.
-        return formatNewCard(singleRecharge, ageByte)
+        return formatNewCard(singleRecharge, userBirthYear)
     }
 
-    private fun reformatExistingCard(singleRecharge: Boolean, ageByte: Int): FormatResult {
+    private fun reformatExistingCard(singleRecharge: Boolean, userBirthYear: Int): FormatResult {
+        val userByte = MifareClassicHelper.toUserBirthByte(userBirthYear)
         val start = mifare.sectorToBlock(sector)
         val blocks = mifare.getBlockCountInSector(sector)
         val trailerIdx = start + blocks - 1
@@ -153,7 +154,7 @@ class MifareClassicCoinCard(
         // Ensure block 0 is writable (in case card had single-recharge bits).
         mifare.writeBlock(
             trailerIdx,
-            MifareClassicHelper.buildSectorTrailer(cardKey, standard = true, userByte = ageByte)
+            MifareClassicHelper.buildSectorTrailer(cardKey, standard = true, userByte = userByte)
         )
 
         val counterData = mifare.readBlock(start + MifareClassicHelper.DATA_BLOCK_OFFSET)
@@ -172,19 +173,18 @@ class MifareClassicCoinCard(
         // Write target access bits (restricted or standard).
         mifare.writeBlock(
             trailerIdx,
-            MifareClassicHelper.buildSectorTrailer(cardKey, standard = !singleRecharge, userByte = ageByte)
+            MifareClassicHelper.buildSectorTrailer(cardKey, standard = !singleRecharge, userByte = userByte)
         )
 
         return FormatResult.Reformatted(
             oldBalance = oldBalance,
-            txBlock = freshTxBlock,
-            counterData = zeroValueBlock,
-            txB1 = txB1,
-            txB2 = txB2
+            formattedAtSeconds = nowSecs,
+            transactionsData = txData
         )
     }
 
-    private fun formatNewCard(singleRecharge: Boolean, ageByte: Int): FormatResult {
+    private fun formatNewCard(singleRecharge: Boolean, userBirthYear: Int): FormatResult {
+        val userByte = MifareClassicHelper.toUserBirthByte(userBirthYear)
         var foundKey: ByteArray? = null
         var usedKeyA = true
 
@@ -222,14 +222,12 @@ class MifareClassicCoinCard(
 
         mifare.writeBlock(
             start + blocks - 1,
-            MifareClassicHelper.buildSectorTrailer(cardKey, standard = !singleRecharge, userByte = ageByte)
+            MifareClassicHelper.buildSectorTrailer(cardKey, standard = !singleRecharge, userByte = userByte)
         )
 
         return FormatResult.NewlyFormatted(
-            txBlock = freshTxBlock,
-            counterData = zeroValueBlock,
-            txB1 = txB1,
-            txB2 = txB2,
+            formattedAtSeconds = nowSecs,
+            transactionsData = txData,
             foundKeyType = if (usedKeyA) "A" else "B",
             foundKeyHex = foundKey.toHex(),
             newKeyHex = cardKey.toHex()
