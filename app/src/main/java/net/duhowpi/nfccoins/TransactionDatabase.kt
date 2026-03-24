@@ -278,7 +278,7 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
               AND $COL_TIMESTAMP >= $filterStart
               AND $COL_BUTTON_VALUE IS NOT NULL
             GROUP BY $COL_BUTTON_VALUE
-            ORDER BY SUM(CASE WHEN $COL_TIMESTAMP >= $viewedWeekStart AND $COL_TIMESTAMP < $viewedWeekEnd THEN 1 ELSE 0 END) DESC
+            ORDER BY $COL_BUTTON_VALUE ASC
             """.trimIndent(),
             null
         )

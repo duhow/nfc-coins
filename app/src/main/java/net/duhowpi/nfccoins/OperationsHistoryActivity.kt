@@ -1,10 +1,12 @@
 package net.duhowpi.nfccoins
 
+import android.app.DatePickerDialog
 import android.content.Context
 import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TableLayout
 import android.widget.TableRow
 import android.widget.TextView
@@ -15,6 +17,10 @@ import java.util.Calendar
 import java.util.Locale
 
 class OperationsHistoryActivity : AppCompatActivity() {
+
+    companion object {
+        private const val MILLIS_PER_DAY = 86_400_000L
+    }
 
     private lateinit var db: TransactionDatabase
     private lateinit var chartView: BarChartView
@@ -27,12 +33,16 @@ class OperationsHistoryActivity : AppCompatActivity() {
     private lateinit var btnNavPrev: ImageButton
     private lateinit var btnNavNext: ImageButton
     private lateinit var tvSummary: TextView
+    private lateinit var layoutLegend: LinearLayout
 
     /** How many days back from today the hourly view is showing (0 = today). */
     private var dayOffset: Int = 0
 
     /** How many weeks back from the current week the weekly view is showing (0 = this week). */
     private var weekOffset: Int = 0
+
+    /** Whether the current chart has any non-zero data. Used to hide legend/table when empty. */
+    private var hasChartData: Boolean = false
 
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AdvancedSettingsActivity.wrapContextWithLocale(newBase))
@@ -56,6 +66,7 @@ class OperationsHistoryActivity : AppCompatActivity() {
         btnNavPrev   = findViewById(R.id.btnNavPrev)
         btnNavNext   = findViewById(R.id.btnNavNext)
         tvSummary    = findViewById(R.id.tvSummary)
+        layoutLegend = findViewById(R.id.layoutLegend)
 
         btnNavPrev.setOnClickListener {
             if (isWeeklyMode()) weekOffset++ else dayOffset++
@@ -69,6 +80,8 @@ class OperationsHistoryActivity : AppCompatActivity() {
             }
             loadData()
         }
+
+        tvNavLabel.setOnClickListener { showDatePicker() }
 
         togglePeriod.addOnButtonCheckedListener { _, _, isChecked ->
             if (isChecked) {
@@ -135,6 +148,60 @@ class OperationsHistoryActivity : AppCompatActivity() {
         return "$monStr – $sunStr"
     }
 
+    private fun showDatePicker() {
+        val cal = Calendar.getInstance()
+        if (isWeeklyMode()) {
+            cal.add(Calendar.WEEK_OF_YEAR, -weekOffset)
+        } else {
+            cal.add(Calendar.DAY_OF_YEAR, -dayOffset)
+        }
+        val year = cal.get(Calendar.YEAR)
+        val month = cal.get(Calendar.MONTH)
+        val day = cal.get(Calendar.DAY_OF_MONTH)
+
+        val dialog = DatePickerDialog(this, { _, y, m, d ->
+            val picked = Calendar.getInstance().apply {
+                set(y, m, d, 0, 0, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            val today = Calendar.getInstance()
+            if (isWeeklyMode()) {
+                val todayMon = startOfWeekMonday(today)
+                val pickedMon = startOfWeekMonday(picked)
+                val diffMs = todayMon.timeInMillis - pickedMon.timeInMillis
+                weekOffset = (diffMs / (7 * MILLIS_PER_DAY)).toInt().coerceAtLeast(0)
+            } else {
+                val todayMid = startOfDay(today)
+                val pickedMid = startOfDay(picked)
+                val diffMs = todayMid.timeInMillis - pickedMid.timeInMillis
+                dayOffset = (diffMs / MILLIS_PER_DAY).toInt().coerceAtLeast(0)
+            }
+            loadData()
+        }, year, month, day)
+
+        dialog.datePicker.maxDate = System.currentTimeMillis()
+        dialog.show()
+    }
+
+    private fun startOfDay(cal: Calendar): Calendar =
+        (cal.clone() as Calendar).apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+
+    private fun startOfWeekMonday(cal: Calendar): Calendar =
+        (cal.clone() as Calendar).apply {
+            val dow = get(Calendar.DAY_OF_WEEK)
+            val daysFromMon = (dow + 5) % 7
+            add(Calendar.DAY_OF_YEAR, -daysFromMon)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+
     // -------------------------------------------------------------------------
     // Hourly view
     // -------------------------------------------------------------------------
@@ -175,8 +242,10 @@ class OperationsHistoryActivity : AppCompatActivity() {
 
     private fun updateChart(entries: List<BarChartView.Entry>) {
         val hasData = entries.any { it.added > 0 || it.subtracted > 0 }
+        hasChartData = hasData
         tvNoData.visibility = if (hasData) View.GONE else View.VISIBLE
         chartView.visibility = if (hasData) View.VISIBLE else View.GONE
+        layoutLegend.visibility = if (hasData) View.VISIBLE else View.GONE
         chartView.entries = entries
     }
 
@@ -199,10 +268,9 @@ class OperationsHistoryActivity : AppCompatActivity() {
     private fun loadButtonStats() {
         val isHourly = !isWeeklyMode()
 
-        // For hourly view of a past day, the per-button table is not relevant
-        // because the hourly-anchored columns (this/last hour) would be meaningless.
-        // The bar chart already shows the full picture for the selected day.
-        if (isHourly && dayOffset > 0) {
+        // Hide table when there is no chart data for the selected period, or when
+        // viewing a past day in hourly mode (hour-anchored columns are meaningless).
+        if (!hasChartData || (isHourly && dayOffset > 0)) {
             tvTableLabel.visibility = View.GONE
             tableLayout.visibility = View.GONE
             return
@@ -242,8 +310,9 @@ class OperationsHistoryActivity : AppCompatActivity() {
             return
         }
 
+        val sortedStats = stats.sortedBy { it.amount }
         val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this)
-        for (stat in stats) {
+        for (stat in sortedStats) {
             val row = TableRow(this)
             row.setPadding(0, 4, 0, 4)
 
@@ -265,10 +334,10 @@ class OperationsHistoryActivity : AppCompatActivity() {
         }
 
         // Total row
-        val totalThisHour = stats.sumOf { it.countThisHour }
-        val totalLastHour = stats.sumOf { it.countLastHour }
-        val totalToday    = stats.sumOf { it.countToday }
-        val totalWeek     = stats.sumOf { it.countThisWeek }
+        val totalThisHour = sortedStats.sumOf { it.countThisHour }
+        val totalLastHour = sortedStats.sumOf { it.countLastHour }
+        val totalToday    = sortedStats.sumOf { it.countToday }
+        val totalWeek     = sortedStats.sumOf { it.countThisWeek }
         val totalRow      = TableRow(this)
         totalRow.setPadding(0, 4, 0, 4)
         totalRow.addView(makeCell(getString(R.string.ops_col_total), isBold = true))
