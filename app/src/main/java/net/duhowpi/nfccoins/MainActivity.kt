@@ -13,7 +13,6 @@ import android.media.ToneGenerator
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.MifareClassic
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -623,6 +622,7 @@ class MainActivity : AppCompatActivity() {
         val bgColor = ta.getColor(0, Color.WHITE)
         ta.recycle()
         supportActionBar?.setBackgroundDrawable(ColorDrawable(bgColor))
+        @Suppress("DEPRECATION")
         window.statusBarColor = bgColor
 
         // Toggle buttons: opaque fill when checked, transparent when unchecked
@@ -738,11 +738,7 @@ class MainActivity : AppCompatActivity() {
         if (!AdvancedSettingsActivity.isVibrationEnabled(this)) return
         @Suppress("DEPRECATION")
         val vibrator = getSystemService(VIBRATOR_SERVICE) as? Vibrator ?: return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator.vibrate(VibrationEffect.createOneShot(VIBRATE_DURATION_MS, VibrationEffect.DEFAULT_AMPLITUDE))
-        } else {
-            vibrator.vibrate(VIBRATE_DURATION_MS)
-        }
+        vibrator.vibrate(VibrationEffect.createOneShot(VIBRATE_DURATION_MS, VibrationEffect.DEFAULT_AMPLITUDE))
     }
 
     private fun scheduleAutoReset() {
@@ -885,7 +881,7 @@ class MainActivity : AppCompatActivity() {
                     val value = s?.toString()?.toIntOrNull() ?: return
                     if (value > currentYear) {
                         updating = true
-                        s?.replace(0, s.length, currentYear.toString())
+                        s.replace(0, s.length, currentYear.toString())
                         updating = false
                     }
                 }

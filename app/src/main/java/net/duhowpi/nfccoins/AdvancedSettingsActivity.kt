@@ -264,6 +264,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         val bgColor = ta.getColor(0, Color.WHITE)
         ta.recycle()
         supportActionBar?.setBackgroundDrawable(ColorDrawable(bgColor))
+        @Suppress("DEPRECATION")
         window.statusBarColor = bgColor
 
         // Icon-only buttons: filled with theme color, icon in contrast color for legibility
