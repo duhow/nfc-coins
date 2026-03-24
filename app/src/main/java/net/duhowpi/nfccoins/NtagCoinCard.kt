@@ -161,7 +161,8 @@ class NtagCoinCard(
         totalPages = detectTotalPages()
 
         val lastWritablePage = totalPages - 1 - options.reservedConfigAndLockPages
-        val dataEndPage = lastWritablePage - options.freeTailPages
+        val tailReservationPages = calculateTailReservationPages(totalPages, lastWritablePage)
+        val dataEndPage = lastWritablePage - tailReservationPages
         val computedStart = dataEndPage - (TOTAL_PAGES - 1)
 
         require(computedStart >= options.userMemoryStartPage) {
@@ -169,6 +170,15 @@ class NtagCoinCard(
         }
 
         dataStartPage = computedStart
+    }
+
+    private fun calculateTailReservationPages(totalPages: Int, lastWritablePage: Int): Int {
+        val usablePages = (lastWritablePage - options.userMemoryStartPage + 1).coerceAtLeast(0)
+        val usableBytes = usablePages * BYTES_PER_PAGE
+
+        // For small NTAGs (e.g. NTAG203), keep the payload as close as possible to
+        // lock/config pages so the beginning of user memory remains available for NDEF.
+        return if (usableBytes < SMALL_TAG_THRESHOLD_BYTES) 0 else options.freeTailPages
     }
 
     private fun detectTotalPages(): Int {
@@ -386,6 +396,7 @@ class NtagCoinCard(
         private const val CMD_GET_VERSION: Byte = 0x60
         private const val VERSION_RESPONSE_LEN = 8
         private const val MAX_PAGE_PROBE = 255
+        private const val SMALL_TAG_THRESHOLD_BYTES = 250
 
         private val MAGIC = "COIN".toByteArray(Charsets.US_ASCII)
 
