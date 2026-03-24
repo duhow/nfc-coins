@@ -11,49 +11,13 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Day / week navigator row -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="8dp">
-
-            <ImageButton
-                android:id="@+id/btnNavPrev"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:src="@android:drawable/ic_media_previous"
-                android:contentDescription="@string/ops_nav_prev"
-                android:background="?attr/selectableItemBackgroundBorderless" />
-
-            <TextView
-                android:id="@+id/tvNavLabel"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:textSize="15sp"
-                android:textStyle="bold" />
-
-            <ImageButton
-                android:id="@+id/btnNavNext"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:src="@android:drawable/ic_media_next"
-                android:contentDescription="@string/ops_nav_next"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:alpha="0.3" />
-
-        </LinearLayout>
-
         <!-- Period toggle -->
         <com.google.android.material.button.MaterialButtonToggleGroup
             android:id="@+id/togglePeriod"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="8dp"
             app:singleSelection="true"
             app:selectionRequired="true">
 
@@ -73,8 +37,50 @@
 
         </com.google.android.material.button.MaterialButtonToggleGroup>
 
+        <!-- Day / week navigator row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="16dp">
+
+            <ImageButton
+                android:id="@+id/btnNavPrev"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@android:drawable/ic_media_previous"
+                android:contentDescription="@string/ops_nav_prev"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+
+            <TextView
+                android:id="@+id/tvNavLabel"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackground"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp" />
+
+            <ImageButton
+                android:id="@+id/btnNavNext"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@android:drawable/ic_media_next"
+                android:contentDescription="@string/ops_nav_next"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:alpha="0.3" />
+
+        </LinearLayout>
+
         <!-- Chart section label -->
         <TextView
+            android:id="@+id/tvChartLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/ops_chart_label"
@@ -103,38 +109,63 @@
 
         <!-- Chart legend -->
         <LinearLayout
+            android:id="@+id/layoutLegend"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:layout_gravity="center_horizontal"
             android:layout_marginBottom="8dp">
 
-            <View
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:background="@color/chart_added"
-                android:layout_marginEnd="4dp"
-                android:layout_gravity="center_vertical" />
-
-            <TextView
+            <LinearLayout
+                android:id="@+id/legendAdded"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/ops_legend_added"
-                android:layout_marginEnd="16dp"
-                android:layout_gravity="center_vertical" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_marginEnd="16dp">
 
-            <View
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:background="@color/chart_subtracted"
-                android:layout_marginEnd="4dp"
-                android:layout_gravity="center_vertical" />
+                <View
+                    android:id="@+id/legendAddedColor"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:background="@color/chart_added"
+                    android:layout_marginEnd="4dp" />
 
-            <TextView
+                <TextView
+                    android:id="@+id/legendAddedText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/ops_legend_added" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/legendSubtracted"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/ops_legend_subtracted"
-                android:layout_gravity="center_vertical" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless">
+
+                <View
+                    android:id="@+id/legendSubtractedColor"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:background="@color/chart_subtracted"
+                    android:layout_marginEnd="4dp" />
+
+                <TextView
+                    android:id="@+id/legendSubtractedText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/ops_legend_subtracted" />
+
+            </LinearLayout>
 
         </LinearLayout>
 
@@ -151,6 +182,7 @@
 
         <!-- Divider -->
         <View
+            android:id="@+id/viewDivider"
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:background="?attr/colorControlNormal"
