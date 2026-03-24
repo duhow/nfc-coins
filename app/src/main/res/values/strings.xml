@@ -2,7 +2,7 @@
     <string name="app_name">NFC Coins</string>
 
     <!-- Card info -->
-    <string name="no_card_detected">Bring a Mifare Classic card closer</string>
+    <string name="no_card_detected">Bring a Mifare Classic or NTAG card closer</string>
     <string name="card_id_format">Card: %s</string>
 
     <!-- Balance -->
@@ -13,13 +13,13 @@
     <string name="waiting_card">Waiting for card…</string>
     <string name="card_read_ok">Card read successfully</string>
     <string name="auth_failed">Card authentication error</string>
-    <string name="unsupported_card">Unsupported card (Mifare Classic required)</string>
+    <string name="unsupported_card">Unsupported card (Mifare Classic or NTAG required)</string>
     <string name="sector_unavailable">Card does not have Sector %1$d (%2$d)</string>
     <string name="nfc_not_available">NFC not available on this device</string>
     <string name="no_card">No card. Bring it closer again.</string>
     <string name="insufficient_balance">Insufficient balance</string>
     <string name="deduct_ok">%s coin(s) deducted successfully</string>
-    <string name="error_get_mifare">Error: could not access Mifare card</string>
+    <string name="error_get_mifare">Error: could not access NFC card</string>
     <string name="error_reading">Read error: %s</string>
     <string name="error_writing">Write error: %s</string>
 
@@ -64,7 +64,7 @@
     <!-- About -->
     <string name="about">About</string>
     <string name="about_title">About %s</string>
-    <string name="about_message">%1$s is an app to manage balances on Mifare Classic cards via NFC.\n\nVersion: %2$s</string>
+    <string name="about_message">%1$s is an app to manage balances on Mifare Classic and NTAG cards via NFC.\n\nVersion: %2$s</string>
     <string name="view_source">GitHub</string>
     <string name="github_url" translatable="false">https://github.com/duhow/nfc-coins</string>
 

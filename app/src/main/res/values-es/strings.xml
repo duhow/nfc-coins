@@ -2,7 +2,7 @@
     <string name="app_name">Monedas NFC</string>
 
     <!-- Card info -->
-    <string name="no_card_detected">Acerca una tarjeta Mifare Classic</string>
+    <string name="no_card_detected">Acerca una tarjeta Mifare Classic o NTAG</string>
     <string name="card_id_format">Tarjeta: %s</string>
 
     <!-- Balance -->
@@ -12,13 +12,13 @@
     <string name="waiting_card">Esperando tarjeta…</string>
     <string name="card_read_ok">Tarjeta leída correctamente</string>
     <string name="auth_failed">Error de autenticación con la tarjeta</string>
-    <string name="unsupported_card">Tarjeta no compatible (se requiere Mifare Classic)</string>
+    <string name="unsupported_card">Tarjeta no compatible (se requiere Mifare Classic o NTAG)</string>
     <string name="sector_unavailable">Tarjeta no tiene Sector %1$d (%2$d)</string>
     <string name="nfc_not_available">NFC no disponible en este dispositivo</string>
     <string name="no_card">No hay tarjeta. Acércala de nuevo.</string>
     <string name="insufficient_balance">Saldo insuficiente</string>
     <string name="deduct_ok">Descontadas %s moneda(s) correctamente</string>
-    <string name="error_get_mifare">Error: no se pudo acceder a la tarjeta Mifare</string>
+    <string name="error_get_mifare">Error: no se pudo acceder a la tarjeta NFC</string>
     <string name="error_reading">Error de lectura: %s</string>
     <string name="error_writing">Error de escritura: %s</string>
 
@@ -61,7 +61,7 @@
     <!-- About -->
     <string name="about">Acerca de</string>
     <string name="about_title">Acerca de %s</string>
-    <string name="about_message">%1$s es una aplicación para gestionar saldos en tarjetas Mifare Classic mediante NFC.\n\nVersión: %2$s</string>
+    <string name="about_message">%1$s es una aplicación para gestionar saldos en tarjetas Mifare Classic y NTAG mediante NFC.\n\nVersión: %2$s</string>
 
     <!-- Advanced settings -->
     <string name="advanced_settings">Ajustes</string>
