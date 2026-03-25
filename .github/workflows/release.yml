@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     env:
       KEYSTORE_FILE: release.jks
 
@@ -50,6 +52,11 @@ jobs:
       - name: Rename APK
         run: |
           cp app/build/outputs/apk/release/app-release.apk "nfc-coins-${{ github.ref_name }}.apk"
+
+      - name: Attest APK build provenance
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # tag v4.1.0
+        with:
+          subject-path: "nfc-coins-${{ github.ref_name }}.apk"
 
       - name: Create GitHub Release and upload APK
         uses: softprops/action-gh-release@v2
