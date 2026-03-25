@@ -1,3 +1,4 @@
+opt_out_usage # Disable metrics collection
 default_platform(:android)
 
 platform :android do
