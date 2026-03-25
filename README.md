@@ -16,7 +16,15 @@
 </p>
 
 <p align="center">
-  ⬇️ <a href="https://github.com/duhow/nfc-coins/releases/latest">Download app</a>
+<a href="https://apps.obtainium.imranr.dev/redirect.html?r=obtainium://add/https://github.com/duhow/nfc-coins">
+  <img src="https://github.com/ImranR98/Obtainium/blob/main/assets/graphics/badge_obtainium.png" 
+       alt="Get it on Obtainium" align="center" height="54" />
+</a>
+
+<a href="https://github.com/duhow/nfc-coins/releases/latest">
+  <img src="https://raw.githubusercontent.com/Kunzisoft/Github-badge/4711835e032fe2735dc80c1329beb4685899aa91/get-it-on-github.png"
+       alt="Download APK" align="center" height="81" />
+</a>
 </p>
 
 ---
