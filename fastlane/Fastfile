@@ -23,5 +23,18 @@ platform :android do
     end
 
     gradle(**gradle_options)
+
+    next unless ENV["GITHUB_OUTPUT"]
+
+    version_code = `git tag --list 'v[0-9]*'`.split("\n").reject(&:empty?).size
+    File.open(ENV["GITHUB_OUTPUT"], "a") do |f|
+      f.puts "version_code=#{version_code}"
+      changelog_file = "fastlane/metadata/android/en-US/changelogs/#{version_code}.txt"
+      if File.exist?(changelog_file)
+        f.puts "body<<CHANGELOG_EOF"
+        f.puts File.read(changelog_file).strip
+        f.puts "CHANGELOG_EOF"
+      end
+    end
   end
 end

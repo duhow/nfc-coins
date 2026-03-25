@@ -38,6 +38,7 @@ jobs:
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/$KEYSTORE_FILE"
 
       - name: Build release APK
+        id: build
         run: bundle exec fastlane build build_type:Release
         env:
           NFC_POS_PSK: ${{ secrets.NFC_POS_PSK }}
@@ -46,22 +47,6 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ github.event.repository.name }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
-      - name: Get version code and changelog
-        id: version
-        run: |
-          VERSION_CODE=$(git tag --list 'v[0-9]*' | wc -l | tr -d ' ')
-          echo "code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
-          CHANGELOG_FILE="fastlane/metadata/android/en-US/changelogs/${VERSION_CODE}.txt"
-          if [ -f "$CHANGELOG_FILE" ]; then
-            {
-              echo "body<<CHANGELOG_EOF"
-              cat "$CHANGELOG_FILE"
-              echo "CHANGELOG_EOF"
-            } >> "$GITHUB_OUTPUT"
-          else
-            echo "body=" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Rename APK
         run: |
           cp app/build/outputs/apk/release/app-release.apk "nfc-coins-${{ github.ref_name }}.apk"
@@ -69,12 +54,12 @@ jobs:
       - name: Create GitHub Release and upload APK
         uses: softprops/action-gh-release@v2
         with:
-          body: ${{ steps.version.outputs.body }}
+          body: ${{ steps.build.outputs.body }}
           files: "nfc-coins-${{ github.ref_name }}.apk"
 
       - name: Prepare next version changelog
         run: |
-          NEXT_VERSION=$(( ${{ steps.version.outputs.code }} + 1 ))
+          NEXT_VERSION=$(( ${{ steps.build.outputs.version_code }} + 1 ))
           NEXT_CHANGELOG="fastlane/metadata/android/en-US/changelogs/${NEXT_VERSION}.txt"
           git fetch origin main
           git checkout main
