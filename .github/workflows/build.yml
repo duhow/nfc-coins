@@ -50,6 +50,6 @@ jobs:
         with:
           header: debug-apk-download
           message: |
-            ✅ Debug APK artifact is ready for commit ${{ github.ref }} .
+            ✅ Debug APK artifact is ready for commit ${{ github.sha }} .
             - 💾 APK artifact: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.upload_debug_apk.outputs.artifact-id }}
             - Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
