@@ -388,7 +388,11 @@ class MainActivity : AppCompatActivity() {
                     showTransactionHistory(txBlock)
                     showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
                     txDb.insertTransaction(TransactionDatabase.TYPE_READ, balanceBefore = currentBalance, cardUid = card.uid.toHex())
-                    if (!AdvancedSettingsActivity.isDistributedPosEnabled(this)) {
+                    if (!AdvancedSettingsActivity.isDistributedPosEnabled(this) &&
+                        txDb.getLastCardState(card.uid.toHex()) == null) {
+                        // Only record the initial state when this card is seen for the first time.
+                        // Subsequent plain reads must not overwrite the stored checksum so that a
+                        // replayed (rolled-back) card cannot reset the local source of truth.
                         txDb.recordCardState(
                             cardUid = card.uid.toHex(),
                             checksum = data.checksum.toHex(),
