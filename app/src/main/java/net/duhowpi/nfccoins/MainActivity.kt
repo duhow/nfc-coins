@@ -23,6 +23,7 @@ import android.text.TextWatcher
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.CheckBox
 import android.widget.EditText
@@ -31,6 +32,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.ColorRes
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import android.provider.Settings
@@ -159,6 +161,12 @@ class MainActivity : AppCompatActivity() {
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
         val sellerMode = AdvancedSettingsActivity.isSellerModeEnabled(this)
         menu.findItem(R.id.action_management)?.isVisible = !sellerMode
+
+        val bgColor = getWindowBackgroundColor()
+        val iconColor = AdvancedSettingsActivity.contrastColor(bgColor)
+        menu.findItem(R.id.action_history)?.icon?.mutate()?.setTint(iconColor)
+        tintToolbarOverflowIcon(iconColor)
+
         return super.onPrepareOptionsMenu(menu)
     }
 
@@ -573,10 +581,10 @@ class MainActivity : AppCompatActivity() {
         val rippleTint = ColorStateList.valueOf(AdvancedSettingsActivity.rippleColor(color))
 
         // Action bar: surface/window background color so topbar is unified with content body
-        val ta = obtainStyledAttributes(intArrayOf(android.R.attr.colorBackground))
-        val bgColor = ta.getColor(0, Color.WHITE)
-        ta.recycle()
+        val bgColor = getWindowBackgroundColor()
         supportActionBar?.setBackgroundDrawable(ColorDrawable(bgColor))
+        val titleColor = AdvancedSettingsActivity.contrastColor(bgColor)
+        supportActionBar?.setTitleTextColor(titleColor)
         @Suppress("DEPRECATION")
         window.statusBarColor = bgColor
 
@@ -611,6 +619,26 @@ class MainActivity : AppCompatActivity() {
         btnDeduct2?.text = if (isDecimalMode) "-2.00" else getString(R.string.deduct_2_short)
         btnDeduct1?.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, deductTextSizeSp)
         btnDeduct2?.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, deductTextSizeSp)
+    }
+
+    private fun tintToolbarOverflowIcon(color: Int) {
+        fun ViewGroup.findToolbar(): Toolbar? {
+            for (i in 0 until childCount) {
+                val child = getChildAt(i)
+                if (child is Toolbar) return child
+                val found = (child as? ViewGroup)?.findToolbar()
+                if (found != null) return found
+            }
+            return null
+        }
+        (window.decorView as? ViewGroup)?.findToolbar()?.overflowIcon?.mutate()?.setTint(color)
+    }
+
+    private fun getWindowBackgroundColor(): Int {
+        val ta = obtainStyledAttributes(intArrayOf(android.R.attr.colorBackground))
+        val color = ta.getColor(0, Color.WHITE)
+        ta.recycle()
+        return color
     }
 
     private fun applyThemeToDialog(dialog: AlertDialog) {
