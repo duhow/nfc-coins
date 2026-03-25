@@ -21,6 +21,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Set up JDK
@@ -51,6 +52,6 @@ jobs:
           header: debug-apk-download
           recreate: true
           message: |
-            ✅ Debug APK artifact is ready for commit ${{ github.sha }} .  
+            ✅ Debug APK artifact is ready for commit ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }} .  
             💾 [Download APK artifact here](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.upload_debug_apk.outputs.artifact-id }}).
             Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
