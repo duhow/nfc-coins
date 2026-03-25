@@ -60,6 +60,7 @@ class MainActivity : AppCompatActivity() {
         private var sharedToneGenerator: ToneGenerator? = null
         private val toneGeneratorLock = Any()
         private const val IME_FOCUS_DELAY_MS = 200L
+        private val GIT_DESCRIBE_COMMIT_REGEX = Regex("-\\d+-g([0-9a-fA-F]+)$")
     }
 
     private enum class PendingAction { NONE, WITHDRAW_BALANCE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
@@ -720,18 +721,25 @@ class MainActivity : AppCompatActivity() {
 
     private fun showAboutDialog() {
         val appName = getString(R.string.app_name)
+        val githubUrl = getVersionAwareGithubUrl()
         val dialog = AlertDialog.Builder(this)
             .setTitle(getString(R.string.about_title, appName))
             .setMessage(getString(R.string.about_message, appName, BuildConfig.VERSION_NAME))
             .setPositiveButton(android.R.string.ok, null)
             .setNeutralButton(R.string.view_source) { _, _ ->
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.github_url)))
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(githubUrl))
                 try {
                     startActivity(intent)
                 } catch (_: ActivityNotFoundException) { }
             }
             .show()
         applyThemeToDialog(dialog)
+    }
+
+    private fun getVersionAwareGithubUrl(): String {
+        val baseUrl = getString(R.string.github_url)
+        val commitHash = GIT_DESCRIBE_COMMIT_REGEX.find(BuildConfig.VERSION_NAME)?.groupValues?.getOrNull(1)
+        return if (commitHash.isNullOrEmpty()) baseUrl else "$baseUrl/commits/$commitHash"
     }
 
     // -------------------------------------------------------------------------
