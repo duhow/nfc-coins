@@ -38,6 +38,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
+import androidx.core.view.WindowCompat
 import android.provider.Settings
 import com.google.android.material.button.MaterialButtonToggleGroup
 import java.text.SimpleDateFormat
@@ -592,6 +593,8 @@ class MainActivity : AppCompatActivity() {
         supportActionBar?.title = titleSpan
         @Suppress("DEPRECATION")
         window.statusBarColor = bgColor
+        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars =
+            AdvancedSettingsActivity.contrastColor(bgColor) == Color.BLACK
 
         // Toggle buttons: opaque fill when checked, transparent when unchecked
         val bgTint = ColorStateList(
