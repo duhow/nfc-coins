@@ -109,6 +109,31 @@
     <string name="replay_attack_detected">Possible replay attack detected. Operation cancelled.</string>
     <string name="write_retried">Write retried after previous interruption</string>
 
+    <!-- Custom Buttons -->
+    <string name="custom_buttons">Custom Buttons</string>
+    <string name="custom_buttons_hint">Up to 9 buttons, 3 per row. Tap an empty slot to add, tap a button to edit, long-press to delete.</string>
+    <string name="custom_button_add">Add button</string>
+    <string name="custom_button_edit">Edit button</string>
+    <string name="custom_button_delete">Delete</string>
+    <string name="custom_button_delete_confirm">Delete button \'%s\'?</string>
+    <string name="custom_button_save">Save</string>
+    <string name="custom_button_operation">Operation</string>
+    <string name="custom_button_operation_add">Add balance</string>
+    <string name="custom_button_operation_subtract">Withdraw</string>
+    <string name="custom_button_label">Label</string>
+    <string name="custom_button_label_hint">e.g. −1, Coffee…</string>
+    <string name="custom_button_emoji">Emoji icon (optional, replaces label in button)</string>
+    <string name="custom_button_emoji_hint">e.g. ☕ 🎟️</string>
+    <string name="custom_button_amount">Amount</string>
+    <string name="custom_button_amount_hint">Number of coins</string>
+    <string name="custom_button_amount_hint_decimal">Amount (e.g. 1.50)</string>
+    <string name="custom_button_color">Background color</string>
+    <string name="custom_button_color_pick">Pick color</string>
+    <string name="custom_button_color_clear">Clear</string>
+    <string name="custom_button_amount_invalid">Amount must be greater than 0</string>
+    <string name="custom_button_label_invalid">Label cannot be empty</string>
+    <string name="custom_button_max_reached">Maximum of 9 buttons reached</string>
+
     <!-- Operations History -->
     <string name="ops_history_title">Operations History</string>
     <string name="ops_hourly">Hourly</string>

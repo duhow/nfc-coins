@@ -10,6 +10,11 @@
         app:showAsAction="always" />
 
     <item
+        android:id="@+id/action_custom_buttons"
+        android:title="@string/custom_buttons"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_management"
         android:title="@string/card_management"
         app:showAsAction="never" />
