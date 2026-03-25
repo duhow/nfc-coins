@@ -1,0 +1,10 @@
+Initial release.
+
+- Read and write coin balances on Mifare Classic and NTAG NFC cards
+- Dynamic per-card key derivation (HMAC-SHA1)
+- Transaction history stored on card (up to 4 entries)
+- Card format, top-up, deduct, and reset operations
+- Single-recharge mode and age verification support
+- Portrait and landscape layouts
+- Theme colour presets and custom HSV colour picker
+- Decimal mode, audio feedback, vibration, and background flash

@@ -21,3 +21,19 @@ Check historic commits to avoid making up new scopes every time.
   - `app/src/main/res/layout-land/activity_main.xml` (landscape/horizontal)
 - Any layout modification to this screen **must be applied in both files**.
 - Treat portrait and landscape as a paired change to avoid regressions/crashes in horizontal mode.
+
+## Changelogs
+
+- Changelog files live in `fastlane/metadata/android/en-US/changelogs/`.
+- Each release has a dedicated numbered file (e.g. `8.txt`) matching the versionCode for that release.
+- **Edit the current numbered file** whenever you make user-facing changes (features, fixes, improvements).
+- Keep entries concise and written from the user's perspective (e.g. `- Fixed crash when tapping a reset card`).
+- Numbered files are permanent per-version snapshots — do **not** edit a file once its release tag has been created.
+
+### Release flow (fully automatic)
+
+1. Edit `<N>.txt` with all changes for the upcoming release.
+2. Create the release tag in GitHub — the CI pipeline will automatically:
+   - Read `<N>.txt` and use it as the GitHub Release description.
+   - Commit a new `<N+1>.txt` placeholder to `main` for the next release.
+3. Edit the newly created `<N+1>.txt` for the next release cycle.

@@ -11,4 +11,10 @@
 local.properties
 app/release/
 app/build/
-!gradle/wrapper/gradle-wrapper.jar
+!fastlane/gradle/wrapper/gradle-wrapper.jar
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
