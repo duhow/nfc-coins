@@ -387,19 +387,29 @@ class MainActivity : AppCompatActivity() {
                     }
                     showTransactionHistory(txBlock)
                     showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
-                    txDb.insertTransaction(TransactionDatabase.TYPE_READ, balanceBefore = currentBalance, cardUid = card.uid.toHex())
-                    if (!AdvancedSettingsActivity.isDistributedPosEnabled(this) &&
-                        txDb.getLastCardState(card.uid.toHex()) == null) {
-                        // Only record the initial state when this card is seen for the first time.
-                        // Subsequent plain reads must not overwrite the stored checksum so that a
-                        // replayed (rolled-back) card cannot reset the local source of truth.
-                        txDb.recordCardState(
-                            cardUid = card.uid.toHex(),
-                            checksum = data.checksum.toHex(),
-                            balanceBefore = currentBalance,
-                            balanceAfter = currentBalance
-                        )
+                    if (!AdvancedSettingsActivity.isDistributedPosEnabled(this)) {
+                        val currentChecksum = data.checksum.toHex()
+                        val lastState = txDb.getLastCardState(card.uid.toHex())
+                        if (lastState != null && lastState.checksum != currentChecksum) {
+                            tvStatus.text = getString(R.string.replay_attack_detected)
+                            flashRedBackground()
+                            playNfcErrorBeep()
+                            scheduleAutoReset()
+                            return
+                        }
+                        if (lastState == null) {
+                            // Only record the initial state when this card is seen for the first time.
+                            // Subsequent plain reads must not overwrite the stored checksum so that a
+                            // replayed (rolled-back) card cannot reset the local source of truth.
+                            txDb.recordCardState(
+                                cardUid = card.uid.toHex(),
+                                checksum = currentChecksum,
+                                balanceBefore = currentBalance,
+                                balanceAfter = currentBalance
+                            )
+                        }
                     }
+                    txDb.insertTransaction(TransactionDatabase.TYPE_READ, balanceBefore = currentBalance, cardUid = card.uid.toHex())
                     setScreenStatusSuccess(
                         message = getString(R.string.card_read_ok),
                         background = null
@@ -1166,6 +1176,14 @@ class MainActivity : AppCompatActivity() {
                     showTransactionHistory(TransactionBlock(result.formattedAtSeconds))
                     showDebugChecksums(card, 0, result.transactionsData)
                     txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = card.uid.toHex())
+                    if (!AdvancedSettingsActivity.isDistributedPosEnabled(this)) {
+                        txDb.recordCardState(
+                            cardUid = card.uid.toHex(),
+                            checksum = result.transactionsData.copyOfRange(result.transactionsData.size - TX_CHECKSUM_SIZE, result.transactionsData.size).toHex(),
+                            balanceBefore = result.oldBalance,
+                            balanceAfter = 0
+                        )
+                    }
                     setScreenStatusSuccess(
                         message = getString(R.string.format_reset_success),
                         background = R.color.success_purple_dark
@@ -1178,6 +1196,14 @@ class MainActivity : AppCompatActivity() {
                     showTransactionHistory(TransactionBlock(result.formattedAtSeconds))
                     showDebugChecksums(card, 0, result.transactionsData)
                     txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = card.uid.toHex())
+                    if (!AdvancedSettingsActivity.isDistributedPosEnabled(this)) {
+                        txDb.recordCardState(
+                            cardUid = card.uid.toHex(),
+                            checksum = result.transactionsData.copyOfRange(result.transactionsData.size - TX_CHECKSUM_SIZE, result.transactionsData.size).toHex(),
+                            balanceBefore = 0,
+                            balanceAfter = 0
+                        )
+                    }
                     setScreenStatusSuccess(
                         message = getString(R.string.format_success),
                         background = R.color.success_purple_dark
@@ -1221,6 +1247,15 @@ class MainActivity : AppCompatActivity() {
             resetBalanceToInitial()
             layoutBeforeAfter.visibility = View.GONE
             txDb.insertTransaction(TransactionDatabase.TYPE_RESET, cardUid = card.uid.toHex())
+            if (!AdvancedSettingsActivity.isDistributedPosEnabled(this)) {
+                // Store a sentinel so any replay of the pre-reset card state is detected.
+                txDb.recordCardState(
+                    cardUid = card.uid.toHex(),
+                    checksum = "",
+                    balanceBefore = 0,
+                    balanceAfter = 0
+                )
+            }
             setScreenStatusSuccess(
                 message = getString(R.string.reset_card_success),
                 background = R.color.success_purple_dark
