@@ -19,7 +19,10 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.text.Editable
 import android.text.InputType
+import android.text.SpannableString
+import android.text.Spannable
 import android.text.TextWatcher
+import android.text.style.ForegroundColorSpan
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -584,7 +587,9 @@ class MainActivity : AppCompatActivity() {
         val bgColor = getWindowBackgroundColor()
         supportActionBar?.setBackgroundDrawable(ColorDrawable(bgColor))
         val titleColor = AdvancedSettingsActivity.contrastColor(bgColor)
-        supportActionBar?.setTitleTextColor(titleColor)
+        val titleSpan = SpannableString(supportActionBar?.title ?: getString(R.string.app_name))
+        titleSpan.setSpan(ForegroundColorSpan(titleColor), 0, titleSpan.length, Spannable.SPAN_INCLUSIVE_INCLUSIVE)
+        supportActionBar?.title = titleSpan
         @Suppress("DEPRECATION")
         window.statusBarColor = bgColor
 
