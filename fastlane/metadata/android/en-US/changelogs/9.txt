@@ -1,1 +1,2 @@
 - Fixed NTAG cards with wrong key showing "card tampered" instead of a decode error
+- Decryption errors now show a generic authentication error message (technical details shown only in debug mode)

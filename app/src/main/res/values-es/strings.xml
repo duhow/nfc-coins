@@ -22,6 +22,7 @@
     <string name="error_get_mifare">Error: no se pudo acceder a la tarjeta NFC</string>
     <string name="error_reading">Error de lectura: %s</string>
     <string name="error_writing">Error de escritura: %s</string>
+    <string name="error_decryption">Error de descifrado</string>
 
     <!-- Buttons -->
     <string name="deduct_1">− 1 moneda</string>

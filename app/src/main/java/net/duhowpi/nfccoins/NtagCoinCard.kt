@@ -70,7 +70,7 @@ class NtagCoinCard(
         val meta = decodeMeta(payload.copyOfRange(OFFSET_META, OFFSET_BALANCE))
 
         if (meta.version < 1 || meta.version > CURRENT_VERSION) {
-            return ReadResult.InvalidData("Decryption error: invalid version ${meta.version}")
+            return ReadResult.InvalidData("$DECRYPT_ERROR_PREFIX invalid version ${meta.version}")
         }
 
         val txData = payload.copyOfRange(OFFSET_TX, OFFSET_PADDING)
@@ -82,7 +82,7 @@ class NtagCoinCard(
         val tsYear = cal.get(Calendar.YEAR)
         if (tsYear !in MIN_VALID_TIMESTAMP_YEAR..currentYear) {
             return ReadResult.InvalidData(
-                "Decryption error: invalid timestamp year $tsYear (expected $MIN_VALID_TIMESTAMP_YEAR-$currentYear)"
+                "$DECRYPT_ERROR_PREFIX invalid timestamp year $tsYear (expected $MIN_VALID_TIMESTAMP_YEAR-$currentYear)"
             )
         }
 
@@ -457,6 +457,7 @@ class NtagCoinCard(
         private const val CURRENT_VERSION = 0x1
         private const val FLAG_SINGLE_RECHARGE = 0x1
         private const val MIN_VALID_TIMESTAMP_YEAR = 2026
+        internal const val DECRYPT_ERROR_PREFIX = "Decryption error:"
 
         private const val CIPHER_TRANSFORMATION = "AES/CTR/NoPadding"
         private const val AES_KEY_SIZE_BYTES = 16
