@@ -10,6 +10,7 @@ platform :android do
       build_type: build_type,
       flags: "--stacktrace",
       print_command: false,
+      gradle_path: "fastlane/gradlew",
     }
 
     if build_type == "Release"

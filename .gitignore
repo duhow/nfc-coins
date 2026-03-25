@@ -11,7 +11,7 @@
 local.properties
 app/release/
 app/build/
-!gradle/wrapper/gradle-wrapper.jar
+!fastlane/gradle/wrapper/gradle-wrapper.jar
 
 # Fastlane
 fastlane/report.xml
