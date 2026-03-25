@@ -1,1 +1,1 @@
-Add user-facing changes for the next release here.
+- Fixed NTAG cards with wrong key showing "card tampered" instead of a decode error (technical details shown only in debug mode)

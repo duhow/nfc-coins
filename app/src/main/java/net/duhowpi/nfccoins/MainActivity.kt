@@ -364,7 +364,7 @@ class MainActivity : AppCompatActivity() {
                     return setScreenStatusError(getString(R.string.auth_failed))
                 }
                 is BaseCoinCard.ReadResult.InvalidData -> {
-                    return setScreenStatusError(getString(R.string.error_reading, result.reason))
+                    return setScreenStatusError(invalidDataMessage(result.reason))
                 }
                 is BaseCoinCard.ReadResult.Success -> {
                     val data = result.data
@@ -413,7 +413,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 is BaseCoinCard.ReadResult.InvalidData -> {
                     return setScreenStatusError(
-                        message = getString(R.string.error_reading, result.reason),
+                        message = invalidDataMessage(result.reason),
                         scheduleAutoReset = false
                     )
                 }
@@ -701,6 +701,25 @@ class MainActivity : AppCompatActivity() {
         handler.postDelayed(autoResetRunnable, AUTO_RESET_DELAY_MS)
     }
 
+    /**
+     * Returns the user-facing message for an [InvalidData] result.
+     * When the reason indicates a decryption failure and debug mode is off, the generic
+     * [R.string.auth_failed] message is returned to avoid leaking internals.
+     * In debug mode (or for non-decryption errors) the full [R.string.error_reading] is returned.
+     */
+    private fun invalidDataMessage(reason: String): String {
+        return if (reason.startsWith(NtagCoinCard.DECRYPT_ERROR_PREFIX)) {
+            if (!AdvancedSettingsActivity.isDebugEnabled(this)) {
+                getString(R.string.auth_failed)
+            } else {
+                val details = reason.removePrefix(NtagCoinCard.DECRYPT_ERROR_PREFIX)
+                getString(R.string.error_reading, "${getString(R.string.error_decryption)}: ${details.trim()}")
+            }
+        } else {
+            getString(R.string.error_reading, reason)
+        }
+    }
+
     private fun setScreenStatusError(
         message: String,
         scheduleAutoReset: Boolean = true,
@@ -970,7 +989,7 @@ class MainActivity : AppCompatActivity() {
                     return setScreenStatusError(getString(R.string.card_not_formatted))
                 }
                 is BaseCoinCard.ReadResult.InvalidData -> {
-                    return setScreenStatusError(getString(R.string.error_reading, result.reason))
+                    return setScreenStatusError(invalidDataMessage(result.reason))
                 }
                 is BaseCoinCard.ReadResult.Success -> {
                     val data = result.data

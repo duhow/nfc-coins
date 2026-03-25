@@ -4,6 +4,7 @@ import android.nfc.Tag
 import android.nfc.tech.NfcA
 import java.io.IOException
 import java.security.MessageDigest
+import java.util.Calendar
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
@@ -67,8 +68,25 @@ class NtagCoinCard(
         val payload = decryptStoredPayload(rawPayload)
 
         val meta = decodeMeta(payload.copyOfRange(OFFSET_META, OFFSET_BALANCE))
-        val balance = decodeBalance(payload.copyOfRange(OFFSET_BALANCE, OFFSET_TX))
+
+        if (meta.version < 1 || meta.version > CURRENT_VERSION) {
+            return ReadResult.InvalidData("$DECRYPT_ERROR_PREFIX invalid version ${meta.version}")
+        }
+
         val txData = payload.copyOfRange(OFFSET_TX, OFFSET_PADDING)
+        val txBlock = TransactionBlock.fromBytes(txData)
+
+        val cal = Calendar.getInstance()
+        val currentYear = cal.get(Calendar.YEAR)
+        cal.timeInMillis = txBlock.initTimestamp * 1000L
+        val tsYear = cal.get(Calendar.YEAR)
+        if (tsYear !in MIN_VALID_TIMESTAMP_YEAR..currentYear) {
+            return ReadResult.InvalidData(
+                "$DECRYPT_ERROR_PREFIX invalid timestamp year $tsYear (expected $MIN_VALID_TIMESTAMP_YEAR-$currentYear)"
+            )
+        }
+
+        val balance = decodeBalance(payload.copyOfRange(OFFSET_BALANCE, OFFSET_TX))
 
         cachedMeta = meta
         cachedBalance = balance
@@ -76,7 +94,7 @@ class NtagCoinCard(
         return ReadResult.Success(
             CardData(
                 balance = balance,
-                transactions = TransactionBlock.fromBytes(txData),
+                transactions = txBlock,
                 checksum = txData.copyOfRange(28, 32),
                 userBirthYear = meta.userBirthYear,
                 isSingleRecharge = meta.isSingleRecharge
@@ -438,6 +456,8 @@ class NtagCoinCard(
 
         private const val CURRENT_VERSION = 0x1
         private const val FLAG_SINGLE_RECHARGE = 0x1
+        private const val MIN_VALID_TIMESTAMP_YEAR = 2026
+        internal const val DECRYPT_ERROR_PREFIX = "Decryption error:"
 
         private const val CIPHER_TRANSFORMATION = "AES/CTR/NoPadding"
         private const val AES_KEY_SIZE_BYTES = 16

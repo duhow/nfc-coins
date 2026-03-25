@@ -23,6 +23,7 @@
     <string name="error_get_mifare">Error: could not access NFC card</string>
     <string name="error_reading">Read error: %s</string>
     <string name="error_writing">Write error: %s</string>
+    <string name="error_decryption">Decryption error</string>
 
     <!-- Buttons -->
     <string name="deduct_1">− 1 coin</string>
