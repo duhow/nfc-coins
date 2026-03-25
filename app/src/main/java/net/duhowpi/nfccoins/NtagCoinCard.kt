@@ -456,7 +456,7 @@ class NtagCoinCard(
 
         private const val CURRENT_VERSION = 0x1
         private const val FLAG_SINGLE_RECHARGE = 0x1
-        private const val MIN_VALID_TIMESTAMP_YEAR = 2024
+        private const val MIN_VALID_TIMESTAMP_YEAR = 2026
 
         private const val CIPHER_TRANSFORMATION = "AES/CTR/NoPadding"
         private const val AES_KEY_SIZE_BYTES = 16
