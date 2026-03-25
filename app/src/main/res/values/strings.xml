@@ -90,7 +90,7 @@
     <string name="setting_sound_enabled">Enable sound</string>
     <string name="setting_vibration_enabled">Enable vibration</string>
     <string name="setting_decimal_mode">Decimal mode (values x100, show 2 decimals)</string>
-    <string name="setting_distributed_pos">Distributed POS (Venta distribuida)</string>
+    <string name="setting_distributed_pos">Distributed POS</string>
     <string name="setting_theme_color">Theme color</string>
     <string name="color_pick_title">Custom color</string>
     <string name="color_custom_swatch">Select custom color</string>
