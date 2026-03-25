@@ -1,0 +1,29 @@
+NFC Coins is a Point-of-Sale Android application that reads, writes, and manages coin balances stored on Mifare Classic and NTAG NFC cards (NTAG20x and NTAG21x series).
+
+It is designed for venues, events, or any environment where physical tokens need a digital equivalent. Tap a card to pay, top it up, and issue new ones — in a simple interface.
+
+Features:
+
+• Read balance from Mifare Classic or NTAG NFC cards with a single tap
+• Add balance to any card via the card management menu
+• Deduct coins instantly with one-tap preset buttons (-1 or -2)
+• Custom deduction — tap the balance display and type any amount
+• Format new cards with a secure per-card key and an optional starting balance
+• Reset cards back to factory defaults
+
+Security:
+
+• Dynamic key derivation — each card gets a unique authentication key computed as HMAC-SHA1(PSK, UID)
+• Static key fallback for simpler deployments
+• Transaction checksums protect every transaction block
+• Tamper detection — mismatched checksums trigger an immediate warning
+• Interrupted write recovery
+
+UI and Customisation:
+
+• Portrait and landscape layouts optimised for counter-top use
+• 6 theme colour presets plus a full HSV colour wheel picker
+• Decimal mode — display balances as currency
+• Audio and vibration feedback
+• Background flash on success or error
+• Keep screen on option for always-on counter terminals

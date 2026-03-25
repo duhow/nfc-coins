@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      KEYSTORE_FILE: release.jks
 
     steps:
       - name: Checkout repository
@@ -25,38 +27,22 @@ jobs:
           distribution: temurin
           cache: gradle
 
-      - name: Build release APK (unsigned)
-        run: ./gradlew assembleRelease --stacktrace
-        env:
-          NFC_POS_PSK: ${{ secrets.NFC_POS_PSK }}
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
 
       - name: Decode Android keystore
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > $RUNNER_TEMP/release.jks
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/$KEYSTORE_FILE"
 
-      - name: Sign APK with apksigner
-        run: |
-          BUILD_TOOLS_DIR=$(find "$ANDROID_SDK_ROOT/build-tools" -maxdepth 1 -type d | sort -V | tail -n 1)
-          "$BUILD_TOOLS_DIR/apksigner" sign \
-            --ks "$RUNNER_TEMP/release.jks" \
-            --ks-key-alias "${{ github.event.repository.name }}" \
-            --ks-pass pass:"${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
-            --key-pass pass:"${{ secrets.ANDROID_KEY_PASSWORD }}" \
-            --out app/build/outputs/apk/release/app-release.apk \
-            app/build/outputs/apk/release/app-release-unsigned.apk
-
-      - name: Verify APK signature
-        run: |
-          BUILD_TOOLS_DIR=$(find "$ANDROID_SDK_ROOT/build-tools" -maxdepth 1 -type d | sort -V | tail -n 1)
-          "$BUILD_TOOLS_DIR/apksigner" verify --verbose --print-certs \
-            app/build/outputs/apk/release/app-release.apk
-
-      - name: Rename APK with app name and version
-        run: |
-          cp app/build/outputs/apk/release/app-release.apk \
-            "nfc-coins-${{ github.ref_name }}.apk"
-
-      - name: Create GitHub Release and upload APK
-        uses: softprops/action-gh-release@v2
-        with:
-          files: "nfc-coins-${{ github.ref_name }}.apk"
+      - name: Build and publish release APK
+        run: bundle exec fastlane publish_github
+        env:
+          NFC_POS_PSK: ${{ secrets.NFC_POS_PSK }}
+          KEYSTORE_PATH: ${{ runner.temp }}/${{ env.KEYSTORE_FILE }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ github.event.repository.name }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
