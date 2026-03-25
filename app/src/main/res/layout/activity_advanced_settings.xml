@@ -206,6 +206,15 @@
             android:checked="false"
             android:layout_marginBottom="8dp" />
 
+        <!-- Distributed POS checkbox -->
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/cbDistributedPos"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/setting_distributed_pos"
+            android:checked="false"
+            android:layout_marginBottom="8dp" />
+
         <!-- Legal adult age -->
         <TextView
             android:layout_width="wrap_content"
