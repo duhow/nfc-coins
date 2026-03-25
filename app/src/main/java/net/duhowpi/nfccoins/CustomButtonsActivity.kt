@@ -161,7 +161,7 @@ class CustomButtonsActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER
                 text = btn.buttonDisplayText()
                 textSize = if (btn.emoji.isNotEmpty()) 28f else 20f
-                setTextColor(if (btn.backgroundColor != 0) AdvancedSettingsActivity.contrastColor(btn.backgroundColor) else Color.UNSPECIFIED)
+                if (btn.backgroundColor != 0) setTextColor(AdvancedSettingsActivity.contrastColor(btn.backgroundColor))
             }
             val tvSub = TextView(this).apply {
                 gravity = Gravity.CENTER
