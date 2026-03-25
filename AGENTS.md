@@ -24,16 +24,16 @@ Check historic commits to avoid making up new scopes every time.
 
 ## Changelogs
 
-- The active changelog lives at `fastlane/metadata/android/en-US/changelogs/default.txt`.
-- **Update `default.txt` whenever you make user-facing changes** (features, fixes, improvements).
+- Changelog files live in `fastlane/metadata/android/en-US/changelogs/`.
+- Each release has a dedicated numbered file (e.g. `8.txt`) matching the versionCode for that release.
+- **Edit the current numbered file** whenever you make user-facing changes (features, fixes, improvements).
 - Keep entries concise and written from the user's perspective (e.g. `- Fixed crash when tapping a reset card`).
-- Numbered files (e.g. `1.txt`, `2.txt`) are permanent per-version snapshots committed to the repo and must not be edited after creation.
+- Numbered files are permanent per-version snapshots — do **not** edit a file once its release tag has been created.
 
-### Before creating a release tag
+### Release flow (fully automatic)
 
-Since tags are created directly in GitHub, the changelog snapshot must be committed **before** the tag is pushed. Follow these steps:
-
-1. Ensure `default.txt` contains all changes for the upcoming release.
-2. Run `bundle exec fastlane prepare_release` — this copies `default.txt` to `<nextVersionCode>.txt` and resets `default.txt` to a placeholder for the next release.
-3. Commit both files (`git add fastlane/metadata/android/en-US/changelogs/ && git commit`) and push.
-4. Create the release tag in GitHub — the CI pipeline will pick up the versioned changelog automatically.
+1. Edit `<N>.txt` with all changes for the upcoming release.
+2. Create the release tag in GitHub — the CI pipeline will automatically:
+   - Read `<N>.txt` and use it as the GitHub Release description.
+   - Commit a new `<N+1>.txt` placeholder to `main` for the next release.
+3. Edit the newly created `<N+1>.txt` for the next release cycle.

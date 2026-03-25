@@ -1,12 +1,5 @@
 default_platform(:android)
 
-CHANGELOGS_DIR = File.join(File.dirname(__FILE__), "metadata/android/en-US/changelogs").freeze
-CHANGELOG_PLACEHOLDER = "Add user-facing changes for the next release here.\n".freeze
-
-def git_version_tag_count
-  sh("git tag --list 'v[0-9]*'", log: false).strip.split("\n").reject(&:empty?).length
-end
-
 platform :android do
   desc "Build signed release APK"
   lane :build do
@@ -20,46 +13,6 @@ platform :android do
         "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
         "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"],
       }
-    )
-  end
-
-  desc "Snapshot default.txt as the versioned changelog for the upcoming release. Run this locally and commit the result before creating the git tag."
-  lane :prepare_release do
-    next_version_code = git_version_tag_count + 1
-
-    changelog_default = File.join(CHANGELOGS_DIR, "default.txt")
-    changelog_versioned = File.join(CHANGELOGS_DIR, "#{next_version_code}.txt")
-
-    UI.user_error!("#{changelog_default} does not exist.") unless File.exist?(changelog_default)
-    UI.user_error!("#{changelog_versioned} already exists. Remove it first if you want to re-prepare.") if File.exist?(changelog_versioned)
-
-    FileUtils.cp(changelog_default, changelog_versioned)
-    File.write(changelog_default, CHANGELOG_PLACEHOLDER)
-
-    UI.success("Changelog saved as #{next_version_code}.txt. Commit both files and push before creating the tag.")
-  end
-
-  desc "Build and publish release APK to GitHub Releases"
-  lane :publish_github do
-    build
-
-    tag = ENV["GITHUB_REF_NAME"]
-    apk_path = lane_context[SharedValues::GRADLE_APK_OUTPUT_PATH]
-    release_apk = File.join(Dir.pwd, "nfc-coins-#{tag}.apk")
-    FileUtils.cp(apk_path, release_apk)
-
-    version_code = [git_version_tag_count, 1].max
-
-    changelog_versioned = File.join(CHANGELOGS_DIR, "#{version_code}.txt")
-    changelog = File.exist?(changelog_versioned) ? File.read(changelog_versioned) : ""
-
-    set_github_release(
-      repository_name: "duhow/nfc-coins",
-      api_token: ENV["GITHUB_TOKEN"],
-      name: tag,
-      tag_name: tag,
-      description: changelog,
-      upload_assets: [release_apk]
     )
   end
 end

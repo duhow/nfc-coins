@@ -37,12 +37,52 @@ jobs:
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/$KEYSTORE_FILE"
 
-      - name: Build and publish release APK
-        run: bundle exec fastlane publish_github
+      - name: Build release APK
+        run: bundle exec fastlane build
         env:
           NFC_POS_PSK: ${{ secrets.NFC_POS_PSK }}
           KEYSTORE_PATH: ${{ runner.temp }}/${{ env.KEYSTORE_FILE }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ github.event.repository.name }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get version code and changelog
+        id: version
+        run: |
+          VERSION_CODE=$(git tag --list 'v[0-9]*' | wc -l | tr -d ' ')
+          echo "code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+          CHANGELOG_FILE="fastlane/metadata/android/en-US/changelogs/${VERSION_CODE}.txt"
+          if [ -f "$CHANGELOG_FILE" ]; then
+            {
+              echo "body<<CHANGELOG_EOF"
+              cat "$CHANGELOG_FILE"
+              echo "CHANGELOG_EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "body=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Rename APK
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk "nfc-coins-${{ github.ref_name }}.apk"
+
+      - name: Create GitHub Release and upload APK
+        uses: softprops/action-gh-release@v2
+        with:
+          body: ${{ steps.version.outputs.body }}
+          files: "nfc-coins-${{ github.ref_name }}.apk"
+
+      - name: Prepare next version changelog
+        run: |
+          NEXT_VERSION=$(( ${{ steps.version.outputs.code }} + 1 ))
+          NEXT_CHANGELOG="fastlane/metadata/android/en-US/changelogs/${NEXT_VERSION}.txt"
+          git fetch origin main
+          git checkout main
+          if [ ! -f "$NEXT_CHANGELOG" ]; then
+            printf 'Add user-facing changes for the next release here.\n' > "$NEXT_CHANGELOG"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add "$NEXT_CHANGELOG"
+            git commit -m "chore: prepare changelog for version ${NEXT_VERSION}"
+            git push origin main
+          fi
