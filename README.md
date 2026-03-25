@@ -15,6 +15,10 @@
   <img src="https://img.shields.io/badge/License-MIT-orange" alt="License">
 </p>
 
+<p align="center">
+  ⬇️ <a href="https://github.com/duhow/nfc-coins/releases/latest">Download app</a>
+</p>
+
 ---
 
 **NFC Coins** is a Point-of-Sale Android application that reads, writes, and manages coin balances stored on Mifare Classic and NTAG NFC cards (NTAG20x and NTAG21x series).
