@@ -38,7 +38,7 @@ jobs:
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/$KEYSTORE_FILE"
 
       - name: Build release APK
-        run: bundle exec fastlane build
+        run: bundle exec fastlane build build_type:Release
         env:
           NFC_POS_PSK: ${{ secrets.NFC_POS_PSK }}
           KEYSTORE_PATH: ${{ runner.temp }}/${{ env.KEYSTORE_FILE }}

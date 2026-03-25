@@ -31,8 +31,14 @@ jobs:
           distribution: temurin
           cache: gradle
 
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # tag v1.295.0
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
       - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: bundle exec fastlane build
         env:
           NFC_POS_PSK: ${{ secrets.NFC_POS_PSK }}
 
