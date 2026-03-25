@@ -49,7 +49,7 @@ Tap a card to pay, top it up, and issue new ones, in a simple interface.
 - **Add balance** to any card via the card management menu
 - **Deduct coins** instantly with one-tap preset buttons (-1 or -2). Button stays active for rapid back-to-back transactions
 - **Custom deduction**, tap the balance display and type any amount via the on-screen keyboard
-- **Format new cards**, initialise blank or factory cards with a secure per-card key and an optional starting balance
+- **Format new cards**, initialise blank or factory cards with a key per-card and an optional starting balance
 - **Reset cards**, when you no longer want to use the service, wipe a card back to factory defaults (restores a default key)
 
 ### 🔒 Security & Integrity
