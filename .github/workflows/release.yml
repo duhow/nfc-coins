@@ -54,7 +54,7 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk "nfc-coins-${{ github.ref_name }}.apk"
 
       - name: Attest APK build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # tag v4.1.0
         with:
           subject-path: "nfc-coins-${{ github.ref_name }}.apk"
 
