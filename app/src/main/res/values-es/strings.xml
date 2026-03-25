@@ -15,6 +15,7 @@
     <string name="unsupported_card">Tarjeta no compatible (se requiere Mifare Classic o NTAG)</string>
     <string name="sector_unavailable">Tarjeta no tiene Sector %1$d (%2$d)</string>
     <string name="nfc_not_available">NFC no disponible en este dispositivo</string>
+    <string name="nfc_disabled">Activa el NFC para usar esta aplicación</string>
     <string name="no_card">No hay tarjeta. Acércala de nuevo.</string>
     <string name="insufficient_balance">Saldo insuficiente</string>
     <string name="deduct_ok">Descontadas %s moneda(s) correctamente</string>

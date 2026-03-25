@@ -16,6 +16,7 @@
     <string name="unsupported_card">Unsupported card (Mifare Classic or NTAG required)</string>
     <string name="sector_unavailable">Card does not have Sector %1$d (%2$d)</string>
     <string name="nfc_not_available">NFC not available on this device</string>
+    <string name="nfc_disabled">Enable NFC to use this app</string>
     <string name="no_card">No card. Bring it closer again.</string>
     <string name="insufficient_balance">Insufficient balance</string>
     <string name="deduct_ok">%s coin(s) deducted successfully</string>
