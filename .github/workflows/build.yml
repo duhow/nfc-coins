@@ -49,7 +49,8 @@ jobs:
         uses: marocchino/sticky-pull-request-comment@70d2764d1a7d5d9560b100cbea0077fc8f633987 # tag v3.0.2
         with:
           header: debug-apk-download
+          recreate: true
           message: |
-            ✅ Debug APK artifact is ready for commit ${{ github.sha }} .
-            - 💾 APK artifact: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.upload_debug_apk.outputs.artifact-id }}
-            - Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            ✅ Debug APK artifact is ready for commit ${{ github.sha }} .  
+            💾 [Download APK artifact here](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.upload_debug_apk.outputs.artifact-id }}).
+            Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
