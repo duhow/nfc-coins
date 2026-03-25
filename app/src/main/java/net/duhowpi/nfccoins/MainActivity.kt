@@ -33,6 +33,7 @@ import androidx.annotation.ColorRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
+import androidx.core.view.WindowCompat
 import android.provider.Settings
 import com.google.android.material.button.MaterialButtonToggleGroup
 import java.text.SimpleDateFormat
@@ -579,6 +580,8 @@ class MainActivity : AppCompatActivity() {
         supportActionBar?.setBackgroundDrawable(ColorDrawable(bgColor))
         @Suppress("DEPRECATION")
         window.statusBarColor = bgColor
+        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars =
+            AdvancedSettingsActivity.contrastColor(bgColor) == Color.BLACK
 
         // Toggle buttons: opaque fill when checked, transparent when unchecked
         val bgTint = ColorStateList(

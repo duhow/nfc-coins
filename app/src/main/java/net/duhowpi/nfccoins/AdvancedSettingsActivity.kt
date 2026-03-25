@@ -18,6 +18,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
 import androidx.core.widget.CompoundButtonCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.checkbox.MaterialCheckBox
@@ -274,6 +275,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         supportActionBar?.setBackgroundDrawable(ColorDrawable(bgColor))
         @Suppress("DEPRECATION")
         window.statusBarColor = bgColor
+        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars =
+            contrastColor(bgColor) == Color.BLACK
 
         // Icon-only buttons: filled with theme color, icon in contrast color for legibility
         val contrastTint = ColorStateList.valueOf(contrastColor(color))
