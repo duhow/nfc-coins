@@ -21,3 +21,10 @@ Check historic commits to avoid making up new scopes every time.
   - `app/src/main/res/layout-land/activity_main.xml` (landscape/horizontal)
 - Any layout modification to this screen **must be applied in both files**.
 - Treat portrait and landscape as a paired change to avoid regressions/crashes in horizontal mode.
+
+## Changelogs
+
+- The active changelog lives at `fastlane/metadata/android/en-US/changelogs/default.txt`.
+- **Update `default.txt` whenever you make user-facing changes** (features, fixes, improvements).
+- Keep entries concise and written from the user's perspective (e.g. `- Fixed crash when tapping a reset card`).
+- At release time, fastlane automatically copies `default.txt` to `<versionCode>.txt`. Do **not** create numbered files manually.

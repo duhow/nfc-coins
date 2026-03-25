@@ -1,5 +1,7 @@
 default_platform(:android)
 
+CHANGELOGS_DIR = File.join(File.dirname(__FILE__), "metadata/android/en-US/changelogs").freeze
+
 platform :android do
   desc "Build signed release APK"
   lane :build do
@@ -25,11 +27,21 @@ platform :android do
     release_apk = File.join(Dir.pwd, "nfc-coins-#{tag}.apk")
     FileUtils.cp(apk_path, release_apk)
 
+    tags = sh("git tag --list 'v[0-9]*'", log: false).strip.split("\n").reject(&:empty?)
+    version_code = [tags.length, 1].max
+
+    changelog_default = File.join(CHANGELOGS_DIR, "default.txt")
+    changelog_versioned = File.join(CHANGELOGS_DIR, "#{version_code}.txt")
+    FileUtils.cp(changelog_default, changelog_versioned) if File.exist?(changelog_default) && !File.exist?(changelog_versioned)
+
+    changelog = File.exist?(changelog_versioned) ? File.read(changelog_versioned) : ""
+
     set_github_release(
       repository_name: "duhow/nfc-coins",
       api_token: ENV["GITHUB_TOKEN"],
       name: tag,
       tag_name: tag,
+      description: changelog,
       upload_assets: [release_apk]
     )
   end
