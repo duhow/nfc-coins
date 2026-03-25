@@ -45,6 +45,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         const val KEY_DECIMAL_MODE = "decimal_mode"
         const val KEY_LEGAL_AGE = "legal_age"
         const val KEY_LANGUAGE = "language"
+        const val KEY_DISTRIBUTED_POS = "distributed_pos"
         /** Default language code used when no preference has been saved yet. */
         const val DEFAULT_LANGUAGE = "en"
 
@@ -143,6 +144,11 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             return prefs.getBoolean(KEY_DECIMAL_MODE, false)
         }
 
+        fun isDistributedPosEnabled(context: Context): Boolean {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            return prefs.getBoolean(KEY_DISTRIBUTED_POS, false)
+        }
+
         fun getLegalAge(context: Context): Int {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             return prefs.getInt(KEY_LEGAL_AGE, DEFAULT_LEGAL_AGE)
@@ -207,6 +213,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private lateinit var cbSoundEnabled: MaterialCheckBox
     private lateinit var cbVibrationEnabled: MaterialCheckBox
     private lateinit var cbDecimalMode: MaterialCheckBox
+    private lateinit var cbDistributedPos: MaterialCheckBox
     private lateinit var etLegalAge: TextInputEditText
     private lateinit var tilLegalAge: TextInputLayout
     private lateinit var colorSelectorLayout: LinearLayout
@@ -245,6 +252,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         cbSoundEnabled         = findViewById(R.id.cbSoundEnabled)
         cbVibrationEnabled     = findViewById(R.id.cbVibrationEnabled)
         cbDecimalMode          = findViewById(R.id.cbDecimalMode)
+        cbDistributedPos       = findViewById(R.id.cbDistributedPos)
         etLegalAge             = findViewById(R.id.etLegalAge)
         tilLegalAge            = findViewById(R.id.tilLegalAge)
         colorSelectorLayout    = findViewById(R.id.colorSelectorLayout)
@@ -299,7 +307,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         )
         for (cb in listOf(cbDynamicKey, cbFlashEnabled, cbVerifyIntegrity,
                           cbSellerMode, cbDebugEnabled, cbKeepScreenOn, cbSoundEnabled, cbVibrationEnabled,
-                          cbDecimalMode)) {
+                          cbDecimalMode, cbDistributedPos)) {
             CompoundButtonCompat.setButtonTintList(cb, checkboxTint)
         }
 
@@ -335,6 +343,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         cbSoundEnabled.isChecked = isSoundEnabled(this)
         cbVibrationEnabled.isChecked = isVibrationEnabled(this)
         cbDecimalMode.isChecked = isDecimalModeEnabled(this)
+        cbDistributedPos.isChecked = isDistributedPosEnabled(this)
         etLegalAge.setText(getLegalAge(this).toString())
         selectedThemeColor = getThemeColor(this)
 
@@ -514,6 +523,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         val soundEnabled = cbSoundEnabled.isChecked
         val vibrationEnabled = cbVibrationEnabled.isChecked
         val decimalMode = cbDecimalMode.isChecked
+        val distributedPos = cbDistributedPos.isChecked
         val legalAge = etLegalAge.text?.toString()?.trim()?.toIntOrNull()?.coerceIn(1, 99) ?: DEFAULT_LEGAL_AGE
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -529,6 +539,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             .putBoolean(KEY_SOUND_ENABLED, soundEnabled)
             .putBoolean(KEY_VIBRATION_ENABLED, vibrationEnabled)
             .putBoolean(KEY_DECIMAL_MODE, decimalMode)
+            .putBoolean(KEY_DISTRIBUTED_POS, distributedPos)
             .putInt(KEY_LEGAL_AGE, legalAge)
             .putInt(KEY_THEME_COLOR, selectedThemeColor)
             .putString(KEY_LANGUAGE, newLangCode)

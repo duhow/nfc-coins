@@ -84,6 +84,7 @@
     <string name="setting_sound_enabled">Activar sonido</string>
     <string name="setting_vibration_enabled">Activar vibración</string>
     <string name="setting_decimal_mode">Modo decimal (valores x100, mostrar 2 decimales)</string>
+    <string name="setting_distributed_pos">Venta distribuida (POS distribuido)</string>
     <string name="setting_theme_color">Color de tema</string>
     <string name="color_pick_title">Color personalizado</string>
     <string name="color_custom_swatch">Seleccionar color personalizado</string>
@@ -97,6 +98,7 @@
     <string name="tx_add">+%d monedas</string>
     <string name="tx_subtract">-%d monedas</string>
     <string name="card_tampered">Tarjeta manipulada. Operación cancelada.</string>
+    <string name="replay_attack_detected">Posible ataque de repetición detectado. Operación cancelada.</string>
     <string name="write_retried">Escritura reiniciada tras interrupción anterior</string>
 
     <!-- Operations History -->

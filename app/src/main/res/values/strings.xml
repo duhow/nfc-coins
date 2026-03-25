@@ -90,6 +90,7 @@
     <string name="setting_sound_enabled">Enable sound</string>
     <string name="setting_vibration_enabled">Enable vibration</string>
     <string name="setting_decimal_mode">Decimal mode (values x100, show 2 decimals)</string>
+    <string name="setting_distributed_pos">Distributed POS (Venta distribuida)</string>
     <string name="setting_theme_color">Theme color</string>
     <string name="color_pick_title">Custom color</string>
     <string name="color_custom_swatch">Select custom color</string>
@@ -105,6 +106,7 @@
     <string name="tx_entry_format">%1$s  %2$s</string>
     <string name="tx_debug_checksum">stored: %1$s  calc: %2$s</string>
     <string name="card_tampered">Card tampered. Operation cancelled.</string>
+    <string name="replay_attack_detected">Possible replay attack detected. Operation cancelled.</string>
     <string name="write_retried">Write retried after previous interruption</string>
 
     <!-- Operations History -->

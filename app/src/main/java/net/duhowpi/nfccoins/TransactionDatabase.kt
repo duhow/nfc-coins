@@ -21,12 +21,21 @@ data class PeriodSummary(val added: Int, val subtracted: Int, val addOps: Int, v
 
 data class ButtonStats(val amount: Int, val countThisHour: Int, val countLastHour: Int, val countToday: Int, val countThisWeek: Int)
 
+/** Most-recent state recorded for a specific card (used for replay-attack detection). */
+data class CardStateRecord(
+    val cardUid: String,
+    val timestamp: Long,
+    val checksum: String,
+    val balanceBefore: Int,
+    val balanceAfter: Int
+)
+
 class TransactionDatabase(context: Context) : SQLiteOpenHelper(
     context, DATABASE_NAME, null, DATABASE_VERSION
 ) {
     companion object {
         private const val DATABASE_NAME = "nfc_transactions.db"
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 2
 
         const val TABLE = "transactions"
         const val COL_ID = "id"
@@ -43,6 +52,17 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
         const val TYPE_SUBTRACT = "subtract"
         const val TYPE_FORMAT = "format"
         const val TYPE_RESET = "reset"
+
+        const val TABLE_CARD_STATES = "card_states"
+        private const val CS_COL_ID = "id"
+        private const val CS_COL_CARD_UID = "card_uid"
+        private const val CS_COL_TIMESTAMP = "timestamp"
+        private const val CS_COL_CHECKSUM = "checksum"
+        private const val CS_COL_BALANCE_BEFORE = "balance_before"
+        private const val CS_COL_BALANCE_AFTER = "balance_after"
+
+        /** Maximum number of card-state records retained per card UID. */
+        private const val MAX_CARD_STATES = 4
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -60,11 +80,103 @@ class TransactionDatabase(context: Context) : SQLiteOpenHelper(
             )
             """.trimIndent()
         )
+        createCardStatesTable(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS $TABLE")
-        onCreate(db)
+        if (oldVersion < 2) {
+            createCardStatesTable(db)
+        }
+    }
+
+    private fun createCardStatesTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE $TABLE_CARD_STATES (
+                $CS_COL_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                $CS_COL_CARD_UID TEXT NOT NULL,
+                $CS_COL_TIMESTAMP INTEGER NOT NULL,
+                $CS_COL_CHECKSUM TEXT NOT NULL,
+                $CS_COL_BALANCE_BEFORE INTEGER NOT NULL,
+                $CS_COL_BALANCE_AFTER INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+    }
+
+    /**
+     * Records a card state snapshot and prunes old records so that no more than
+     * [MAX_CARD_STATES] states are kept per card UID.
+     */
+    fun recordCardState(
+        cardUid: String,
+        checksum: String,
+        balanceBefore: Int,
+        balanceAfter: Int
+    ) {
+        val db = writableDatabase
+        val values = ContentValues().apply {
+            put(CS_COL_CARD_UID, cardUid)
+            put(CS_COL_TIMESTAMP, System.currentTimeMillis())
+            put(CS_COL_CHECKSUM, checksum)
+            put(CS_COL_BALANCE_BEFORE, balanceBefore)
+            put(CS_COL_BALANCE_AFTER, balanceAfter)
+        }
+        db.insert(TABLE_CARD_STATES, null, values)
+
+        // Keep only the most recent MAX_CARD_STATES rows for this card.
+        db.execSQL(
+            """
+            DELETE FROM $TABLE_CARD_STATES
+            WHERE $CS_COL_CARD_UID = ?
+              AND $CS_COL_ID NOT IN (
+                  SELECT $CS_COL_ID FROM $TABLE_CARD_STATES
+                  WHERE $CS_COL_CARD_UID = ?
+                  ORDER BY $CS_COL_ID DESC
+                  LIMIT $MAX_CARD_STATES
+              )
+            """.trimIndent(),
+            arrayOf(cardUid, cardUid)
+        )
+    }
+
+    /**
+     * Returns the most-recent card state for [cardUid], or `null` if none is recorded.
+     */
+    fun getLastCardState(cardUid: String): CardStateRecord? {
+        val db = readableDatabase
+        val cursor = db.rawQuery(
+            """
+            SELECT $CS_COL_CARD_UID, $CS_COL_TIMESTAMP, $CS_COL_CHECKSUM,
+                   $CS_COL_BALANCE_BEFORE, $CS_COL_BALANCE_AFTER
+            FROM $TABLE_CARD_STATES
+            WHERE $CS_COL_CARD_UID = ?
+            ORDER BY $CS_COL_ID DESC
+            LIMIT 1
+            """.trimIndent(),
+            arrayOf(cardUid)
+        )
+        return cursor.use {
+            if (it.moveToFirst()) {
+                CardStateRecord(
+                    cardUid = it.getString(0),
+                    timestamp = it.getLong(1),
+                    checksum = it.getString(2),
+                    balanceBefore = it.getInt(3),
+                    balanceAfter = it.getInt(4)
+                )
+            } else null
+        }
+    }
+
+    /**
+     * Returns `true` when [currentChecksum] matches the last recorded checksum for [cardUid],
+     * or when no prior state exists (first time this card is seen).
+     * Returns `false` when a mismatch is detected, which may indicate a replay attack.
+     */
+    fun isChecksumValid(cardUid: String, currentChecksum: String): Boolean {
+        val last = getLastCardState(cardUid) ?: return true
+        return last.checksum == currentChecksum
     }
 
     fun insertTransaction(

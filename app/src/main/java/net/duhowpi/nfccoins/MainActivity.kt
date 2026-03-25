@@ -64,6 +64,7 @@ class MainActivity : AppCompatActivity() {
         private const val IME_FOCUS_DELAY_MS = 200L
         private val GIT_DESCRIBE_COMMIT_REGEX = Regex("-\\d+-g([0-9a-fA-F]+)$")
         private val NFC_DISABLED_TAG = Any()
+        private const val TX_CHECKSUM_SIZE = 4
     }
 
     private enum class PendingAction { NONE, WITHDRAW_BALANCE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
@@ -387,6 +388,14 @@ class MainActivity : AppCompatActivity() {
                     showTransactionHistory(txBlock)
                     showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
                     txDb.insertTransaction(TransactionDatabase.TYPE_READ, balanceBefore = currentBalance, cardUid = card.uid.toHex())
+                    if (!AdvancedSettingsActivity.isDistributedPosEnabled(this)) {
+                        txDb.recordCardState(
+                            cardUid = card.uid.toHex(),
+                            checksum = data.checksum.toHex(),
+                            balanceBefore = currentBalance,
+                            balanceAfter = currentBalance
+                        )
+                    }
                     setScreenStatusSuccess(
                         message = getString(R.string.card_read_ok),
                         background = null
@@ -445,6 +454,21 @@ class MainActivity : AppCompatActivity() {
                     }
                     pendingWrite = null  // Previous write (if any) was successful.
 
+                    // Replay-attack detection: when not in distributed POS mode, verify the card's
+                    // current checksum matches the last state we recorded locally.
+                    if (!AdvancedSettingsActivity.isDistributedPosEnabled(this)) {
+                        val currentChecksum = data.checksum.toHex()
+                        if (!txDb.isChecksumValid(card.uid.toHex(), currentChecksum)) {
+                            showTransactionHistory(data.transactions)
+                            showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
+                            tvStatus.text = getString(R.string.replay_attack_detected)
+                            flashRedBackground()
+                            playNfcErrorBeep()
+                            // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
+                            return
+                        }
+                    }
+
                     val balance = data.balance
                     if (balance < amount) {
                         currentBalance = balance
@@ -495,6 +519,14 @@ class MainActivity : AppCompatActivity() {
                         cardUid = card.uid.toHex(),
                         buttonValue = amount
                     )
+                    if (!AdvancedSettingsActivity.isDistributedPosEnabled(this)) {
+                        txDb.recordCardState(
+                            cardUid = card.uid.toHex(),
+                            checksum = newTransactions.copyOfRange(newTransactions.size - TX_CHECKSUM_SIZE, newTransactions.size).toHex(),
+                            balanceBefore = balance,
+                            balanceAfter = newBalance
+                        )
+                    }
                     setScreenStatusSuccess(
                         message = getString(R.string.deduct_ok, formatBalanceDisplay(amount)),
                         scheduleAutoReset = false,
@@ -1022,6 +1054,21 @@ class MainActivity : AppCompatActivity() {
                     }
                     pendingWrite = null
 
+                    // Replay-attack detection: when not in distributed POS mode, verify the card's
+                    // current checksum matches the last state we recorded locally.
+                    if (!AdvancedSettingsActivity.isDistributedPosEnabled(this)) {
+                        val currentChecksum = data.checksum.toHex()
+                        if (!txDb.isChecksumValid(card.uid.toHex(), currentChecksum)) {
+                            showTransactionHistory(txBlock)
+                            showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
+                            tvStatus.text = getString(R.string.replay_attack_detected)
+                            flashRedBackground()
+                            playNfcErrorBeep()
+                            scheduleAutoReset()
+                            return
+                        }
+                    }
+
                     val oldBalance = data.balance
                     val newBalance = oldBalance + pendingAddAmount
                     if (newBalance > card.maxBalance) {
@@ -1072,6 +1119,14 @@ class MainActivity : AppCompatActivity() {
                         balanceAfter = newBalance,
                         cardUid = card.uid.toHex()
                     )
+                    if (!AdvancedSettingsActivity.isDistributedPosEnabled(this)) {
+                        txDb.recordCardState(
+                            cardUid = card.uid.toHex(),
+                            checksum = newTransactions.copyOfRange(newTransactions.size - TX_CHECKSUM_SIZE, newTransactions.size).toHex(),
+                            balanceBefore = oldBalance,
+                            balanceAfter = newBalance
+                        )
+                    }
                     setScreenStatusSuccess(
                         getString(R.string.balance_added_ok, formatBalanceDisplay(pendingAddAmount))
                     )
