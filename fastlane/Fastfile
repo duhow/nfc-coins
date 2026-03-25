@@ -27,7 +27,8 @@ platform :android do
 
     next unless ENV["GITHUB_OUTPUT"]
 
-    version_code = sh("#{__dir__}/gradlew -q printVersionCode", log: false).strip.to_i
+    tags = sh("git tag --list 'v[0-9]*'", log: false).strip.split("\n").reject(&:empty?)
+    version_code = [tags.size, 1].max
     File.open(ENV["GITHUB_OUTPUT"], "a") do |f|
       f.puts "version_code=#{version_code}"
       changelog_file = "fastlane/metadata/android/en-US/changelogs/#{version_code}.txt"
