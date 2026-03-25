@@ -33,6 +33,7 @@ import androidx.annotation.ColorRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
+import android.provider.Settings
 import com.google.android.material.button.MaterialButtonToggleGroup
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -61,6 +62,7 @@ class MainActivity : AppCompatActivity() {
         private val toneGeneratorLock = Any()
         private const val IME_FOCUS_DELAY_MS = 200L
         private val GIT_DESCRIBE_COMMIT_REGEX = Regex("-\\d+-g([0-9a-fA-F]+)$")
+        private val NFC_DISABLED_TAG = Any()
     }
 
     private enum class PendingAction { NONE, WITHDRAW_BALANCE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
@@ -70,6 +72,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvBalance: EditText
     private lateinit var tvMinorIcon: TextView
     private lateinit var tvCardId: TextView
+    private lateinit var tvCoinsLabel: TextView
     private lateinit var tvBalanceBefore: TextView
     private lateinit var tvBalanceAfter: TextView
     private lateinit var tvActualBalance: TextView
@@ -113,6 +116,7 @@ class MainActivity : AppCompatActivity() {
         tvBalance         = findViewById(R.id.tvBalance)
         tvMinorIcon       = findViewById(R.id.tvMinorIcon)
         tvCardId          = findViewById(R.id.tvCardId)
+        tvCoinsLabel      = findViewById(R.id.tvCoinsLabel)
         tvBalanceBefore   = findViewById(R.id.tvBalanceBefore)
         tvBalanceAfter    = findViewById(R.id.tvBalanceAfter)
         tvActualBalance   = findViewById(R.id.tvActualBalance)
@@ -182,6 +186,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        checkNfcEnabled()
         nfcAdapter?.enableReaderMode(
             this,
             { tag -> handler.post { handleTag(tag) } },
@@ -220,6 +225,60 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleNfcIntent(intent)
+    }
+
+    // -------------------------------------------------------------------------
+    // NFC enabled state check
+    // -------------------------------------------------------------------------
+
+    /**
+     * Checks whether NFC is enabled on the device and updates the UI accordingly.
+     * When NFC is disabled, shows the NFC icon in place of the balance and hides
+     * all interactive elements. When NFC is enabled, restores normal app UI.
+     */
+    private fun checkNfcEnabled() {
+        // NFC hardware not available - handled separately in onCreate
+        if (nfcAdapter == null) return
+        val nfcEnabled = nfcAdapter?.isEnabled ?: return
+        if (nfcEnabled) {
+            tvCardId.text = getString(R.string.no_card_detected)
+            if (tvBalance.tag == NFC_DISABLED_TAG) {
+                tvBalance.tag = null
+                tvBalance.setCompoundDrawables(null, null, null, null)
+                tvBalance.isClickable = false
+                tvBalance.setOnClickListener(null)
+                resetBalanceToInitial()
+            }
+            tvCoinsLabel.visibility = View.VISIBLE
+            tvStatus.visibility = View.VISIBLE
+            toggleGroup.visibility = View.VISIBLE
+        } else {
+            handler.removeCallbacks(autoResetRunnable)
+            tvCardId.text = getString(R.string.nfc_disabled)
+            tvBalance.tag = NFC_DISABLED_TAG
+            tvBalance.setText("")
+            val drawable = ContextCompat.getDrawable(this, R.drawable.ic_nfc) ?: return
+            val size = (80 * resources.displayMetrics.density).toInt()
+            drawable.setBounds(0, 0, size, size)
+            tvBalance.setCompoundDrawables(null, drawable, null, null)
+            tvBalance.isClickable = true
+            tvBalance.setOnClickListener { openNfcSettings() }
+            tvCoinsLabel.visibility = View.GONE
+            tvStatus.visibility = View.GONE
+            toggleGroup.visibility = View.GONE
+            layoutBeforeAfter.visibility = View.GONE
+            tvActualBalance.visibility = View.GONE
+            tvMinorIcon.visibility = View.GONE
+            layoutTransactionHistory.visibility = View.GONE
+        }
+    }
+
+    private fun openNfcSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_NFC_SETTINGS))
+        } catch (_: ActivityNotFoundException) {
+            startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS))
+        }
     }
 
     // -------------------------------------------------------------------------
