@@ -351,7 +351,7 @@ class OperationsHistoryActivity : AppCompatActivity() {
             row.setPadding(0, 4, 0, 4)
 
             // Show label from custom button config if found, otherwise show raw amount
-            val priceText = customButtons.firstOrNull { it.amount == stat.amount }?.label
+            val priceText = customButtons.firstOrNull { Math.abs(it.amount) == Math.abs(stat.amount) }?.label
                 ?: if (isDecimalMode) {
                     String.format(java.util.Locale.getDefault(), "%d.%02d", stat.amount / 100, Math.abs(stat.amount % 100))
                 } else {

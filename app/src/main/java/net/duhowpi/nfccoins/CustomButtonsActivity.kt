@@ -108,36 +108,7 @@ class CustomButtonsActivity : AppCompatActivity() {
         val themeColor = AdvancedSettingsActivity.getThemeColor(this)
 
         return if (btn != null) {
-            // Configured slot: show button preview
-            val textView = TextView(this).apply {
-                gravity = Gravity.CENTER
-                setPadding(4, 4, 4, 4)
-
-                // Display text: emoji or label
-                text = btn.buttonDisplayText()
-                textSize = if (btn.emoji.isNotEmpty()) 28f else 18f
-
-                // Background
-                background = buildSlotDrawable(
-                    fillColor = if (btn.backgroundColor != 0) btn.backgroundColor else Color.TRANSPARENT,
-                    strokeColor = themeColor,
-                    strokeWidth = strokeWidthPx
-                )
-
-                // Subtitle: operation + amount
-                val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this@CustomButtonsActivity)
-                val opSign = if (btn.operation == CustomButton.OP_ADD) "+" else "−"
-                val amtText = formatAmount(btn.amount, isDecimalMode)
-                contentDescription = "${btn.label} $opSign$amtText"
-
-                setOnClickListener { showEditDialog(slotIndex, btn) }
-                setOnLongClickListener {
-                    showDeleteConfirm(slotIndex)
-                    true
-                }
-            }
-
-            // Overlay a small label for operation + amount at bottom
+            // Configured slot: show button preview with main text and subtitle
             val container = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
@@ -463,7 +434,8 @@ class CustomButtonsActivity : AppCompatActivity() {
                 (text.toIntOrNull() ?: 0)
             }
         } else {
-            text.toIntOrNull() ?: 0
+            // In integer mode, strip any accidental decimal part and take the integer portion only
+            text.substringBefore('.').substringBefore(',').toIntOrNull() ?: 0
         }
     }
 

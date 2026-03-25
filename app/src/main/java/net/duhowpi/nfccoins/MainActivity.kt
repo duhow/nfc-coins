@@ -769,18 +769,19 @@ class MainActivity : AppCompatActivity() {
         val btn = customButtonList.getOrNull(index) ?: return
 
         if (selectedButtonIndex == index) {
-            // Tapping the active button deselects it
+            // Tapping the active button deselects it; revert state based on operation
+            val wasWithdraw = pendingAction == PendingAction.WITHDRAW_BALANCE
+            val wasAdd = pendingAction == PendingAction.ADD_BALANCE
             clearCustomButtonSelection()
-            handler.post {
-                if (selectedButtonIndex < 0 && customDeductAmount == 0
-                    && pendingAction == PendingAction.WITHDRAW_BALANCE) {
+            when {
+                wasWithdraw && customDeductAmount == 0 -> {
                     if (currentBalance >= 0) resetToWaiting()
                     else {
                         setPendingAction(PendingAction.NONE)
                         tvStatus.text = getString(R.string.waiting_card)
                     }
-                } else if (selectedButtonIndex < 0 && customDeductAmount == 0
-                    && pendingAction == PendingAction.ADD_BALANCE) {
+                }
+                wasAdd -> {
                     setPendingAction(PendingAction.NONE)
                     pendingAddAmount = 0
                     tvStatus.text = getString(R.string.waiting_card)
