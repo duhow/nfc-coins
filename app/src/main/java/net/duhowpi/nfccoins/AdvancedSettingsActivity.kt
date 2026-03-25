@@ -9,11 +9,8 @@ import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
-import android.text.Spannable
-import android.text.SpannableString
 import android.text.method.HideReturnsTransformationMethod
 import android.text.method.PasswordTransformationMethod
-import android.text.style.ForegroundColorSpan
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.LinearLayout
@@ -21,7 +18,6 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.WindowCompat
 import androidx.core.widget.CompoundButtonCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.checkbox.MaterialCheckBox
@@ -276,14 +272,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         val bgColor = ta.getColor(0, Color.WHITE)
         ta.recycle()
         supportActionBar?.setBackgroundDrawable(ColorDrawable(bgColor))
-        val titleColor = contrastColor(bgColor)
-        val titleSpan = SpannableString(supportActionBar?.title ?: getString(R.string.advanced_settings))
-        titleSpan.setSpan(ForegroundColorSpan(titleColor), 0, titleSpan.length, Spannable.SPAN_INCLUSIVE_INCLUSIVE)
-        supportActionBar?.title = titleSpan
         @Suppress("DEPRECATION")
         window.statusBarColor = bgColor
-        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars =
-            contrastColor(bgColor) == Color.BLACK
 
         // Icon-only buttons: filled with theme color, icon in contrast color for legibility
         val contrastTint = ColorStateList.valueOf(contrastColor(color))
