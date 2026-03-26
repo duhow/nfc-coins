@@ -2,3 +2,4 @@
 - Default buttons (-1 and -2) are loaded automatically when no custom configuration exists.
 - Operations History now shows button labels in the breakdown table.
 - Language setting now integrates with the Android system per-app language selector (Android 13+).
+- Improved reliability of the "keep screen always on" feature and added support for blocking device suspension mode.
