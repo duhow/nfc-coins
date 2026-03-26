@@ -245,6 +245,21 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         colorSelectorLayout    = findViewById(R.id.colorSelectorLayout)
         btnSaveSettings        = findViewById(R.id.btnSaveSettings)
 
+        // Avoid SwitchCompat measuring nullable internal ON/OFF labels on some devices.
+        listOf(
+            swDynamicKey,
+            swFlashEnabled,
+            swVerifyIntegrity,
+            swDebugEnabled,
+            swSellerMode,
+            swKeepScreenOn,
+            swSoundEnabled,
+            swVibrationEnabled,
+            swDecimalMode,
+            swDistributedPos,
+            swBroadcastEnabled,
+        ).forEach { it.showText = false }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             tilLanguage.visibility = View.GONE
             btnOpenLanguageSettings.visibility = View.VISIBLE
