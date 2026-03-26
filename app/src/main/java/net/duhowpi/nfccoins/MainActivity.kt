@@ -15,8 +15,10 @@ import android.nfc.Tag
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.util.Log
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -111,6 +113,9 @@ class MainActivity : AppCompatActivity() {
     private val autoResetRunnable = Runnable { resetToWaiting() }
     private val buttonModeIdleRunnable = Runnable { resetButtonModeState() }
     private val txDb: TransactionDatabase by lazy { TransactionDatabase(this) }
+
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var batteryOptimizationRequested = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -211,8 +216,11 @@ class MainActivity : AppCompatActivity() {
         )
         if (AdvancedSettingsActivity.isKeepScreenOnEnabled(this)) {
             window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            acquireWakeLockIfNeeded()
+            requestIgnoreBatteryOptimizationsIfNeeded()
         } else {
             window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            releaseWakeLock()
         }
         applyThemeColor()
         rebuildCustomButtons()
@@ -222,6 +230,7 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         nfcAdapter?.disableReaderMode(this)
+        releaseWakeLock()
         // Deselect any active button and reset UI state when leaving so that returning from
         // another activity (history, settings, …) never leaves the interface in a stale mode.
         if (selectedButtonIndex >= 0 || isAddBalanceMode) {
@@ -232,6 +241,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        releaseWakeLock()
         handler.removeCallbacksAndMessages(BEEP_TOKEN)
         if (isFinishing) {
             synchronized(toneGeneratorLock) {
@@ -244,6 +254,47 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleNfcIntent(intent)
+    }
+
+    // -------------------------------------------------------------------------
+    // Keep-screen-on helpers
+    // -------------------------------------------------------------------------
+
+    private fun acquireWakeLockIfNeeded() {
+        if (wakeLock?.isHeld == true) return
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "net.duhowpi.nfccoins:KeepAwake").apply {
+            // Safety timeout: the lock is released in onPause/onDestroy; this is just a guard
+            // against unexpected code paths (e.g. crashes) that might skip those callbacks.
+            acquire(30 * 60 * 1000L /* 30 minutes */)
+        }
+    }
+
+    private fun releaseWakeLock() {
+        if (wakeLock?.isHeld == true) wakeLock?.release()
+        wakeLock = null
+    }
+
+    private fun requestIgnoreBatteryOptimizationsIfNeeded() {
+        // Show the system dialog at most once per app launch. If the user grants the exemption,
+        // isIgnoringBatteryOptimizations() returns true on subsequent resumes so we never ask again.
+        // If they decline, the flag prevents a dialog loop within the same session; they will be
+        // asked again on the next cold start.
+        if (batteryOptimizationRequested) return
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            batteryOptimizationRequested = true
+            try {
+                startActivity(
+                    Intent(
+                        Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        Uri.parse("package:$packageName")
+                    )
+                )
+            } catch (e: ActivityNotFoundException) {
+                Log.w("MainActivity", "Cannot request battery optimisation exemption: ${e.message}")
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
