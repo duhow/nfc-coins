@@ -139,7 +139,7 @@ class CustomButtonsActivity : AppCompatActivity() {
         val dp = resources.displayMetrics.density
         val themeColor = AdvancedSettingsActivity.getThemeColor(this)
         val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this)
-        val opSign = if (btn.operation == CustomButton.OP_ADD) "+" else "−"
+        val opSign = if (btn.operation == CustomButton.OP_ADD) "+" else "-"
         val amtText = formatAmount(btn.amount, isDecimalMode)
 
         val container = LinearLayout(this).apply {
@@ -527,7 +527,7 @@ class CustomButtonsActivity : AppCompatActivity() {
 
             // Use the entered label; fall back to a signed amount string if blank.
             val labelText = etLabel.text.toString().trim().ifEmpty {
-                val sign = if (operation == CustomButton.OP_ADD) "+" else "−"
+                val sign = if (operation == CustomButton.OP_ADD) "+" else "-"
                 "$sign${formatAmount(parsedAmount, isDecimalMode)}"
             }
 

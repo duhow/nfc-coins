@@ -1097,7 +1097,7 @@ class MainActivity : AppCompatActivity() {
      *   trailer during format (block 0 becomes increment-blocked). On the first balance add the
      *   app temporarily unlocks, adds balance, then re-locks.
      * - "Límite de edad" number input: accepts an age (1–99) or birth year (1900–currentYear).
-     *   Stores (birthYear − 1900) in the GPB user byte of the sector trailer access bits.
+     *   Stores (birthYear - 1900) in the GPB user byte of the sector trailer access bits.
      *   Defaults to [MifareClassicHelper.DEFAULT_USER_BYTE] when empty or invalid.
      */
     private fun showFormatOptionsDialog() {
@@ -1158,7 +1158,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Interprets [input] as an age (1–99, resolved to currentYear − age) or birth year
+     * Interprets [input] as an age (1–99, resolved to currentYear - age) or birth year
      * (1900–currentYear) and returns the birth year directly.
      * Returns the default birth year when the input is empty or out of range.
      */

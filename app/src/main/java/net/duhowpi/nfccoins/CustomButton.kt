@@ -28,8 +28,8 @@ data class CustomButton(
         fun getDefaultButtons(context: Context): List<CustomButton> {
             val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(context)
             return listOf(
-                CustomButton(0, OP_SUBTRACT, if (isDecimalMode) 100 else 1, "−1", "", 0),
-                CustomButton(1, OP_SUBTRACT, if (isDecimalMode) 200 else 2, "−2", "", 0)
+                CustomButton(0, OP_SUBTRACT, if (isDecimalMode) 100 else 1, "-1", "", 0),
+                CustomButton(1, OP_SUBTRACT, if (isDecimalMode) 200 else 2, "-2", "", 0)
             )
         }
 

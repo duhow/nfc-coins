@@ -1,3 +1,3 @@
 - Added Custom Buttons: configure up to 9 action buttons (3 per row) from the main menu. Each button supports add or withdraw operations, a label, an optional emoji icon shown on the button, and a custom background color with a color picker.
-- Default buttons (−1 and −2) are loaded automatically when no custom configuration exists.
+- Default buttons (-1 and -2) are loaded automatically when no custom configuration exists.
 - Operations History now shows button labels in the breakdown table.

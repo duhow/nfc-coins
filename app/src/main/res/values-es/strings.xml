@@ -25,8 +25,8 @@
     <string name="error_decryption">Error de descifrado</string>
 
     <!-- Buttons -->
-    <string name="deduct_1">− 1 moneda</string>
-    <string name="deduct_2">− 2 monedas</string>
+    <string name="deduct_1">- 1 moneda</string>
+    <string name="deduct_2">- 2 monedas</string>
 
     <!-- Card management -->
     <string name="card_management">Gestión de tarjetas</string>
@@ -113,9 +113,9 @@
     <string name="custom_button_operation_add">Añadir saldo</string>
     <string name="custom_button_operation_subtract">Descontar</string>
     <string name="custom_button_label">Etiqueta</string>
-    <string name="custom_button_label_hint">p.ej. −1, Café…</string>
+    <string name="custom_button_label_hint">p.ej. -1, Café…</string>
     <string name="custom_button_emoji_short">Emoji</string>
-    <string name="custom_button_amount">Importe (prefijo + para añadir, − para descontar)</string>
+    <string name="custom_button_amount">Importe (prefijo + para añadir, - para descontar)</string>
     <string name="custom_button_amount_hint">p.ej. 1 o 5</string>
     <string name="custom_button_amount_hint_decimal">p.ej. 1,50 o 2,00</string>
     <string name="custom_button_color">Color de fondo (toca para elegir)</string>
