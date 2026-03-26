@@ -13,9 +13,6 @@ import android.provider.Settings
 import android.text.InputType
 import android.text.method.HideReturnsTransformationMethod
 import android.text.method.PasswordTransformationMethod
-import android.view.View
-import android.widget.ArrayAdapter
-import android.widget.AutoCompleteTextView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -24,9 +21,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.core.view.WindowCompat
-import androidx.core.widget.CompoundButtonCompat
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.checkbox.MaterialCheckBox
+import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import java.security.SecureRandom
@@ -167,6 +163,20 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             return if (!locales.isEmpty) locales[0]?.language ?: DEFAULT_LANGUAGE else DEFAULT_LANGUAGE
         }
 
+        /**
+         * Returns the language code that is VISUALLY active in the app.
+         * When no explicit app locale is set (system language mode), falls back to the
+         * actual locale currently applied to the app's resources instead of "en".
+         */
+        fun getEffectiveLanguage(context: Context): String {
+            val appLocales = AppCompatDelegate.getApplicationLocales()
+            if (!appLocales.isEmpty) {
+                return appLocales[0]?.language ?: DEFAULT_LANGUAGE
+            }
+            // System/default mode: return whatever locale the resources are currently using
+            return context.resources.configuration.locales[0].language
+        }
+
         /** Returns black or white, whichever contrasts better with [color]. */
         fun contrastColor(color: Int): Int {
             val r = Color.red(color) / 255.0
@@ -184,26 +194,25 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
     }
 
-    private lateinit var actvLanguage: AutoCompleteTextView
-    private lateinit var tilLanguage: TextInputLayout
-    private lateinit var btnOpenLanguageSettings: MaterialButton
+    private lateinit var rowLanguage: LinearLayout
+    private lateinit var tvLanguageValue: TextView
     private lateinit var etSector: TextInputEditText
     private lateinit var tilSector: TextInputLayout
     private lateinit var etStaticKey: TextInputEditText
     private lateinit var tilStaticKey: TextInputLayout
     private lateinit var btnToggleKeyVisibility: MaterialButton
     private lateinit var btnGenerateKey: MaterialButton
-    private lateinit var cbDynamicKey: MaterialCheckBox
-    private lateinit var cbFlashEnabled: MaterialCheckBox
-    private lateinit var cbVerifyIntegrity: MaterialCheckBox
-    private lateinit var cbDebugEnabled: MaterialCheckBox
-    private lateinit var cbSellerMode: MaterialCheckBox
-    private lateinit var cbKeepScreenOn: MaterialCheckBox
-    private lateinit var cbSoundEnabled: MaterialCheckBox
-    private lateinit var cbVibrationEnabled: MaterialCheckBox
-    private lateinit var cbDecimalMode: MaterialCheckBox
-    private lateinit var cbDistributedPos: MaterialCheckBox
-    private lateinit var cbBroadcastEnabled: MaterialCheckBox
+    private lateinit var swDynamicKey: SwitchMaterial
+    private lateinit var swFlashEnabled: SwitchMaterial
+    private lateinit var swVerifyIntegrity: SwitchMaterial
+    private lateinit var swDebugEnabled: SwitchMaterial
+    private lateinit var swSellerMode: SwitchMaterial
+    private lateinit var swKeepScreenOn: SwitchMaterial
+    private lateinit var swSoundEnabled: SwitchMaterial
+    private lateinit var swVibrationEnabled: SwitchMaterial
+    private lateinit var swDecimalMode: SwitchMaterial
+    private lateinit var swDistributedPos: SwitchMaterial
+    private lateinit var swBroadcastEnabled: SwitchMaterial
     private lateinit var etLegalAge: TextInputEditText
     private lateinit var tilLegalAge: TextInputLayout
     private lateinit var colorSelectorLayout: LinearLayout
@@ -211,6 +220,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
 
     private var keyVisible = false
     private var selectedThemeColor: Int = DEFAULT_THEME_COLOR
+    /** Tracks the language code selected via dialog (API < 33 only); null means unchanged. */
+    private var pendingLangCode: String? = null
 
     private val isCustomColor get() = selectedThemeColor !in COLOR_OPTIONS
 
@@ -221,40 +232,48 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = getString(R.string.advanced_settings)
 
-        actvLanguage              = findViewById(R.id.actvLanguage)
-        tilLanguage               = findViewById(R.id.tilLanguage)
-        btnOpenLanguageSettings   = findViewById(R.id.btnOpenLanguageSettings)
+        rowLanguage            = findViewById(R.id.rowLanguage)
+        tvLanguageValue        = findViewById(R.id.tvLanguageValue)
         etSector               = findViewById(R.id.etSector)
         tilSector              = findViewById(R.id.tilSector)
         etStaticKey            = findViewById(R.id.etStaticKey)
         tilStaticKey           = findViewById(R.id.tilStaticKey)
         btnToggleKeyVisibility = findViewById(R.id.btnToggleKeyVisibility)
         btnGenerateKey         = findViewById(R.id.btnGenerateKey)
-        cbDynamicKey           = findViewById(R.id.cbDynamicKey)
-        cbFlashEnabled         = findViewById(R.id.cbFlashEnabled)
-        cbVerifyIntegrity      = findViewById(R.id.cbVerifyIntegrity)
-        cbDebugEnabled         = findViewById(R.id.cbDebugEnabled)
-        cbSellerMode           = findViewById(R.id.cbSellerMode)
-        cbKeepScreenOn         = findViewById(R.id.cbKeepScreenOn)
-        cbSoundEnabled         = findViewById(R.id.cbSoundEnabled)
-        cbVibrationEnabled     = findViewById(R.id.cbVibrationEnabled)
-        cbDecimalMode          = findViewById(R.id.cbDecimalMode)
-        cbDistributedPos       = findViewById(R.id.cbDistributedPos)
-        cbBroadcastEnabled     = findViewById(R.id.cbBroadcastEnabled)
+        swDynamicKey           = findViewById(R.id.swDynamicKey)
+        swFlashEnabled         = findViewById(R.id.swFlashEnabled)
+        swVerifyIntegrity      = findViewById(R.id.swVerifyIntegrity)
+        swDebugEnabled         = findViewById(R.id.swDebugEnabled)
+        swSellerMode           = findViewById(R.id.swSellerMode)
+        swKeepScreenOn         = findViewById(R.id.swKeepScreenOn)
+        swSoundEnabled         = findViewById(R.id.swSoundEnabled)
+        swVibrationEnabled     = findViewById(R.id.swVibrationEnabled)
+        swDecimalMode          = findViewById(R.id.swDecimalMode)
+        swDistributedPos       = findViewById(R.id.swDistributedPos)
+        swBroadcastEnabled     = findViewById(R.id.swBroadcastEnabled)
         etLegalAge             = findViewById(R.id.etLegalAge)
         tilLegalAge            = findViewById(R.id.tilLegalAge)
         colorSelectorLayout    = findViewById(R.id.colorSelectorLayout)
         btnSaveSettings        = findViewById(R.id.btnSaveSettings)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            tilLanguage.visibility = View.GONE
-            btnOpenLanguageSettings.visibility = View.VISIBLE
-            btnOpenLanguageSettings.setOnClickListener {
-                val intent = Intent(Settings.ACTION_APP_LOCALE_SETTINGS).apply {
-                    data = Uri.fromParts("package", packageName, null)
-                }
-                startActivity(intent)
-            }
+
+        rowLanguage.setOnClickListener { openLanguagePicker() }
+
+        // Tapping anywhere in a switch row (outside the thumb) toggles that switch
+        mapOf(
+            R.id.rowDynamicKey      to swDynamicKey,
+            R.id.rowFlashEnabled    to swFlashEnabled,
+            R.id.rowVerifyIntegrity to swVerifyIntegrity,
+            R.id.rowSellerMode      to swSellerMode,
+            R.id.rowDebugEnabled    to swDebugEnabled,
+            R.id.rowKeepScreenOn    to swKeepScreenOn,
+            R.id.rowSoundEnabled    to swSoundEnabled,
+            R.id.rowVibrationEnabled to swVibrationEnabled,
+            R.id.rowDecimalMode     to swDecimalMode,
+            R.id.rowDistributedPos  to swDistributedPos,
+            R.id.rowBroadcastEnabled to swBroadcastEnabled,
+        ).forEach { (rowId, sw) ->
+            findViewById<LinearLayout>(rowId)?.setOnClickListener { sw.toggle() }
         }
 
         loadCurrentSettings()
@@ -268,6 +287,33 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     override fun onSupportNavigateUp(): Boolean {
         finish()
         return true
+    }
+
+    private fun openLanguagePicker() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val intent = Intent(Settings.ACTION_APP_LOCALE_SETTINGS).apply {
+                data = Uri.fromParts("package", packageName, null)
+            }
+            startActivity(intent)
+        } else {
+            val langEntries = getLanguageEntries(this)
+            val langNames = langEntries.map { it.first }.toTypedArray()
+            val currentCode = pendingLangCode ?: getEffectiveLanguage(this)
+            val currentIndex = langEntries.indexOfFirst { it.second == currentCode }.coerceAtLeast(0)
+
+            val dialog = AlertDialog.Builder(this)
+                .setTitle(getString(R.string.setting_language))
+                .setSingleChoiceItems(langNames, currentIndex) { dlg, which ->
+                    val chosen = langEntries[which]
+                    pendingLangCode = chosen.second
+                    tvLanguageValue.text = chosen.first
+                    dlg.dismiss()
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+
+            applyThemeToDialogButtons(dialog)
+        }
     }
 
     private fun applyThemeToButtons() {
@@ -299,22 +345,28 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         btnSaveSettings.setTextColor(contrastColor(color))
         btnSaveSettings.rippleColor = ColorStateList.valueOf(rippleColor(color, alpha = 80))
 
-        // Language system-settings button (API 33+): outlined with theme color stroke/text
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            btnOpenLanguageSettings.setTextColor(color)
-            btnOpenLanguageSettings.strokeColor = tintList
-            btnOpenLanguageSettings.rippleColor = rippleTint
+        // Language system-settings button (API 33+): now handled by row click
+
+        // Section headers: tint with theme color for visual grouping
+        for (id in listOf(R.id.tvSectionLanguage, R.id.tvSectionCard,
+                           R.id.tvSectionOptions, R.id.tvSectionOther)) {
+            (findViewById<TextView>(id))?.setTextColor(color)
         }
 
-        // Checkboxes: checked = theme color, unchecked = default grey
-        val checkboxTint = ColorStateList(
+        // Switches: thumb = theme color when checked, unchecked uses theme defaults
+        val switchThumbTint = ColorStateList(
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
-            intArrayOf(color, Color.GRAY)
+            intArrayOf(color, 0xFFBDBDBD.toInt())
         )
-        for (cb in listOf(cbDynamicKey, cbFlashEnabled, cbVerifyIntegrity,
-                          cbSellerMode, cbDebugEnabled, cbKeepScreenOn, cbSoundEnabled, cbVibrationEnabled,
-                          cbDecimalMode, cbDistributedPos, cbBroadcastEnabled)) {
-            CompoundButtonCompat.setButtonTintList(cb, checkboxTint)
+        val switchTrackTint = ColorStateList(
+            arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+            intArrayOf(rippleColor(color, alpha = 128), 0xFF9E9E9E.toInt())
+        )
+        for (sw in listOf(swDynamicKey, swFlashEnabled, swVerifyIntegrity,
+                          swSellerMode, swDebugEnabled, swKeepScreenOn, swSoundEnabled, swVibrationEnabled,
+                          swDecimalMode, swDistributedPos, swBroadcastEnabled)) {
+            sw.thumbTintList = switchThumbTint
+            sw.trackTintList = switchTrackTint
         }
 
         // TextInputLayouts: box stroke and floating label when focused
@@ -322,35 +374,33 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
             intArrayOf(color, Color.GRAY)
         )
-        for (til in listOf(tilLanguage, tilSector, tilStaticKey, tilLegalAge)) {
+        for (til in listOf(tilSector, tilStaticKey, tilLegalAge)) {
             til.setBoxStrokeColorStateList(focusedColorList)
             til.setHintTextColor(focusedColorList)
         }
     }
 
     private fun loadCurrentSettings() {
-        val currentLangCode = getLanguage()
+        val currentLangCode = getEffectiveLanguage(this)
         val langEntries = getLanguageEntries(this)
-        val langNames = langEntries.map { it.first }
         val selectedLangName = langEntries.firstOrNull { it.second == currentLangCode }?.first
             ?: langEntries.firstOrNull()?.first
-        val langAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, langNames)
-        actvLanguage.setAdapter(langAdapter)
-        actvLanguage.setText(selectedLangName, false)
+        tvLanguageValue.text = selectedLangName ?: getString(R.string.setting_language_desc)
+        pendingLangCode = null  // null = user has not changed language during this session
 
         etSector.setText(getTargetSector(this).toString())
         etStaticKey.setText(getStaticKey(this))
-        cbDynamicKey.isChecked = isDynamicKeyEnabled(this)
-        cbFlashEnabled.isChecked = isFlashEnabled(this)
-        cbVerifyIntegrity.isChecked = isVerifyIntegrityEnabled(this)
-        cbSellerMode.isChecked = isSellerModeEnabled(this)
-        cbDebugEnabled.isChecked = isDebugEnabled(this)
-        cbKeepScreenOn.isChecked = isKeepScreenOnEnabled(this)
-        cbSoundEnabled.isChecked = isSoundEnabled(this)
-        cbVibrationEnabled.isChecked = isVibrationEnabled(this)
-        cbDecimalMode.isChecked = isDecimalModeEnabled(this)
-        cbDistributedPos.isChecked = isDistributedPosEnabled(this)
-        cbBroadcastEnabled.isChecked = isBroadcastEnabled(this)
+        swDynamicKey.isChecked = isDynamicKeyEnabled(this)
+        swFlashEnabled.isChecked = isFlashEnabled(this)
+        swVerifyIntegrity.isChecked = isVerifyIntegrityEnabled(this)
+        swSellerMode.isChecked = isSellerModeEnabled(this)
+        swDebugEnabled.isChecked = isDebugEnabled(this)
+        swKeepScreenOn.isChecked = isKeepScreenOnEnabled(this)
+        swSoundEnabled.isChecked = isSoundEnabled(this)
+        swVibrationEnabled.isChecked = isVibrationEnabled(this)
+        swDecimalMode.isChecked = isDecimalModeEnabled(this)
+        swDistributedPos.isChecked = isDistributedPosEnabled(this)
+        swBroadcastEnabled.isChecked = isBroadcastEnabled(this)
         etLegalAge.setText(getLegalAge(this).toString())
         selectedThemeColor = getThemeColor(this)
 
@@ -508,10 +558,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         val newLangCode: String?
         val oldLangCode: String?
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            val selectedLangName = actvLanguage.text?.toString() ?: ""
-            newLangCode = getLanguageEntries(this).firstOrNull { it.first == selectedLangName }?.second
-                ?: DEFAULT_LANGUAGE
-            oldLangCode = getLanguage()
+            newLangCode = pendingLangCode ?: getEffectiveLanguage(this)
+            oldLangCode = getEffectiveLanguage(this)
         } else {
             newLangCode = null
             oldLangCode = null
@@ -529,17 +577,17 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             Toast.makeText(this, getString(R.string.key_too_short), Toast.LENGTH_SHORT).show()
             return
         }
-        val dynamicKeyEnabled = cbDynamicKey.isChecked
-        val flashEnabled = cbFlashEnabled.isChecked
-        val verifyIntegrity = cbVerifyIntegrity.isChecked
-        val sellerMode = cbSellerMode.isChecked
-        val debugEnabled = cbDebugEnabled.isChecked
-        val keepScreenOn = cbKeepScreenOn.isChecked
-        val soundEnabled = cbSoundEnabled.isChecked
-        val vibrationEnabled = cbVibrationEnabled.isChecked
-        val decimalMode = cbDecimalMode.isChecked
-        val distributedPos = cbDistributedPos.isChecked
-        val broadcastEnabled = cbBroadcastEnabled.isChecked
+        val dynamicKeyEnabled = swDynamicKey.isChecked
+        val flashEnabled = swFlashEnabled.isChecked
+        val verifyIntegrity = swVerifyIntegrity.isChecked
+        val sellerMode = swSellerMode.isChecked
+        val debugEnabled = swDebugEnabled.isChecked
+        val keepScreenOn = swKeepScreenOn.isChecked
+        val soundEnabled = swSoundEnabled.isChecked
+        val vibrationEnabled = swVibrationEnabled.isChecked
+        val decimalMode = swDecimalMode.isChecked
+        val distributedPos = swDistributedPos.isChecked
+        val broadcastEnabled = swBroadcastEnabled.isChecked
         val legalAge = etLegalAge.text?.toString()?.trim()?.toIntOrNull()?.coerceIn(1, 99) ?: DEFAULT_LEGAL_AGE
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
