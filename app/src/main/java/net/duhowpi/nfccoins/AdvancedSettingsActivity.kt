@@ -24,9 +24,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.core.view.WindowCompat
-import androidx.core.widget.CompoundButtonCompat
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.checkbox.MaterialCheckBox
+import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import java.security.SecureRandom
@@ -193,17 +192,17 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private lateinit var tilStaticKey: TextInputLayout
     private lateinit var btnToggleKeyVisibility: MaterialButton
     private lateinit var btnGenerateKey: MaterialButton
-    private lateinit var cbDynamicKey: MaterialCheckBox
-    private lateinit var cbFlashEnabled: MaterialCheckBox
-    private lateinit var cbVerifyIntegrity: MaterialCheckBox
-    private lateinit var cbDebugEnabled: MaterialCheckBox
-    private lateinit var cbSellerMode: MaterialCheckBox
-    private lateinit var cbKeepScreenOn: MaterialCheckBox
-    private lateinit var cbSoundEnabled: MaterialCheckBox
-    private lateinit var cbVibrationEnabled: MaterialCheckBox
-    private lateinit var cbDecimalMode: MaterialCheckBox
-    private lateinit var cbDistributedPos: MaterialCheckBox
-    private lateinit var cbBroadcastEnabled: MaterialCheckBox
+    private lateinit var cbDynamicKey: MaterialSwitch
+    private lateinit var cbFlashEnabled: MaterialSwitch
+    private lateinit var cbVerifyIntegrity: MaterialSwitch
+    private lateinit var cbDebugEnabled: MaterialSwitch
+    private lateinit var cbSellerMode: MaterialSwitch
+    private lateinit var cbKeepScreenOn: MaterialSwitch
+    private lateinit var cbSoundEnabled: MaterialSwitch
+    private lateinit var cbVibrationEnabled: MaterialSwitch
+    private lateinit var cbDecimalMode: MaterialSwitch
+    private lateinit var cbDistributedPos: MaterialSwitch
+    private lateinit var cbBroadcastEnabled: MaterialSwitch
     private lateinit var etLegalAge: TextInputEditText
     private lateinit var tilLegalAge: TextInputLayout
     private lateinit var colorSelectorLayout: LinearLayout
@@ -230,17 +229,17 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         tilStaticKey           = findViewById(R.id.tilStaticKey)
         btnToggleKeyVisibility = findViewById(R.id.btnToggleKeyVisibility)
         btnGenerateKey         = findViewById(R.id.btnGenerateKey)
-        cbDynamicKey           = findViewById(R.id.cbDynamicKey)
-        cbFlashEnabled         = findViewById(R.id.cbFlashEnabled)
-        cbVerifyIntegrity      = findViewById(R.id.cbVerifyIntegrity)
-        cbDebugEnabled         = findViewById(R.id.cbDebugEnabled)
-        cbSellerMode           = findViewById(R.id.cbSellerMode)
-        cbKeepScreenOn         = findViewById(R.id.cbKeepScreenOn)
-        cbSoundEnabled         = findViewById(R.id.cbSoundEnabled)
-        cbVibrationEnabled     = findViewById(R.id.cbVibrationEnabled)
-        cbDecimalMode          = findViewById(R.id.cbDecimalMode)
-        cbDistributedPos       = findViewById(R.id.cbDistributedPos)
-        cbBroadcastEnabled     = findViewById(R.id.cbBroadcastEnabled)
+        cbDynamicKey           = findViewById(R.id.swDynamicKey)
+        cbFlashEnabled         = findViewById(R.id.swFlashEnabled)
+        cbVerifyIntegrity      = findViewById(R.id.swVerifyIntegrity)
+        cbDebugEnabled         = findViewById(R.id.swDebugEnabled)
+        cbSellerMode           = findViewById(R.id.swSellerMode)
+        cbKeepScreenOn         = findViewById(R.id.swKeepScreenOn)
+        cbSoundEnabled         = findViewById(R.id.swSoundEnabled)
+        cbVibrationEnabled     = findViewById(R.id.swVibrationEnabled)
+        cbDecimalMode          = findViewById(R.id.swDecimalMode)
+        cbDistributedPos       = findViewById(R.id.swDistributedPos)
+        cbBroadcastEnabled     = findViewById(R.id.swBroadcastEnabled)
         etLegalAge             = findViewById(R.id.etLegalAge)
         tilLegalAge            = findViewById(R.id.tilLegalAge)
         colorSelectorLayout    = findViewById(R.id.colorSelectorLayout)
@@ -306,15 +305,20 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             btnOpenLanguageSettings.rippleColor = rippleTint
         }
 
-        // Checkboxes: checked = theme color, unchecked = default grey
-        val checkboxTint = ColorStateList(
+        // Switches: thumb = theme color when checked, track = translucent theme color when checked
+        val switchThumbTint = ColorStateList(
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
-            intArrayOf(color, Color.GRAY)
+            intArrayOf(color, Color.LTGRAY)
         )
-        for (cb in listOf(cbDynamicKey, cbFlashEnabled, cbVerifyIntegrity,
+        val switchTrackTint = ColorStateList(
+            arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+            intArrayOf(rippleColor(color, alpha = 128), Color.GRAY)
+        )
+        for (sw in listOf(cbDynamicKey, cbFlashEnabled, cbVerifyIntegrity,
                           cbSellerMode, cbDebugEnabled, cbKeepScreenOn, cbSoundEnabled, cbVibrationEnabled,
                           cbDecimalMode, cbDistributedPos, cbBroadcastEnabled)) {
-            CompoundButtonCompat.setButtonTintList(cb, checkboxTint)
+            sw.thumbTintList = switchThumbTint
+            sw.trackTintList = switchTrackTint
         }
 
         // TextInputLayouts: box stroke and floating label when focused

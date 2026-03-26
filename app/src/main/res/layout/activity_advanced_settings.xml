@@ -84,7 +84,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginBottom="8dp">
+            android:layout_marginBottom="16dp">
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/tilStaticKey"
@@ -134,104 +134,169 @@
 
         </LinearLayout>
 
-        <!-- Dynamic key checkbox -->
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/cbDynamicKey"
+        <!-- Toggle settings section header -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/setting_options"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp" />
+
+        <!-- Dynamic key switch -->
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/swDynamicKey"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/setting_dynamic_key"
             android:checked="true"
-            android:layout_marginBottom="8dp" />
+            android:drawableStart="@drawable/ic_key"
+            android:drawablePadding="16dp"
+            android:minHeight="56dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="8dp"
+            android:background="?attr/selectableItemBackground" />
 
-        <!-- Flash background checkbox -->
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/cbFlashEnabled"
+        <!-- Flash background switch -->
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/swFlashEnabled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/setting_flash_enabled"
             android:checked="true"
-            android:layout_marginBottom="8dp" />
+            android:drawableStart="@drawable/ic_palette"
+            android:drawablePadding="16dp"
+            android:minHeight="56dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="8dp"
+            android:background="?attr/selectableItemBackground" />
 
-        <!-- Verify card integrity checkbox -->
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/cbVerifyIntegrity"
+        <!-- Verify card integrity switch -->
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/swVerifyIntegrity"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/setting_verify_integrity"
             android:checked="true"
-            android:layout_marginBottom="8dp" />
+            android:drawableStart="@drawable/ic_verified"
+            android:drawablePadding="16dp"
+            android:minHeight="56dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="8dp"
+            android:background="?attr/selectableItemBackground" />
 
-        <!-- Seller mode checkbox -->
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/cbSellerMode"
+        <!-- Seller mode switch -->
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/swSellerMode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/setting_seller_mode"
             android:checked="false"
-            android:layout_marginBottom="8dp" />
+            android:drawableStart="@drawable/ic_store"
+            android:drawablePadding="16dp"
+            android:minHeight="56dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="8dp"
+            android:background="?attr/selectableItemBackground" />
 
-        <!-- Debug mode checkbox -->
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/cbDebugEnabled"
+        <!-- Debug mode switch -->
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/swDebugEnabled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/setting_debug_mode"
             android:checked="false"
-            android:layout_marginBottom="8dp" />
+            android:drawableStart="@drawable/ic_bug_report"
+            android:drawablePadding="16dp"
+            android:minHeight="56dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="8dp"
+            android:background="?attr/selectableItemBackground" />
 
-        <!-- Keep screen on checkbox -->
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/cbKeepScreenOn"
+        <!-- Keep screen on switch -->
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/swKeepScreenOn"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/setting_keep_screen_on"
             android:checked="false"
-            android:layout_marginBottom="8dp" />
+            android:drawableStart="@drawable/ic_screen"
+            android:drawablePadding="16dp"
+            android:minHeight="56dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="8dp"
+            android:background="?attr/selectableItemBackground" />
 
-        <!-- Sound enabled checkbox -->
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/cbSoundEnabled"
+        <!-- Sound enabled switch -->
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/swSoundEnabled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/setting_sound_enabled"
             android:checked="true"
-            android:layout_marginBottom="8dp" />
+            android:drawableStart="@drawable/ic_volume"
+            android:drawablePadding="16dp"
+            android:minHeight="56dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="8dp"
+            android:background="?attr/selectableItemBackground" />
 
-        <!-- Vibration enabled checkbox -->
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/cbVibrationEnabled"
+        <!-- Vibration enabled switch -->
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/swVibrationEnabled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/setting_vibration_enabled"
             android:checked="false"
-            android:layout_marginBottom="8dp" />
+            android:drawableStart="@drawable/ic_vibrate"
+            android:drawablePadding="16dp"
+            android:minHeight="56dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="8dp"
+            android:background="?attr/selectableItemBackground" />
 
-        <!-- Decimal mode checkbox -->
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/cbDecimalMode"
+        <!-- Decimal mode switch -->
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/swDecimalMode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/setting_decimal_mode"
             android:checked="false"
-            android:layout_marginBottom="8dp" />
+            android:drawableStart="@drawable/ic_decimal"
+            android:drawablePadding="16dp"
+            android:minHeight="56dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="8dp"
+            android:background="?attr/selectableItemBackground" />
 
-        <!-- Distributed POS checkbox -->
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/cbDistributedPos"
+        <!-- Distributed POS switch -->
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/swDistributedPos"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/setting_distributed_pos"
             android:checked="false"
-            android:layout_marginBottom="8dp" />
+            android:drawableStart="@drawable/ic_share"
+            android:drawablePadding="16dp"
+            android:minHeight="56dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="8dp"
+            android:background="?attr/selectableItemBackground" />
 
-        <!-- Broadcast events checkbox - sends ACTION_TRANSACTION intents after successful add/withdraw operations -->
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/cbBroadcastEnabled"
+        <!-- Broadcast events switch -->
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/swBroadcastEnabled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/setting_broadcast_enabled"
             android:checked="false"
-            android:layout_marginBottom="8dp" />
+            android:drawableStart="@drawable/ic_broadcast"
+            android:drawablePadding="16dp"
+            android:minHeight="56dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="8dp"
+            android:layout_marginBottom="8dp"
+            android:background="?attr/selectableItemBackground" />
 
         <!-- Legal adult age -->
         <TextView
