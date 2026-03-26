@@ -543,7 +543,7 @@ class MainActivity : AppCompatActivity() {
                     showDebugChecksums(card, newBalance, newTransactions)
                     txDb.insertTransaction(
                         type = TransactionDatabase.TYPE_SUBTRACT,
-                        amount = amount,
+                        amount = -amount,
                         balanceBefore = balance,
                         balanceAfter = newBalance,
                         cardUid = card.uid.toHex(),
@@ -1108,17 +1108,13 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.card_management)
             .setItems(
                 arrayOf(
-                    getString(R.string.action_deduct_custom),
+                    getString(R.string.action_add_balance),
                     getString(R.string.action_format_card),
                     getString(R.string.action_reset_card)
                 )
             ) { _, which ->
                 when (which) {
-                    0 -> {
-                        cancelAddBalance()
-                        clearCustomButtonSelection()
-                        enterCustomAmountMode()
-                    }
+                    0 -> enterAddBalanceModeInline()
                     1 -> showFormatOptionsDialog()
                     2 -> {
                         cancelAddBalance()
