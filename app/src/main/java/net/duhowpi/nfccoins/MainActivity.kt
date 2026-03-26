@@ -107,6 +107,7 @@ class MainActivity : AppCompatActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
     private val autoResetRunnable = Runnable { resetToWaiting() }
+    private val buttonModeIdleRunnable = Runnable { resetButtonModeState() }
     private val txDb: TransactionDatabase by lazy { TransactionDatabase(this) }
 
     override fun attachBaseContext(newBase: Context) {
@@ -542,7 +543,7 @@ class MainActivity : AppCompatActivity() {
                     showDebugChecksums(card, newBalance, newTransactions)
                     txDb.insertTransaction(
                         type = TransactionDatabase.TYPE_SUBTRACT,
-                        amount = -amount,
+                        amount = amount,
                         balanceBefore = balance,
                         balanceAfter = newBalance,
                         cardUid = card.uid.toHex(),
@@ -562,8 +563,10 @@ class MainActivity : AppCompatActivity() {
                         background = null
                     )
                     if (isButtonMode) {
-                        // Button remains active: keep WITHDRAW_BALANCE state for additional transactions.
-                        // No auto-reset scheduled; the user can tap another card immediately.
+                        // Schedule a soft UI reset after the auto-reset delay; button and pending
+                        // action remain active so another card can be served immediately.
+                        handler.removeCallbacks(buttonModeIdleRunnable)
+                        handler.postDelayed(buttonModeIdleRunnable, AUTO_RESET_DELAY_MS)
                     } else {
                         // Custom-amount is a one-shot transaction: clear it and schedule a full reset.
                         customDeductAmount = 0
@@ -774,6 +777,7 @@ class MainActivity : AppCompatActivity() {
             // Tapping the active button deselects it; revert state based on operation
             val wasWithdraw = pendingAction == PendingAction.WITHDRAW_BALANCE
             val wasAdd = pendingAction == PendingAction.ADD_BALANCE
+            handler.removeCallbacks(buttonModeIdleRunnable)
             clearCustomButtonSelection()
             when {
                 wasWithdraw && customDeductAmount == 0 -> {
@@ -804,7 +808,21 @@ class MainActivity : AppCompatActivity() {
         // Deselect the previous button (if any) and select this one
         val prevIdx = selectedButtonIndex
         selectedButtonIndex = index
-        if (prevIdx >= 0) applyButtonSelectionStyle(prevIdx, selected = false)
+        if (prevIdx >= 0) {
+            applyButtonSelectionStyle(prevIdx, selected = false)
+            // Cancel any pending button-mode idle timer and immediately clear the card-specific UI
+            // so previous transaction details don't bleed into the next button's session.
+            handler.removeCallbacks(buttonModeIdleRunnable)
+            handler.removeCallbacksAndMessages(FLASH_TOKEN)
+            rootLayout.setBackgroundColor(Color.TRANSPARENT)
+            tvCardId.text = getString(R.string.no_card_detected)
+            currentBalance = -1
+            layoutBeforeAfter.visibility = View.GONE
+            tvActualBalance.visibility = View.GONE
+            tvMinorIcon.visibility = View.GONE
+            layoutTransactionHistory.visibility = View.GONE
+            tvTx.forEach { it.visibility = View.GONE }
+        }
         applyButtonSelectionStyle(index, selected = true)
 
         if (btn.operation == CustomButton.OP_ADD) {
@@ -1002,6 +1020,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resetToWaiting() {
+        handler.removeCallbacks(buttonModeIdleRunnable)
         handler.removeCallbacksAndMessages(FLASH_TOKEN)
         rootLayout.setBackgroundColor(Color.TRANSPARENT)
         tvCardId.text = getString(R.string.no_card_detected)
@@ -1017,6 +1036,27 @@ class MainActivity : AppCompatActivity() {
         tvStatus.text = getString(R.string.waiting_card)
         pendingAction = PendingAction.NONE
         pendingAddAmount = 0
+    }
+
+    /**
+     * Clears card-specific UI after a button-mode transaction while keeping the button selected
+     * and the pending action active, so the next card can be served immediately.
+     */
+    private fun resetButtonModeState() {
+        handler.removeCallbacksAndMessages(FLASH_TOKEN)
+        rootLayout.setBackgroundColor(Color.TRANSPARENT)
+        tvCardId.text = getString(R.string.no_card_detected)
+        currentBalance = -1
+        layoutBeforeAfter.visibility = View.GONE
+        tvActualBalance.visibility = View.GONE
+        tvMinorIcon.visibility = View.GONE
+        layoutTransactionHistory.visibility = View.GONE
+        tvTx.forEach { it.visibility = View.GONE }
+        val btn = customButtonList.getOrNull(selectedButtonIndex) ?: return
+        val prefix = if (btn.operation == CustomButton.OP_ADD) "+" else ""
+        tvBalance.setText("$prefix${formatBalanceDisplay(btn.amount)}")
+        tvStatus.text = if (btn.operation == CustomButton.OP_ADD)
+            getString(R.string.tap_card_to_add) else getString(R.string.tap_card_to_deduct)
     }
 
     private fun cancelAddBalance() {
@@ -1068,13 +1108,17 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.card_management)
             .setItems(
                 arrayOf(
-                    getString(R.string.action_add_balance),
+                    getString(R.string.action_deduct_custom),
                     getString(R.string.action_format_card),
                     getString(R.string.action_reset_card)
                 )
             ) { _, which ->
                 when (which) {
-                    0 -> enterAddBalanceModeInline()
+                    0 -> {
+                        cancelAddBalance()
+                        clearCustomButtonSelection()
+                        enterCustomAmountMode()
+                    }
                     1 -> showFormatOptionsDialog()
                     2 -> {
                         cancelAddBalance()
@@ -1336,6 +1380,10 @@ class MainActivity : AppCompatActivity() {
                     if (isButtonMode) {
                         // Button remains active: keep ADD_BALANCE state for back-to-back transactions.
                         setPendingAction(PendingAction.ADD_BALANCE)
+                        // Schedule a soft UI reset after the auto-reset delay; button and pending
+                        // action remain active so another card can be served immediately.
+                        handler.removeCallbacks(buttonModeIdleRunnable)
+                        handler.postDelayed(buttonModeIdleRunnable, AUTO_RESET_DELAY_MS)
                         tvStatus.text = getString(R.string.tap_card_to_add)
                     }
                 }

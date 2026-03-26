@@ -353,9 +353,9 @@ class OperationsHistoryActivity : AppCompatActivity() {
             // Show label from custom button config if found, otherwise show raw amount
             val priceText = customButtons.firstOrNull { kotlin.math.abs(it.amount) == kotlin.math.abs(stat.amount) }?.label
                 ?: if (isDecimalMode) {
-                    String.format(java.util.Locale.getDefault(), "%d.%02d", stat.amount / 100, kotlin.math.abs(stat.amount % 100))
+                    String.format(java.util.Locale.getDefault(), "%d.%02d", kotlin.math.abs(stat.amount) / 100, kotlin.math.abs(stat.amount % 100))
                 } else {
-                    stat.amount.toString()
+                    kotlin.math.abs(stat.amount).toString()
                 }
 
             row.addView(makeCell(priceText, isBold = true))
