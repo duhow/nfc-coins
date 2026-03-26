@@ -663,6 +663,12 @@ class MainActivity : AppCompatActivity() {
                         scheduleAutoReset = false,
                         background = null
                     )
+                    if (AdvancedSettingsActivity.isBroadcastEnabled(this)) {
+                        sendBroadcast(Intent("$packageName.ACTION_TRANSACTION").apply {
+                            putExtra("uid", card.uid.toHex())
+                            putExtra("amount", -amount)
+                        })
+                    }
                     if (isButtonMode) {
                         // Schedule a soft UI reset after the auto-reset delay; button and pending
                         // action remain active so another card can be served immediately.
@@ -1470,6 +1476,12 @@ class MainActivity : AppCompatActivity() {
                         scheduleAutoReset = !isButtonMode,
                         background = null
                     )
+                    if (AdvancedSettingsActivity.isBroadcastEnabled(this)) {
+                        sendBroadcast(Intent("$packageName.ACTION_TRANSACTION").apply {
+                            putExtra("uid", card.uid.toHex())
+                            putExtra("amount", pendingAddAmount)
+                        })
+                    }
                     if (isButtonMode) {
                         // Button remains active: keep ADD_BALANCE state for back-to-back transactions.
                         setPendingAction(PendingAction.ADD_BALANCE)
