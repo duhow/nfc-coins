@@ -104,7 +104,7 @@ Data is stored in user-memory pages as a contiguous 44-byte (11-page) block, pla
 | 4–7   | +1    | **Meta** - version, flags (single-recharge), birth year |
 | 8–9   | +2    | **Balance** (uint16, big-endian) |
 | 10–41 | +3–10 | **Transactions + HMAC checksum** (4 records × 6 bytes + 4-byte HMAC) |
-| 42–43 | +10   | Padding |
+| 42–43 | +10   | **Magic** - `C01V` version matching and read validation |
 
 ### Transaction Record Format (6 bytes each, up to 4 records)
 
