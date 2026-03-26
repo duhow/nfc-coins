@@ -1,7 +1,6 @@
 package net.duhowpi.nfccoins
 
 import android.content.ClipData
-import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -31,10 +30,6 @@ class CustomButtonsActivity : AppCompatActivity() {
 
     private lateinit var layoutButtonGrid: LinearLayout
     private var buttons = mutableListOf<CustomButton>()
-
-    override fun attachBaseContext(newBase: Context) {
-        super.attachBaseContext(AdvancedSettingsActivity.wrapContextWithLocale(newBase))
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

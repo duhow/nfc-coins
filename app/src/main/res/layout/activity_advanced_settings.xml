@@ -36,6 +36,15 @@
 
         </com.google.android.material.textfield.TextInputLayout>
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnOpenLanguageSettings"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/setting_language_change_system"
+            android:visibility="gone"
+            android:layout_marginBottom="24dp" />
+
         <!-- Sector -->
         <TextView
             android:layout_width="wrap_content"

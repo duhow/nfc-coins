@@ -35,6 +35,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import androidx.core.view.WindowCompat
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import android.provider.Settings
 import com.google.android.material.button.MaterialButton
 import java.text.SimpleDateFormat
@@ -110,13 +112,9 @@ class MainActivity : AppCompatActivity() {
     private val buttonModeIdleRunnable = Runnable { resetButtonModeState() }
     private val txDb: TransactionDatabase by lazy { TransactionDatabase(this) }
 
-    override fun attachBaseContext(newBase: Context) {
-        super.attachBaseContext(AdvancedSettingsActivity.wrapContextWithLocale(newBase))
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        initLanguageIfNeeded()
+        migrateLanguagePrefIfNeeded()
         setContentView(R.layout.activity_main)
 
         rootLayout        = findViewById(R.id.rootLayout)
@@ -608,30 +606,26 @@ class MainActivity : AppCompatActivity() {
     private fun flashRedBackground() = flashBackground(R.color.error_red_dark)
 
     // -------------------------------------------------------------------------
-    // Language initialisation
+    // Language migration
     // -------------------------------------------------------------------------
 
     /**
-     * Called once on first launch to persist the device's system language as the app language.
-     * If the system language is not one of the supported languages, English is used as fallback.
-     * When the detected language differs from the default that was applied in [attachBaseContext],
-     * the Activity is recreated so the correct locale takes effect.
+     * One-time migration: if a legacy KEY_LANGUAGE preference exists from before the
+     * AppCompat per-app locale system was adopted, migrate it to
+     * [AppCompatDelegate.setApplicationLocales] and remove the old preference.
+     * After migration this function is a no-op.
      */
-    private fun initLanguageIfNeeded() {
+    private fun migrateLanguagePrefIfNeeded() {
         val prefs = getSharedPreferences(AdvancedSettingsActivity.PREFS_NAME, Context.MODE_PRIVATE)
-        if (!prefs.contains(AdvancedSettingsActivity.KEY_LANGUAGE)) {
-            val systemLang = Locale.getDefault().language
-            val supportedCodes = AdvancedSettingsActivity.getSupportedLanguageCodes(this)
-            val detectedLang = if (systemLang in supportedCodes) {
-                systemLang
-            } else {
-                AdvancedSettingsActivity.DEFAULT_LANGUAGE
-            }
-            prefs.edit().putString(AdvancedSettingsActivity.KEY_LANGUAGE, detectedLang).apply()
-            // attachBaseContext defaulted to English (no pref existed yet); recreate if needed.
-            if (detectedLang != AdvancedSettingsActivity.DEFAULT_LANGUAGE) {
-                recreate()
-            }
+        if (!prefs.contains(AdvancedSettingsActivity.KEY_LANGUAGE)) return
+
+        val langCode = prefs.getString(AdvancedSettingsActivity.KEY_LANGUAGE, AdvancedSettingsActivity.DEFAULT_LANGUAGE) ?: AdvancedSettingsActivity.DEFAULT_LANGUAGE
+        prefs.edit().remove(AdvancedSettingsActivity.KEY_LANGUAGE).apply()
+
+        // Only override AppCompat's locale if it has not already been set (e.g. by the system
+        // per-app language selector on API 33+).
+        if (AppCompatDelegate.getApplicationLocales().isEmpty) {
+            AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(langCode))
         }
     }
 
