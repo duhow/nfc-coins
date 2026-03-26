@@ -22,7 +22,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.core.view.WindowCompat
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import java.security.SecureRandom
@@ -163,6 +163,20 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             return if (!locales.isEmpty) locales[0]?.language ?: DEFAULT_LANGUAGE else DEFAULT_LANGUAGE
         }
 
+        /**
+         * Returns the language code that is VISUALLY active in the app.
+         * When no explicit app locale is set (system language mode), falls back to the
+         * actual locale currently applied to the app's resources instead of "en".
+         */
+        fun getEffectiveLanguage(context: Context): String {
+            val appLocales = AppCompatDelegate.getApplicationLocales()
+            if (!appLocales.isEmpty) {
+                return appLocales[0]?.language ?: DEFAULT_LANGUAGE
+            }
+            // System/default mode: return whatever locale the resources are currently using
+            return context.resources.configuration.locales[0].language
+        }
+
         /** Returns black or white, whichever contrasts better with [color]. */
         fun contrastColor(color: Int): Int {
             val r = Color.red(color) / 255.0
@@ -188,17 +202,17 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private lateinit var tilStaticKey: TextInputLayout
     private lateinit var btnToggleKeyVisibility: MaterialButton
     private lateinit var btnGenerateKey: MaterialButton
-    private lateinit var swDynamicKey: MaterialSwitch
-    private lateinit var swFlashEnabled: MaterialSwitch
-    private lateinit var swVerifyIntegrity: MaterialSwitch
-    private lateinit var swDebugEnabled: MaterialSwitch
-    private lateinit var swSellerMode: MaterialSwitch
-    private lateinit var swKeepScreenOn: MaterialSwitch
-    private lateinit var swSoundEnabled: MaterialSwitch
-    private lateinit var swVibrationEnabled: MaterialSwitch
-    private lateinit var swDecimalMode: MaterialSwitch
-    private lateinit var swDistributedPos: MaterialSwitch
-    private lateinit var swBroadcastEnabled: MaterialSwitch
+    private lateinit var swDynamicKey: SwitchMaterial
+    private lateinit var swFlashEnabled: SwitchMaterial
+    private lateinit var swVerifyIntegrity: SwitchMaterial
+    private lateinit var swDebugEnabled: SwitchMaterial
+    private lateinit var swSellerMode: SwitchMaterial
+    private lateinit var swKeepScreenOn: SwitchMaterial
+    private lateinit var swSoundEnabled: SwitchMaterial
+    private lateinit var swVibrationEnabled: SwitchMaterial
+    private lateinit var swDecimalMode: SwitchMaterial
+    private lateinit var swDistributedPos: SwitchMaterial
+    private lateinit var swBroadcastEnabled: SwitchMaterial
     private lateinit var etLegalAge: TextInputEditText
     private lateinit var tilLegalAge: TextInputLayout
     private lateinit var colorSelectorLayout: LinearLayout
@@ -242,20 +256,6 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         colorSelectorLayout    = findViewById(R.id.colorSelectorLayout)
         btnSaveSettings        = findViewById(R.id.btnSaveSettings)
 
-        // Avoid SwitchCompat measuring nullable internal ON/OFF labels on some devices.
-        listOf(
-            swDynamicKey,
-            swFlashEnabled,
-            swVerifyIntegrity,
-            swDebugEnabled,
-            swSellerMode,
-            swKeepScreenOn,
-            swSoundEnabled,
-            swVibrationEnabled,
-            swDecimalMode,
-            swDistributedPos,
-            swBroadcastEnabled,
-        ).forEach { it.showText = false }
 
         rowLanguage.setOnClickListener { openLanguagePicker() }
 
@@ -298,7 +298,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         } else {
             val langEntries = getLanguageEntries(this)
             val langNames = langEntries.map { it.first }.toTypedArray()
-            val currentCode = pendingLangCode ?: getLanguage()
+            val currentCode = pendingLangCode ?: getEffectiveLanguage(this)
             val currentIndex = langEntries.indexOfFirst { it.second == currentCode }.coerceAtLeast(0)
 
             val dialog = AlertDialog.Builder(this)
@@ -353,14 +353,14 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             (findViewById<TextView>(id))?.setTextColor(color)
         }
 
-        // Switches: thumb = theme color when checked, track = translucent theme color when checked
+        // Switches: thumb = theme color when checked, unchecked uses theme defaults
         val switchThumbTint = ColorStateList(
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
-            intArrayOf(color, Color.LTGRAY)
+            intArrayOf(color, 0xFFBDBDBD.toInt())
         )
         val switchTrackTint = ColorStateList(
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
-            intArrayOf(rippleColor(color, alpha = 128), Color.GRAY)
+            intArrayOf(rippleColor(color, alpha = 128), 0xFF9E9E9E.toInt())
         )
         for (sw in listOf(swDynamicKey, swFlashEnabled, swVerifyIntegrity,
                           swSellerMode, swDebugEnabled, swKeepScreenOn, swSoundEnabled, swVibrationEnabled,
@@ -381,12 +381,12 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     }
 
     private fun loadCurrentSettings() {
-        val currentLangCode = getLanguage()
+        val currentLangCode = getEffectiveLanguage(this)
         val langEntries = getLanguageEntries(this)
         val selectedLangName = langEntries.firstOrNull { it.second == currentLangCode }?.first
             ?: langEntries.firstOrNull()?.first
         tvLanguageValue.text = selectedLangName ?: getString(R.string.setting_language_desc)
-        pendingLangCode = currentLangCode
+        pendingLangCode = null  // null = user has not changed language during this session
 
         etSector.setText(getTargetSector(this).toString())
         etStaticKey.setText(getStaticKey(this))
@@ -558,8 +558,8 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         val newLangCode: String?
         val oldLangCode: String?
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            newLangCode = pendingLangCode ?: DEFAULT_LANGUAGE
-            oldLangCode = getLanguage()
+            newLangCode = pendingLangCode ?: getEffectiveLanguage(this)
+            oldLangCode = getEffectiveLanguage(this)
         } else {
             newLangCode = null
             oldLangCode = null

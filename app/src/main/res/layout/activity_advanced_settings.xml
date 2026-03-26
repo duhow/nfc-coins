@@ -266,6 +266,7 @@
 
         <!-- Dynamic key row -->
         <LinearLayout
+            android:id="@+id/rowDynamicKey"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -288,7 +289,6 @@
                 app:tint="?attr/colorControlNormal" />
 
             <LinearLayout
-            android:id="@+id/rowDynamicKey"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -310,7 +310,7 @@
 
             </LinearLayout>
 
-            <com.google.android.material.materialswitch.MaterialSwitch
+            <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/swDynamicKey"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -321,6 +321,7 @@
 
         <!-- Flash background row -->
         <LinearLayout
+            android:id="@+id/rowFlashEnabled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -343,7 +344,6 @@
                 app:tint="?attr/colorControlNormal" />
 
             <LinearLayout
-            android:id="@+id/rowFlashEnabled"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -365,7 +365,7 @@
 
             </LinearLayout>
 
-            <com.google.android.material.materialswitch.MaterialSwitch
+            <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/swFlashEnabled"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -376,6 +376,7 @@
 
         <!-- Verify card integrity row -->
         <LinearLayout
+            android:id="@+id/rowVerifyIntegrity"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -398,7 +399,6 @@
                 app:tint="?attr/colorControlNormal" />
 
             <LinearLayout
-            android:id="@+id/rowVerifyIntegrity"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -420,7 +420,7 @@
 
             </LinearLayout>
 
-            <com.google.android.material.materialswitch.MaterialSwitch
+            <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/swVerifyIntegrity"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -431,6 +431,7 @@
 
         <!-- Seller mode row -->
         <LinearLayout
+            android:id="@+id/rowSellerMode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -453,7 +454,6 @@
                 app:tint="?attr/colorControlNormal" />
 
             <LinearLayout
-            android:id="@+id/rowSellerMode"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -475,7 +475,7 @@
 
             </LinearLayout>
 
-            <com.google.android.material.materialswitch.MaterialSwitch
+            <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/swSellerMode"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -486,6 +486,7 @@
 
         <!-- Debug mode row -->
         <LinearLayout
+            android:id="@+id/rowDebugEnabled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -508,7 +509,6 @@
                 app:tint="?attr/colorControlNormal" />
 
             <LinearLayout
-            android:id="@+id/rowDebugEnabled"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -530,7 +530,7 @@
 
             </LinearLayout>
 
-            <com.google.android.material.materialswitch.MaterialSwitch
+            <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/swDebugEnabled"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -541,6 +541,7 @@
 
         <!-- Keep screen on row -->
         <LinearLayout
+            android:id="@+id/rowKeepScreenOn"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -563,7 +564,6 @@
                 app:tint="?attr/colorControlNormal" />
 
             <LinearLayout
-            android:id="@+id/rowKeepScreenOn"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -585,7 +585,7 @@
 
             </LinearLayout>
 
-            <com.google.android.material.materialswitch.MaterialSwitch
+            <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/swKeepScreenOn"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -596,6 +596,7 @@
 
         <!-- Sound enabled row -->
         <LinearLayout
+            android:id="@+id/rowSoundEnabled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -618,7 +619,6 @@
                 app:tint="?attr/colorControlNormal" />
 
             <LinearLayout
-            android:id="@+id/rowSoundEnabled"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -640,7 +640,7 @@
 
             </LinearLayout>
 
-            <com.google.android.material.materialswitch.MaterialSwitch
+            <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/swSoundEnabled"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -651,6 +651,7 @@
 
         <!-- Vibration enabled row -->
         <LinearLayout
+            android:id="@+id/rowVibrationEnabled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -673,7 +674,6 @@
                 app:tint="?attr/colorControlNormal" />
 
             <LinearLayout
-            android:id="@+id/rowVibrationEnabled"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -695,7 +695,7 @@
 
             </LinearLayout>
 
-            <com.google.android.material.materialswitch.MaterialSwitch
+            <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/swVibrationEnabled"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -706,6 +706,7 @@
 
         <!-- Decimal mode row -->
         <LinearLayout
+            android:id="@+id/rowDecimalMode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -728,7 +729,6 @@
                 app:tint="?attr/colorControlNormal" />
 
             <LinearLayout
-            android:id="@+id/rowDecimalMode"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -750,7 +750,7 @@
 
             </LinearLayout>
 
-            <com.google.android.material.materialswitch.MaterialSwitch
+            <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/swDecimalMode"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -761,6 +761,7 @@
 
         <!-- Distributed POS row -->
         <LinearLayout
+            android:id="@+id/rowDistributedPos"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -783,7 +784,6 @@
                 app:tint="?attr/colorControlNormal" />
 
             <LinearLayout
-            android:id="@+id/rowDistributedPos"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -805,7 +805,7 @@
 
             </LinearLayout>
 
-            <com.google.android.material.materialswitch.MaterialSwitch
+            <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/swDistributedPos"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -816,6 +816,7 @@
 
         <!-- Broadcast events row -->
         <LinearLayout
+            android:id="@+id/rowBroadcastEnabled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -838,7 +839,6 @@
                 app:tint="?attr/colorControlNormal" />
 
             <LinearLayout
-            android:id="@+id/rowBroadcastEnabled"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -860,7 +860,7 @@
 
             </LinearLayout>
 
-            <com.google.android.material.materialswitch.MaterialSwitch
+            <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/swBroadcastEnabled"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
