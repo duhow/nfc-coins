@@ -156,6 +156,8 @@ class MainActivity : AppCompatActivity() {
 
         if (intent?.action == NfcAdapter.ACTION_TECH_DISCOVERED) {
             handleNfcIntent(intent)
+        } else if (intent?.action == Intent.ACTION_VIEW) {
+            handleAmountIntent(intent)
         }
 
         // Pre-warm the audio hardware so the first startTone() call fires without the
@@ -253,7 +255,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleNfcIntent(intent)
+        if (intent.action == Intent.ACTION_VIEW) {
+            handleAmountIntent(intent)
+        } else {
+            handleNfcIntent(intent)
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -427,6 +433,45 @@ class MainActivity : AppCompatActivity() {
     private fun handleNfcIntent(intent: Intent) {
         val tag: Tag = IntentCompat.getParcelableExtra(intent, NfcAdapter.EXTRA_TAG, Tag::class.java) ?: return
         handleTag(tag)
+    }
+
+    /**
+     * Handles an ACTION_VIEW intent with a custom URI scheme to pre-set the amount.
+     *
+     * URI format: nfccoins://<amount>
+     * - Withdraw example: nfccoins://5   → deduct 5 on next card tap
+     * - Add example:      nfccoins://+5  → add 5 on next card tap
+     *
+     * ADB test commands:
+     *   adb shell am start -a android.intent.action.VIEW -d "nfccoins://5"
+     *   adb shell am start -a android.intent.action.VIEW -d "nfccoins://%2B5"
+     */
+    private fun handleAmountIntent(intent: Intent) {
+        val uri = intent.data ?: return
+        val raw = uri.host?.takeIf { it.isNotEmpty() }
+            ?: uri.lastPathSegment?.takeIf { it.isNotEmpty() }
+            ?: return
+        val isAdd = raw.startsWith("+")
+        val amountStr = raw.removePrefix("+").replace(',', '.')
+        val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this)
+        val amount = if (isDecimalMode) parseDecimalInput(amountStr) else amountStr.toIntOrNull()
+        if (amount == null || amount <= 0) {
+            Toast.makeText(this, getString(R.string.invalid_amount), Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        resetToWaiting()
+        if (isAdd) {
+            pendingAddAmount = amount
+            setPendingAction(PendingAction.ADD_BALANCE)
+            tvBalance.setText("+" + formatBalanceDisplay(amount))
+            tvStatus.text = getString(R.string.tap_card_to_add)
+        } else {
+            customDeductAmount = amount
+            setPendingAction(PendingAction.WITHDRAW_BALANCE)
+            tvBalance.setText(formatBalanceDisplay(amount))
+            tvStatus.text = getString(R.string.tap_card_to_deduct)
+        }
     }
 
     /** Modo sin botón activo: solo muestra el saldo en grande. */
