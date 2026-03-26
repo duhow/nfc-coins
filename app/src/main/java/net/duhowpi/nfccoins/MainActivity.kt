@@ -664,7 +664,7 @@ class MainActivity : AppCompatActivity() {
                         background = null
                     )
                     if (AdvancedSettingsActivity.isBroadcastEnabled(this)) {
-                        sendBroadcast(Intent("net.duhowpi.nfccoins.ACTION_TRANSACTION").apply {
+                        sendBroadcast(Intent("$packageName.ACTION_TRANSACTION").apply {
                             putExtra("uid", card.uid.toHex())
                             putExtra("amount", -amount)
                         })
@@ -1477,7 +1477,7 @@ class MainActivity : AppCompatActivity() {
                         background = null
                     )
                     if (AdvancedSettingsActivity.isBroadcastEnabled(this)) {
-                        sendBroadcast(Intent("net.duhowpi.nfccoins.ACTION_TRANSACTION").apply {
+                        sendBroadcast(Intent("$packageName.ACTION_TRANSACTION").apply {
                             putExtra("uid", card.uid.toHex())
                             putExtra("amount", pendingAddAmount)
                         })
