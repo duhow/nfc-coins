@@ -1,2 +1,3 @@
 - Upgraded NTAG card encoding to version 2: cards now embed a validation magic in the last two bytes so an incorrect key is detected immediately on read
 - Added support for launching with a preset amount from other apps: use `nfccoins://5` to pre-select a withdrawal of 5, or `nfccoins://+5` to pre-select an addition of 5; tap the card to confirm.
+- Added "Broadcast events" setting (disabled by default): when enabled, a broadcast is sent after each successful add or withdraw operation, including the card UID and the amount (positive for add, negative for withdraw)

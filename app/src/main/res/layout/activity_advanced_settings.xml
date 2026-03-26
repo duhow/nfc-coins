@@ -224,6 +224,15 @@
             android:checked="false"
             android:layout_marginBottom="8dp" />
 
+        <!-- Broadcast events checkbox - sends ACTION_TRANSACTION intents after successful add/withdraw operations -->
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/cbBroadcastEnabled"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/setting_broadcast_enabled"
+            android:checked="false"
+            android:layout_marginBottom="8dp" />
+
         <!-- Legal adult age -->
         <TextView
             android:layout_width="wrap_content"

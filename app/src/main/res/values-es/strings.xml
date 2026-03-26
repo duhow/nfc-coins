@@ -83,6 +83,7 @@
     <string name="setting_vibration_enabled">Activar vibración</string>
     <string name="setting_decimal_mode">Modo decimal (valores x100, mostrar 2 decimales)</string>
     <string name="setting_distributed_pos">Venta distribuida</string>
+    <string name="setting_broadcast_enabled">Transmisión de eventos</string>
     <string name="setting_theme_color">Color de tema</string>
     <string name="color_pick_title">Color personalizado</string>
     <string name="color_custom_swatch">Seleccionar color personalizado</string>
