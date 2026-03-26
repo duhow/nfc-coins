@@ -315,7 +315,7 @@ class CustomButtonsActivity : AppCompatActivity() {
             filters = arrayOf(InputFilter.LengthFilter(20))
         }
         val etEmoji = EditText(this).apply {
-            hint = "☺"
+            hint = ""
             inputType = InputType.TYPE_CLASS_TEXT
             // Allow only non-ASCII-letter characters (emoji, symbols, digits for keycap sequences)
             filters = arrayOf(InputFilter.LengthFilter(8), makeEmojiFilter())
@@ -340,8 +340,15 @@ class CustomButtonsActivity : AppCompatActivity() {
             getString(R.string.custom_button_amount_hint)
         val etAmount = EditText(this).apply {
             hint = amountHint
-            // TYPE_CLASS_TEXT lets the user type '+' and '-' freely
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            // Use signed numeric keyboard so the system shows digits + a leading minus.
+            // setRawInputType tells the IME which keyboard to show without replacing the
+            // KeyListener, so our makeSignedNumericFilter (which also allows '+') still
+            // applies and the radio button can programmatically set a '+' prefix.
+            setRawInputType(
+                InputType.TYPE_CLASS_NUMBER or
+                    InputType.TYPE_NUMBER_FLAG_SIGNED or
+                    (if (isDecimalMode) InputType.TYPE_NUMBER_FLAG_DECIMAL else 0)
+            )
             filters = arrayOf(makeSignedNumericFilter(isDecimalMode))
         }
 
@@ -378,10 +385,7 @@ class CustomButtonsActivity : AppCompatActivity() {
             etEmoji.setText(btn.emoji)
             val sign = if (btn.operation == CustomButton.OP_ADD) "+" else "-"
             etAmount.setText("$sign${formatAmount(btn.amount, isDecimalMode)}")
-        } ?: run {
-            // New button: default sign is "-" (SUBTRACT)
-            etAmount.setText("-")
-        }
+        } ?: Unit  // New button: starts empty; operation radio defaults to SUBTRACT
 
         // ── Two-way binding: amount sign ↔ operation radio ───────────────────
         var updatingSign = false
@@ -464,11 +468,6 @@ class CustomButtonsActivity : AppCompatActivity() {
 
         // Save button: validate, then persist and refresh
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            val labelText = etLabel.text.toString().trim()
-            if (labelText.isEmpty()) {
-                etLabel.error = getString(R.string.custom_button_label_invalid)
-                return@setOnClickListener
-            }
             val amountText = etAmount.text.toString().trim()
             val parsedAmount = parseAmountInput(amountText, isDecimalMode)
             if (parsedAmount <= 0) {
@@ -477,6 +476,12 @@ class CustomButtonsActivity : AppCompatActivity() {
             }
             val operation = if (rgOperation.checkedRadioButtonId == rbAdd.id)
                 CustomButton.OP_ADD else CustomButton.OP_SUBTRACT
+
+            // Use the entered label; fall back to a signed amount string if blank.
+            val labelText = etLabel.text.toString().trim().ifEmpty {
+                val sign = if (operation == CustomButton.OP_ADD) "+" else "−"
+                "$sign${formatAmount(parsedAmount, isDecimalMode)}"
+            }
 
             val newBtn = CustomButton(
                 id = existingButton?.id ?: slotIndex,

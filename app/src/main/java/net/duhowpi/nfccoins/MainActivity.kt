@@ -20,6 +20,7 @@ import android.os.Vibrator
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
+import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -725,9 +726,10 @@ class MainActivity : AppCompatActivity() {
             if (idx % 3 == 0) {
                 currentRow = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
                     val lp = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
+                        btnHeightPx
                     )
                     if (idx > 0) lp.topMargin = rowMarginPx
                     layoutParams = lp
@@ -811,6 +813,10 @@ class MainActivity : AppCompatActivity() {
             setPendingAction(PendingAction.WITHDRAW_BALANCE)
             tvStatus.text = getString(R.string.tap_card_to_deduct)
         }
+
+        // Show the button's amount in the big balance display as immediate visual feedback.
+        val sign = if (btn.operation == CustomButton.OP_ADD) "+" else "−"
+        tvBalance.setText("$sign${formatBalanceDisplay(btn.amount)}")
     }
 
     private fun applyButtonSelectionStyle(index: Int, selected: Boolean) {
