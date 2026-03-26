@@ -168,6 +168,7 @@ class MainActivity : AppCompatActivity() {
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
         val sellerMode = AdvancedSettingsActivity.isSellerModeEnabled(this)
         menu.findItem(R.id.action_management)?.isVisible = !sellerMode
+        menu.findItem(R.id.action_custom_buttons)?.isVisible = !sellerMode
         return super.onPrepareOptionsMenu(menu)
     }
 
@@ -798,6 +799,9 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        // Save before cancelAddBalance() may reset selectedButtonIndex via clearCustomButtonSelection.
+        val prevIdx = selectedButtonIndex
+
         // Cancel any active inline add-balance mode
         if (isAddBalanceMode || pendingAction == PendingAction.ADD_BALANCE) {
             cancelAddBalance()
@@ -806,23 +810,20 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Deselect the previous button (if any) and select this one
-        val prevIdx = selectedButtonIndex
         selectedButtonIndex = index
-        if (prevIdx >= 0) {
-            applyButtonSelectionStyle(prevIdx, selected = false)
-            // Cancel any pending button-mode idle timer and immediately clear the card-specific UI
-            // so previous transaction details don't bleed into the next button's session.
-            handler.removeCallbacks(buttonModeIdleRunnable)
-            handler.removeCallbacksAndMessages(FLASH_TOKEN)
-            rootLayout.setBackgroundColor(Color.TRANSPARENT)
-            tvCardId.text = getString(R.string.no_card_detected)
-            currentBalance = -1
-            layoutBeforeAfter.visibility = View.GONE
-            tvActualBalance.visibility = View.GONE
-            tvMinorIcon.visibility = View.GONE
-            layoutTransactionHistory.visibility = View.GONE
-            tvTx.forEach { it.visibility = View.GONE }
-        }
+        if (prevIdx >= 0) applyButtonSelectionStyle(prevIdx, selected = false)
+        // Always clear card-specific UI when switching to a new button so previous transaction
+        // details don't bleed into the new session — regardless of how the previous state was set.
+        handler.removeCallbacks(buttonModeIdleRunnable)
+        handler.removeCallbacksAndMessages(FLASH_TOKEN)
+        rootLayout.setBackgroundColor(Color.TRANSPARENT)
+        tvCardId.text = getString(R.string.no_card_detected)
+        currentBalance = -1
+        layoutBeforeAfter.visibility = View.GONE
+        tvActualBalance.visibility = View.GONE
+        tvMinorIcon.visibility = View.GONE
+        layoutTransactionHistory.visibility = View.GONE
+        tvTx.forEach { it.visibility = View.GONE }
         applyButtonSelectionStyle(index, selected = true)
 
         if (btn.operation == CustomButton.OP_ADD) {
