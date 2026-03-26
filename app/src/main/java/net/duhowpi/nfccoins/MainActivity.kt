@@ -716,7 +716,7 @@ class MainActivity : AppCompatActivity() {
         val rippleTint = ColorStateList.valueOf(AdvancedSettingsActivity.rippleColor(themeColor))
         val dp = resources.displayMetrics.density
         val btnHeightPx = (100 * dp).toInt()
-        val rowMarginPx = (4 * dp).toInt()
+        val rowMarginPx = (2 * dp).toInt()
         val colMarginPx = (4 * dp).toInt()
 
         val btnViews = mutableListOf<MaterialButton>()
@@ -780,12 +780,14 @@ class MainActivity : AppCompatActivity() {
                     if (currentBalance >= 0) resetToWaiting()
                     else {
                         setPendingAction(PendingAction.NONE)
+                        resetBalanceToInitial()
                         tvStatus.text = getString(R.string.waiting_card)
                     }
                 }
                 wasAdd -> {
                     setPendingAction(PendingAction.NONE)
                     pendingAddAmount = 0
+                    resetBalanceToInitial()
                     tvStatus.text = getString(R.string.waiting_card)
                 }
             }
@@ -815,8 +817,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Show the button's amount in the big balance display as immediate visual feedback.
-        val sign = if (btn.operation == CustomButton.OP_ADD) "+" else "−"
-        tvBalance.setText("$sign${formatBalanceDisplay(btn.amount)}")
+        // Only show the "+" prefix for ADD operations; WITHDRAW shows the plain amount.
+        val prefix = if (btn.operation == CustomButton.OP_ADD) "+" else ""
+        tvBalance.setText("$prefix${formatBalanceDisplay(btn.amount)}")
     }
 
     private fun applyButtonSelectionStyle(index: Int, selected: Boolean) {
