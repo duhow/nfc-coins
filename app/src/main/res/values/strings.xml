@@ -67,7 +67,7 @@
 
     <!-- Advanced settings -->
     <string name="advanced_settings">Settings</string>
-    <string name="setting_section_card">NFC Card</string>
+    <string name="setting_section_card">NFC Settings</string>
     <string name="setting_section_other">Other</string>
     <string name="setting_options">Options</string>
     <string name="setting_language">Language</string>
@@ -75,7 +75,7 @@
     <string name="setting_language_change_system">Change language in system settings</string>
     <string name="setting_target_sector">Target sector</string>
     <string name="setting_target_sector_hint">Sector (1–15)</string>
-    <string name="setting_target_sector_desc">NFC card sector to read and write (1–15)</string>
+    <string name="setting_target_sector_desc">Mifare Classic card sector to read and write (1–15)</string>
     <string name="setting_static_key">Static key</string>
     <string name="setting_static_key_desc">Cryptographic key for card authentication</string>
     <string name="btn_show_key">Show key</string>

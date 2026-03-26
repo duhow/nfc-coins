@@ -251,19 +251,6 @@
 
         </LinearLayout>
 
-        <!-- Options section header -->
-        <TextView
-            android:id="@+id/tvSectionOptions"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/setting_options"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:paddingStart="72dp"
-            android:paddingEnd="24dp"
-            android:paddingTop="16dp"
-            android:paddingBottom="4dp" />
-
         <!-- Dynamic key row -->
         <LinearLayout
             android:id="@+id/rowDynamicKey"
@@ -318,6 +305,19 @@
                 android:checked="true" />
 
         </LinearLayout>
+
+        <!-- Options section header -->
+        <TextView
+            android:id="@+id/tvSectionOptions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/setting_options"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:paddingStart="72dp"
+            android:paddingEnd="24dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="4dp" />
 
         <!-- Flash background row -->
         <LinearLayout
