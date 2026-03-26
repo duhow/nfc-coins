@@ -55,6 +55,7 @@
     <string name="single_recharge_already_used">Recarga única ya realizada.\nNo se permiten más recargas.</string>
     <string name="setting_legal_age">Edad adulta legal</string>
     <string name="setting_legal_age_hint">Edad (años)</string>
+    <string name="setting_legal_age_desc">Edad mínima para la verificación de contenido adulto</string>
     <string name="minor_indicator_description">Menor de edad</string>
 
     <!-- About -->
@@ -64,28 +65,45 @@
 
     <!-- Advanced settings -->
     <string name="advanced_settings">Ajustes</string>
+    <string name="setting_section_card">Tarjeta NFC</string>
+    <string name="setting_section_other">Otros</string>
     <string name="setting_options">Opciones</string>
     <string name="setting_language">Idioma</string>
+    <string name="setting_language_desc">Selecciona el idioma de la aplicación</string>
     <string name="setting_language_change_system">Cambiar idioma en los ajustes del sistema</string>
     <string name="setting_target_sector">Sector a modificar</string>
+    <string name="setting_target_sector_desc">Sector de la tarjeta NFC a leer y escribir (1–15)</string>
     <string name="setting_static_key">Clave estática</string>
+    <string name="setting_static_key_desc">Clave criptográfica para autenticar la tarjeta</string>
     <string name="btn_show_key">Mostrar clave</string>
     <string name="btn_hide_key">Ocultar clave</string>
     <string name="btn_generate_key">Generar aleatoria</string>
     <string name="generate_key_confirm_title">¿Generar nueva clave?</string>
     <string name="generate_key_confirm_message">Las tarjetas anteriores quedarán bloqueadas o inaccesibles. ¿Deseas continuar?</string>
-    <string name="setting_dynamic_key">Activar clave dinámica (mezclar UID con clave estática)</string>
-    <string name="setting_flash_enabled">Activar cambio de color de fondo</string>
-    <string name="setting_verify_integrity">Verificar integridad de tarjeta</string>
+    <string name="setting_dynamic_key">Clave dinámica</string>
+    <string name="setting_dynamic_key_desc">Combina el UID de la tarjeta con la clave estática</string>
+    <string name="setting_flash_enabled">Flash de fondo</string>
+    <string name="setting_flash_enabled_desc">Cambia el color de fondo en operaciones con tarjeta</string>
+    <string name="setting_verify_integrity">Verificar integridad</string>
+    <string name="setting_verify_integrity_desc">Cancela la operación si los datos de la tarjeta son inconsistentes</string>
     <string name="setting_seller_mode">Modo vendedor</string>
+    <string name="setting_seller_mode_desc">Permite solo operaciones de descuento</string>
     <string name="setting_debug_mode">Modo debug</string>
+    <string name="setting_debug_mode_desc">Muestra detalles técnicos en las operaciones</string>
     <string name="setting_keep_screen_on">Mantener pantalla encendida</string>
-    <string name="setting_sound_enabled">Activar sonido</string>
-    <string name="setting_vibration_enabled">Activar vibración</string>
-    <string name="setting_decimal_mode">Modo decimal (valores x100, mostrar 2 decimales)</string>
+    <string name="setting_keep_screen_on_desc">Evita que la pantalla se apague o atenúe</string>
+    <string name="setting_sound_enabled">Sonido</string>
+    <string name="setting_sound_enabled_desc">Reproduce un sonido en cada operación</string>
+    <string name="setting_vibration_enabled">Vibración</string>
+    <string name="setting_vibration_enabled_desc">Vibra al realizar una operación</string>
+    <string name="setting_decimal_mode">Modo decimal</string>
+    <string name="setting_decimal_mode_desc">Muestra cantidades divididas por 100 con 2 decimales</string>
     <string name="setting_distributed_pos">Venta distribuida</string>
+    <string name="setting_distributed_pos_desc">Comparte operaciones entre varios dispositivos</string>
     <string name="setting_broadcast_enabled">Transmisión de eventos</string>
+    <string name="setting_broadcast_enabled_desc">Envía un broadcast del sistema tras cada operación</string>
     <string name="setting_theme_color">Color de tema</string>
+    <string name="setting_theme_color_desc">Color de acento y resaltado de la aplicación</string>
     <string name="color_pick_title">Color personalizado</string>
     <string name="color_custom_swatch">Seleccionar color personalizado</string>
     <string name="sector_invalid">El sector debe estar entre 1 y 15</string>

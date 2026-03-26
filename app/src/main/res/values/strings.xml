@@ -55,6 +55,7 @@
     <string name="single_recharge_already_used">Single recharge already done.\nNo more recharges allowed.</string>
     <string name="setting_legal_age">Legal adult age</string>
     <string name="setting_legal_age_hint">Age (years)</string>
+    <string name="setting_legal_age_desc">Minimum age for adult content verification</string>
     <string name="minor_indicator_description">Minor</string>
 
     <!-- About -->
@@ -66,29 +67,46 @@
 
     <!-- Advanced settings -->
     <string name="advanced_settings">Settings</string>
+    <string name="setting_section_card">NFC Card</string>
+    <string name="setting_section_other">Other</string>
     <string name="setting_options">Options</string>
     <string name="setting_language">Language</string>
+    <string name="setting_language_desc">Select the app display language</string>
     <string name="setting_language_change_system">Change language in system settings</string>
     <string name="setting_target_sector">Target sector</string>
     <string name="setting_target_sector_hint">Sector (1–15)</string>
+    <string name="setting_target_sector_desc">NFC card sector to read and write (1–15)</string>
     <string name="setting_static_key">Static key</string>
+    <string name="setting_static_key_desc">Cryptographic key for card authentication</string>
     <string name="btn_show_key">Show key</string>
     <string name="btn_hide_key">Hide key</string>
     <string name="btn_generate_key">Generate random</string>
     <string name="generate_key_confirm_title">Generate new key?</string>
     <string name="generate_key_confirm_message">Previous cards will be locked or inaccessible. Do you want to continue?</string>
-    <string name="setting_dynamic_key">Enable dynamic key (mix UID with static key)</string>
-    <string name="setting_flash_enabled">Enable background color change</string>
-    <string name="setting_verify_integrity">Verify card integrity</string>
+    <string name="setting_dynamic_key">Dynamic key</string>
+    <string name="setting_dynamic_key_desc">Mix card UID with static key for unique authentication</string>
+    <string name="setting_flash_enabled">Background flash</string>
+    <string name="setting_flash_enabled_desc">Change background color on successful card operations</string>
+    <string name="setting_verify_integrity">Verify integrity</string>
+    <string name="setting_verify_integrity_desc">Cancel operation if card data looks inconsistent</string>
     <string name="setting_seller_mode">Seller mode</string>
+    <string name="setting_seller_mode_desc">Allow only deduct operations</string>
     <string name="setting_debug_mode">Debug mode</string>
+    <string name="setting_debug_mode_desc">Show technical details on card operations</string>
     <string name="setting_keep_screen_on">Keep screen on</string>
-    <string name="setting_sound_enabled">Enable sound</string>
-    <string name="setting_vibration_enabled">Enable vibration</string>
-    <string name="setting_decimal_mode">Decimal mode (values x100, show 2 decimals)</string>
+    <string name="setting_keep_screen_on_desc">Prevent screen from dimming or sleeping</string>
+    <string name="setting_sound_enabled">Sound</string>
+    <string name="setting_sound_enabled_desc">Play a sound on card operations</string>
+    <string name="setting_vibration_enabled">Vibration</string>
+    <string name="setting_vibration_enabled_desc">Vibrate on card operations</string>
+    <string name="setting_decimal_mode">Decimal mode</string>
+    <string name="setting_decimal_mode_desc">Show amounts divided by 100 with 2 decimal places</string>
     <string name="setting_distributed_pos">Distributed POS</string>
+    <string name="setting_distributed_pos_desc">Share add and deduct operations across devices</string>
     <string name="setting_broadcast_enabled">Broadcast events</string>
+    <string name="setting_broadcast_enabled_desc">Send a system broadcast after each operation</string>
     <string name="setting_theme_color">Theme color</string>
+    <string name="setting_theme_color_desc">App accent and highlight color</string>
     <string name="color_pick_title">Custom color</string>
     <string name="color_custom_swatch">Select custom color</string>
     <string name="sector_invalid">Sector must be between 1 and 15</string>
