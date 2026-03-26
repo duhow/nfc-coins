@@ -1,1 +1,1 @@
-Add user-facing changes for the next release here.
+- Upgraded NTAG card encoding to version 2: cards now embed a validation magic in the last two bytes so an incorrect key is detected immediately on read

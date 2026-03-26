@@ -17,7 +17,7 @@ import javax.crypto.spec.SecretKeySpec
  * - 4 B  version + flags (includes birth year and single-recharge flag)
  * - 2 B  balance (uint16)
  * - 32 B transactions + checksum
- * - 2 B  padding
+ * - 2 B  version magic: 0xC0 0x1V (where V = version nibble; 0x00 0x00 accepted for v1)
  */
 class NtagCoinCard(
     tag: Tag,
@@ -73,17 +73,23 @@ class NtagCoinCard(
             return ReadResult.InvalidData("$DECRYPT_ERROR_PREFIX invalid version ${meta.version}")
         }
 
+        if (!isPaddingValid(payload, meta.version)) {
+            return ReadResult.InvalidData("$DECRYPT_ERROR_PREFIX invalid padding magic")
+        }
+
         val txData = payload.copyOfRange(OFFSET_TX, OFFSET_PADDING)
         val txBlock = TransactionBlock.fromBytes(txData)
 
-        val cal = Calendar.getInstance()
-        val currentYear = cal.get(Calendar.YEAR)
-        cal.timeInMillis = txBlock.initTimestamp * 1000L
-        val tsYear = cal.get(Calendar.YEAR)
-        if (tsYear !in MIN_VALID_TIMESTAMP_YEAR..currentYear) {
-            return ReadResult.InvalidData(
-                "$DECRYPT_ERROR_PREFIX invalid timestamp year $tsYear (expected $MIN_VALID_TIMESTAMP_YEAR-$currentYear)"
-            )
+        if (meta.version >= 2) {
+            val cal = Calendar.getInstance()
+            val currentYear = cal.get(Calendar.YEAR)
+            cal.timeInMillis = txBlock.initTimestamp * 1000L
+            val tsYear = cal.get(Calendar.YEAR)
+            if (tsYear !in MIN_VALID_TIMESTAMP_YEAR..currentYear) {
+                return ReadResult.InvalidData(
+                    "$DECRYPT_ERROR_PREFIX invalid timestamp year $tsYear (expected $MIN_VALID_TIMESTAMP_YEAR-$currentYear)"
+                )
+            }
         }
 
         val balance = decodeBalance(payload.copyOfRange(OFFSET_BALANCE, OFFSET_TX))
@@ -241,17 +247,23 @@ class NtagCoinCard(
     private fun writeState(balance: Int, txData: ByteArray, meta: HeaderMeta) {
         require(txData.size == TX_WITH_CHECKSUM_BYTES) { "Invalid tx payload size" }
 
+        // Always write with the current version, migrating older cards on next write.
+        val writeMeta = if (meta.version != CURRENT_VERSION) meta.copy(version = CURRENT_VERSION) else meta
+
         val plainPayload = ByteArray(TOTAL_BYTES)
         System.arraycopy(MAGIC, 0, plainPayload, OFFSET_MAGIC, MAGIC.size)
 
-        val metaBytes = encodeMeta(meta)
+        val metaBytes = encodeMeta(writeMeta)
         System.arraycopy(metaBytes, 0, plainPayload, OFFSET_META, metaBytes.size)
 
         val balanceBytes = encodeBalanceCompact(balance)
         System.arraycopy(balanceBytes, 0, plainPayload, OFFSET_BALANCE, balanceBytes.size)
 
         System.arraycopy(txData, 0, plainPayload, OFFSET_TX, txData.size)
-        // Last 2 bytes are left as 0x00 padding.
+
+        // Write version magic instead of padding.
+        plainPayload[OFFSET_PADDING] = PADDING_MAGIC.toByte()
+        plainPayload[OFFSET_PADDING + 1] = (PADDING_VERSION_PREFIX or writeMeta.version).toByte()
 
         val payload = encryptStoredPayload(plainPayload)
         writePages(dataStartPage, payload)
@@ -403,6 +415,18 @@ class NtagCoinCard(
             false
         }
 
+    private fun isPaddingValid(payload: ByteArray, version: Int): Boolean {
+        val p0 = payload[OFFSET_PADDING].toInt() and 0xFF
+        val p1 = payload[OFFSET_PADDING + 1].toInt() and 0xFF
+        val expectedMagic = (PADDING_VERSION_PREFIX or version) and 0xFF
+        return if (version == 1) {
+            // Retro-compatible: accept legacy 0x00 0x00 padding or new version magic.
+            (p0 == 0x00 && p1 == 0x00) || (p0 == PADDING_MAGIC && p1 == expectedMagic)
+        } else {
+            p0 == PADDING_MAGIC && p1 == expectedMagic
+        }
+    }
+
     private fun encodeMeta(meta: HeaderMeta): ByteArray {
         val versionNibble = (meta.version and 0x0F) shl 4
         val flagsNibble = if (meta.isSingleRecharge) FLAG_SINGLE_RECHARGE else 0
@@ -454,10 +478,12 @@ class NtagCoinCard(
         private const val OFFSET_TX = OFFSET_BALANCE + BALANCE_BYTES
         private const val OFFSET_PADDING = OFFSET_TX + TX_WITH_CHECKSUM_BYTES
 
-        private const val CURRENT_VERSION = 0x1
+        private const val CURRENT_VERSION = 0x2
         private const val FLAG_SINGLE_RECHARGE = 0x1
         private const val MIN_VALID_TIMESTAMP_YEAR = 2026
         internal const val DECRYPT_ERROR_PREFIX = "Decryption error:"
+        private const val PADDING_MAGIC = 0xC0
+        private const val PADDING_VERSION_PREFIX = 0x10
 
         private const val CIPHER_TRANSFORMATION = "AES/CTR/NoPadding"
         private const val AES_KEY_SIZE_BYTES = 16
