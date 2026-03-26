@@ -14,7 +14,8 @@
         android:localeConfig="@xml/locale_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.NFCPos">
+        android:theme="@style/Theme.NFCPos"
+        android:localeConfig="@xml/locale_config">
 
         <activity
             android:name=".MainActivity"
