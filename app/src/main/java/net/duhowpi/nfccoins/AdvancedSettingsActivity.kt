@@ -1,6 +1,7 @@
 package net.duhowpi.nfccoins
 
 import android.content.Context
+import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
@@ -50,6 +51,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         /** Kept for one-time migration of legacy language preference to AppCompat locale. */
         const val KEY_LANGUAGE = "language"
         const val KEY_DISTRIBUTED_POS = "distributed_pos"
+        const val DEFAULT_LANGUAGE = "en"
 
         /**
          * Returns the list of supported languages as (displayName, code) pairs by reading
@@ -156,7 +158,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         /** Returns the currently active app language code (e.g. "en", "es"). */
         fun getLanguage(): String {
             val locales = AppCompatDelegate.getApplicationLocales()
-            return if (!locales.isEmpty) locales[0]?.language ?: "en" else "en"
+            return if (!locales.isEmpty) locales[0]?.language ?: DEFAULT_LANGUAGE else DEFAULT_LANGUAGE
         }
 
         /** Returns black or white, whichever contrasts better with [color]. */
@@ -499,7 +501,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             val selectedLangName = actvLanguage.text?.toString() ?: ""
             newLangCode = getLanguageEntries(this).firstOrNull { it.first == selectedLangName }?.second
-                ?: "en"
+                ?: DEFAULT_LANGUAGE
             oldLangCode = getLanguage()
         } else {
             newLangCode = null

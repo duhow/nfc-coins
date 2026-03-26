@@ -619,7 +619,7 @@ class MainActivity : AppCompatActivity() {
         val prefs = getSharedPreferences(AdvancedSettingsActivity.PREFS_NAME, Context.MODE_PRIVATE)
         if (!prefs.contains(AdvancedSettingsActivity.KEY_LANGUAGE)) return
 
-        val langCode = prefs.getString(AdvancedSettingsActivity.KEY_LANGUAGE, "en") ?: "en"
+        val langCode = prefs.getString(AdvancedSettingsActivity.KEY_LANGUAGE, AdvancedSettingsActivity.DEFAULT_LANGUAGE) ?: AdvancedSettingsActivity.DEFAULT_LANGUAGE
         prefs.edit().remove(AdvancedSettingsActivity.KEY_LANGUAGE).apply()
 
         // Only override AppCompat's locale if it has not already been set (e.g. by the system
