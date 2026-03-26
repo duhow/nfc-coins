@@ -1,7 +1,6 @@
 package net.duhowpi.nfccoins
 
 import android.app.DatePickerDialog
-import android.content.Context
 import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
@@ -49,10 +48,6 @@ class OperationsHistoryActivity : AppCompatActivity() {
 
     /** Whether the current chart has any non-zero data. Used to hide legend/table when empty. */
     private var hasChartData: Boolean = false
-
-    override fun attachBaseContext(newBase: Context) {
-        super.attachBaseContext(AdvancedSettingsActivity.wrapContextWithLocale(newBase))
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
