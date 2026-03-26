@@ -143,160 +143,259 @@
             android:textStyle="bold"
             android:layout_marginBottom="4dp" />
 
-        <!-- Dynamic key switch -->
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/swDynamicKey"
+        <!-- Dynamic key row -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/setting_dynamic_key"
-            android:checked="true"
-            android:drawableStart="@drawable/ic_key"
-            android:drawablePadding="16dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:minHeight="56dp"
-            android:paddingStart="0dp"
-            android:paddingEnd="8dp"
-            android:background="?attr/selectableItemBackground" />
+            android:baselineAligned="false">
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="16dp"
+                android:importantForAccessibility="no"
+                app:srcCompat="@drawable/ic_key"
+                app:tint="?attr/colorControlNormal" />
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/swDynamicKey"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_dynamic_key"
+                android:checked="true" />
+        </LinearLayout>
 
-        <!-- Flash background switch -->
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/swFlashEnabled"
+        <!-- Flash background row -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/setting_flash_enabled"
-            android:checked="true"
-            android:drawableStart="@drawable/ic_palette"
-            android:drawablePadding="16dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:minHeight="56dp"
-            android:paddingStart="0dp"
-            android:paddingEnd="8dp"
-            android:background="?attr/selectableItemBackground" />
+            android:baselineAligned="false">
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="16dp"
+                android:importantForAccessibility="no"
+                app:srcCompat="@drawable/ic_palette"
+                app:tint="?attr/colorControlNormal" />
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/swFlashEnabled"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_flash_enabled"
+                android:checked="true" />
+        </LinearLayout>
 
-        <!-- Verify card integrity switch -->
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/swVerifyIntegrity"
+        <!-- Verify card integrity row -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/setting_verify_integrity"
-            android:checked="true"
-            android:drawableStart="@drawable/ic_verified"
-            android:drawablePadding="16dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:minHeight="56dp"
-            android:paddingStart="0dp"
-            android:paddingEnd="8dp"
-            android:background="?attr/selectableItemBackground" />
+            android:baselineAligned="false">
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="16dp"
+                android:importantForAccessibility="no"
+                app:srcCompat="@drawable/ic_verified"
+                app:tint="?attr/colorControlNormal" />
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/swVerifyIntegrity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_verify_integrity"
+                android:checked="true" />
+        </LinearLayout>
 
-        <!-- Seller mode switch -->
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/swSellerMode"
+        <!-- Seller mode row -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/setting_seller_mode"
-            android:checked="false"
-            android:drawableStart="@drawable/ic_store"
-            android:drawablePadding="16dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:minHeight="56dp"
-            android:paddingStart="0dp"
-            android:paddingEnd="8dp"
-            android:background="?attr/selectableItemBackground" />
+            android:baselineAligned="false">
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="16dp"
+                android:importantForAccessibility="no"
+                app:srcCompat="@drawable/ic_store"
+                app:tint="?attr/colorControlNormal" />
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/swSellerMode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_seller_mode"
+                android:checked="false" />
+        </LinearLayout>
 
-        <!-- Debug mode switch -->
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/swDebugEnabled"
+        <!-- Debug mode row -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/setting_debug_mode"
-            android:checked="false"
-            android:drawableStart="@drawable/ic_bug_report"
-            android:drawablePadding="16dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:minHeight="56dp"
-            android:paddingStart="0dp"
-            android:paddingEnd="8dp"
-            android:background="?attr/selectableItemBackground" />
+            android:baselineAligned="false">
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="16dp"
+                android:importantForAccessibility="no"
+                app:srcCompat="@drawable/ic_bug_report"
+                app:tint="?attr/colorControlNormal" />
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/swDebugEnabled"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_debug_mode"
+                android:checked="false" />
+        </LinearLayout>
 
-        <!-- Keep screen on switch -->
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/swKeepScreenOn"
+        <!-- Keep screen on row -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/setting_keep_screen_on"
-            android:checked="false"
-            android:drawableStart="@drawable/ic_screen"
-            android:drawablePadding="16dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:minHeight="56dp"
-            android:paddingStart="0dp"
-            android:paddingEnd="8dp"
-            android:background="?attr/selectableItemBackground" />
+            android:baselineAligned="false">
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="16dp"
+                android:importantForAccessibility="no"
+                app:srcCompat="@drawable/ic_screen"
+                app:tint="?attr/colorControlNormal" />
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/swKeepScreenOn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_keep_screen_on"
+                android:checked="false" />
+        </LinearLayout>
 
-        <!-- Sound enabled switch -->
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/swSoundEnabled"
+        <!-- Sound enabled row -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/setting_sound_enabled"
-            android:checked="true"
-            android:drawableStart="@drawable/ic_volume"
-            android:drawablePadding="16dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:minHeight="56dp"
-            android:paddingStart="0dp"
-            android:paddingEnd="8dp"
-            android:background="?attr/selectableItemBackground" />
+            android:baselineAligned="false">
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="16dp"
+                android:importantForAccessibility="no"
+                app:srcCompat="@drawable/ic_volume"
+                app:tint="?attr/colorControlNormal" />
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/swSoundEnabled"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_sound_enabled"
+                android:checked="true" />
+        </LinearLayout>
 
-        <!-- Vibration enabled switch -->
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/swVibrationEnabled"
+        <!-- Vibration enabled row -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/setting_vibration_enabled"
-            android:checked="false"
-            android:drawableStart="@drawable/ic_vibrate"
-            android:drawablePadding="16dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:minHeight="56dp"
-            android:paddingStart="0dp"
-            android:paddingEnd="8dp"
-            android:background="?attr/selectableItemBackground" />
+            android:baselineAligned="false">
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="16dp"
+                android:importantForAccessibility="no"
+                app:srcCompat="@drawable/ic_vibrate"
+                app:tint="?attr/colorControlNormal" />
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/swVibrationEnabled"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_vibration_enabled"
+                android:checked="false" />
+        </LinearLayout>
 
-        <!-- Decimal mode switch -->
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/swDecimalMode"
+        <!-- Decimal mode row -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/setting_decimal_mode"
-            android:checked="false"
-            android:drawableStart="@drawable/ic_decimal"
-            android:drawablePadding="16dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:minHeight="56dp"
-            android:paddingStart="0dp"
-            android:paddingEnd="8dp"
-            android:background="?attr/selectableItemBackground" />
+            android:baselineAligned="false">
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="16dp"
+                android:importantForAccessibility="no"
+                app:srcCompat="@drawable/ic_decimal"
+                app:tint="?attr/colorControlNormal" />
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/swDecimalMode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_decimal_mode"
+                android:checked="false" />
+        </LinearLayout>
 
-        <!-- Distributed POS switch -->
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/swDistributedPos"
+        <!-- Distributed POS row -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/setting_distributed_pos"
-            android:checked="false"
-            android:drawableStart="@drawable/ic_share"
-            android:drawablePadding="16dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:minHeight="56dp"
-            android:paddingStart="0dp"
-            android:paddingEnd="8dp"
-            android:background="?attr/selectableItemBackground" />
+            android:baselineAligned="false">
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="16dp"
+                android:importantForAccessibility="no"
+                app:srcCompat="@drawable/ic_share"
+                app:tint="?attr/colorControlNormal" />
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/swDistributedPos"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_distributed_pos"
+                android:checked="false" />
+        </LinearLayout>
 
-        <!-- Broadcast events switch -->
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/swBroadcastEnabled"
+        <!-- Broadcast events row -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/setting_broadcast_enabled"
-            android:checked="false"
-            android:drawableStart="@drawable/ic_broadcast"
-            android:drawablePadding="16dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:minHeight="56dp"
-            android:paddingStart="0dp"
-            android:paddingEnd="8dp"
-            android:layout_marginBottom="8dp"
-            android:background="?attr/selectableItemBackground" />
+            android:baselineAligned="false"
+            android:layout_marginBottom="8dp">
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="16dp"
+                android:importantForAccessibility="no"
+                app:srcCompat="@drawable/ic_broadcast"
+                app:tint="?attr/colorControlNormal" />
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/swBroadcastEnabled"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_broadcast_enabled"
+                android:checked="false" />
+        </LinearLayout>
 
         <!-- Legal adult age -->
         <TextView
