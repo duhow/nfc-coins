@@ -340,7 +340,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             ?: langEntries.firstOrNull()?.first
         val langAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, langNames)
         actvLanguage.setAdapter(langAdapter)
-        actvLanguage.setText(selectedLangName, false)
+        actvLanguage.setText(selectedLangName ?: "", false)
 
         etSector.setText(getTargetSector(this).toString())
         etStaticKey.setText(getStaticKey(this))
