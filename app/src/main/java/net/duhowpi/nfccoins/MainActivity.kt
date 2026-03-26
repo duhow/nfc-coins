@@ -542,7 +542,7 @@ class MainActivity : AppCompatActivity() {
                     showDebugChecksums(card, newBalance, newTransactions)
                     txDb.insertTransaction(
                         type = TransactionDatabase.TYPE_SUBTRACT,
-                        amount = -amount,
+                        amount = amount,
                         balanceBefore = balance,
                         balanceAfter = newBalance,
                         cardUid = card.uid.toHex(),
@@ -561,14 +561,10 @@ class MainActivity : AppCompatActivity() {
                         scheduleAutoReset = false,
                         background = null
                     )
-                    if (isButtonMode) {
-                        // Button remains active: keep WITHDRAW_BALANCE state for additional transactions.
-                        // No auto-reset scheduled; the user can tap another card immediately.
-                    } else {
-                        // Custom-amount is a one-shot transaction: clear it and schedule a full reset.
-                        customDeductAmount = 0
-                        scheduleAutoReset()
-                    }
+                    if (isButtonMode) clearCustomButtonSelection()
+                    customDeductAmount = 0
+                    pendingAction = PendingAction.NONE
+                    scheduleAutoReset()
                 }
             }
         } catch (e: Exception) {
@@ -1068,13 +1064,17 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.card_management)
             .setItems(
                 arrayOf(
-                    getString(R.string.action_add_balance),
+                    getString(R.string.action_deduct_custom),
                     getString(R.string.action_format_card),
                     getString(R.string.action_reset_card)
                 )
             ) { _, which ->
                 when (which) {
-                    0 -> enterAddBalanceModeInline()
+                    0 -> {
+                        cancelAddBalance()
+                        clearCustomButtonSelection()
+                        enterCustomAmountMode()
+                    }
                     1 -> showFormatOptionsDialog()
                     2 -> {
                         cancelAddBalance()
@@ -1330,14 +1330,12 @@ class MainActivity : AppCompatActivity() {
                     }
                     setScreenStatusSuccess(
                         message = getString(R.string.balance_added_ok, formatBalanceDisplay(pendingAddAmount)),
-                        scheduleAutoReset = !isButtonMode,
+                        scheduleAutoReset = false,
                         background = null
                     )
-                    if (isButtonMode) {
-                        // Button remains active: keep ADD_BALANCE state for back-to-back transactions.
-                        setPendingAction(PendingAction.ADD_BALANCE)
-                        tvStatus.text = getString(R.string.tap_card_to_add)
-                    }
+                    clearCustomButtonSelection()
+                    pendingAction = PendingAction.NONE
+                    scheduleAutoReset()
                 }
             }
         } catch (e: Exception) {
