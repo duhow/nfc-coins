@@ -224,6 +224,12 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         nfcAdapter?.disableReaderMode(this)
+        // Deselect any active button and reset UI state when leaving so that returning from
+        // another activity (history, settings, …) never leaves the interface in a stale mode.
+        if (selectedButtonIndex >= 0 || isAddBalanceMode) {
+            handler.removeCallbacks(autoResetRunnable)
+            resetToWaiting()
+        }
     }
 
     override fun onDestroy() {
