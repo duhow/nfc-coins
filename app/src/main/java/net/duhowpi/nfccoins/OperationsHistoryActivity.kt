@@ -344,18 +344,19 @@ class OperationsHistoryActivity : AppCompatActivity() {
 
         val sortedStats = stats.sortedBy { it.amount }
         val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this)
+        val customButtons = CustomButton.loadButtons(this)
+
         for (stat in sortedStats) {
             val row = TableRow(this)
             row.setPadding(0, 4, 0, 4)
 
-            // Show price as absolute positive value
-            val unit1 = if (isDecimalMode) 100 else 1
-            val unit2 = if (isDecimalMode) 200 else 2
-            val priceText = when (stat.amount) {
-                unit1 -> "1"
-                unit2 -> "2"
-                else  -> stat.amount.toString()
-            }
+            // Show label from custom button config if found, otherwise show raw amount
+            val priceText = customButtons.firstOrNull { kotlin.math.abs(it.amount) == kotlin.math.abs(stat.amount) }?.label
+                ?: if (isDecimalMode) {
+                    String.format(java.util.Locale.getDefault(), "%d.%02d", kotlin.math.abs(stat.amount) / 100, kotlin.math.abs(stat.amount % 100))
+                } else {
+                    kotlin.math.abs(stat.amount).toString()
+                }
 
             row.addView(makeCell(priceText, isBold = true))
             row.addView(makeCell(stat.countThisHour.toString()))

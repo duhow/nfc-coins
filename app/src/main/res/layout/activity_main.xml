@@ -113,7 +113,7 @@
             android:text="@string/waiting_card"
             android:textSize="14sp"
             android:gravity="center"
-            android:layout_marginBottom="32dp" />
+            android:layout_marginBottom="8dp" />
 
         <!-- Hidden EditText used as keyboard target for custom deduction entry.
              Height is 1dp (non-zero) so the IMM can show the keyboard; alpha=0 keeps it invisible. -->
@@ -127,33 +127,13 @@
             android:cursorVisible="false"
             android:importantForAccessibility="no" />
 
-        <!-- Toggle coin deduction buttons in a row -->
-        <com.google.android.material.button.MaterialButtonToggleGroup
-            android:id="@+id/toggleGroup"
+        <!-- Custom coin deduction/add buttons (populated dynamically) -->
+        <LinearLayout
+            android:id="@+id/layoutCustomButtons"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            app:singleSelection="true"
-            app:selectionRequired="false">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnDeduct1"
-                style="?attr/materialButtonOutlinedStyle"
-                android:layout_width="100dp"
-                android:layout_height="100dp"
-                android:text="@string/deduct_1_short"
-                android:textSize="26sp"
-                android:textStyle="bold" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnDeduct2"
-                style="?attr/materialButtonOutlinedStyle"
-                android:layout_width="100dp"
-                android:layout_height="100dp"
-                android:text="@string/deduct_2_short"
-                android:textSize="26sp"
-                android:textStyle="bold" />
-
-        </com.google.android.material.button.MaterialButtonToggleGroup>
+            android:orientation="vertical"
+            android:gravity="center_horizontal" />
 
         <!-- Transaction history (shown after reading a card) -->
         <LinearLayout

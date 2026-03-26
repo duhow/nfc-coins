@@ -20,6 +20,7 @@ import android.os.Vibrator
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
+import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -35,7 +36,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import androidx.core.view.WindowCompat
 import android.provider.Settings
-import com.google.android.material.button.MaterialButtonToggleGroup
+import com.google.android.material.button.MaterialButton
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -79,8 +80,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvBalanceAfter: TextView
     private lateinit var tvActualBalance: TextView
     private lateinit var layoutBeforeAfter: LinearLayout
-    private lateinit var toggleGroup: MaterialButtonToggleGroup
+    private lateinit var layoutCustomButtons: LinearLayout
     private lateinit var etHiddenInput: BackspaceEditText
+
+    private var selectedButtonIndex: Int = -1
+    private var customButtonList: List<CustomButton> = emptyList()
+    private var customButtonViews: List<MaterialButton> = emptyList()
     private lateinit var layoutTransactionHistory: LinearLayout
     private lateinit var tvTx: Array<TextView>
     private lateinit var tvTxDebug: TextView
@@ -102,6 +107,7 @@ class MainActivity : AppCompatActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
     private val autoResetRunnable = Runnable { resetToWaiting() }
+    private val buttonModeIdleRunnable = Runnable { resetButtonModeState() }
     private val txDb: TransactionDatabase by lazy { TransactionDatabase(this) }
 
     override fun attachBaseContext(newBase: Context) {
@@ -123,7 +129,7 @@ class MainActivity : AppCompatActivity() {
         tvBalanceAfter    = findViewById(R.id.tvBalanceAfter)
         tvActualBalance   = findViewById(R.id.tvActualBalance)
         layoutBeforeAfter = findViewById(R.id.layoutBeforeAfter)
-        toggleGroup       = findViewById(R.id.toggleGroup)
+        layoutCustomButtons = findViewById(R.id.layoutCustomButtons)
         etHiddenInput     = findViewById(R.id.etHiddenInput)
         layoutTransactionHistory = findViewById(R.id.layoutTransactionHistory)
         tvTx = arrayOf(
@@ -135,12 +141,13 @@ class MainActivity : AppCompatActivity() {
         tvTxDebug = findViewById(R.id.tvTxDebug)
 
         setupBalanceEditText()
+        rebuildCustomButtons()
         applyThemeColor()
 
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         if (nfcAdapter == null) {
             tvStatus.text = getString(R.string.nfc_not_available)
-            toggleGroup.isEnabled = false
+            layoutCustomButtons.isEnabled = false
             return
         }
 
@@ -161,6 +168,7 @@ class MainActivity : AppCompatActivity() {
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
         val sellerMode = AdvancedSettingsActivity.isSellerModeEnabled(this)
         menu.findItem(R.id.action_management)?.isVisible = !sellerMode
+        menu.findItem(R.id.action_custom_buttons)?.isVisible = !sellerMode
         return super.onPrepareOptionsMenu(menu)
     }
 
@@ -168,6 +176,10 @@ class MainActivity : AppCompatActivity() {
         return when (item.itemId) {
             R.id.action_history -> {
                 startActivity(Intent(this, OperationsHistoryActivity::class.java))
+                true
+            }
+            R.id.action_custom_buttons -> {
+                startActivity(Intent(this, CustomButtonsActivity::class.java))
                 true
             }
             R.id.action_management -> {
@@ -205,12 +217,19 @@ class MainActivity : AppCompatActivity() {
             window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
         applyThemeColor()
+        rebuildCustomButtons()
         invalidateOptionsMenu()
     }
 
     override fun onPause() {
         super.onPause()
         nfcAdapter?.disableReaderMode(this)
+        // Deselect any active button and reset UI state when leaving so that returning from
+        // another activity (history, settings, …) never leaves the interface in a stale mode.
+        if (selectedButtonIndex >= 0 || isAddBalanceMode) {
+            handler.removeCallbacks(autoResetRunnable)
+            resetToWaiting()
+        }
     }
 
     override fun onDestroy() {
@@ -253,7 +272,7 @@ class MainActivity : AppCompatActivity() {
             }
             tvCoinsLabel.visibility = View.VISIBLE
             tvStatus.visibility = View.VISIBLE
-            toggleGroup.visibility = View.VISIBLE
+            layoutCustomButtons.visibility = View.VISIBLE
         } else {
             handler.removeCallbacks(autoResetRunnable)
             tvCardId.text = getString(R.string.nfc_disabled)
@@ -267,7 +286,7 @@ class MainActivity : AppCompatActivity() {
             tvBalance.setOnClickListener { openNfcSettings() }
             tvCoinsLabel.visibility = View.GONE
             tvStatus.visibility = View.GONE
-            toggleGroup.visibility = View.GONE
+            layoutCustomButtons.visibility = View.GONE
             layoutBeforeAfter.visibility = View.GONE
             tvActualBalance.visibility = View.GONE
             tvMinorIcon.visibility = View.GONE
@@ -321,8 +340,9 @@ class MainActivity : AppCompatActivity() {
 
         when (pendingAction) {
             PendingAction.ADD_BALANCE -> {
-                pendingAction = PendingAction.NONE
-                addBalanceToCard(card)
+                val isButtonMode = selectedButtonIndex >= 0
+                if (!isButtonMode) pendingAction = PendingAction.NONE
+                addBalanceToCard(card, isButtonMode = isButtonMode)
             }
             PendingAction.FORMAT_CARD -> {
                 pendingAction = PendingAction.NONE
@@ -334,10 +354,13 @@ class MainActivity : AppCompatActivity() {
             }
             PendingAction.WITHDRAW_BALANCE -> {
                 // Do not clear pendingAction here; readAndDeduct manages state depending on
-                // success/failure and whether a toggle button or custom amount is active.
+                // success/failure and whether a custom button or custom amount is active.
                 when {
-                    toggleGroup.checkedButtonId == R.id.btnDeduct1 -> readAndDeduct(card, deductUnitAmount(1), isButtonMode = true)
-                    toggleGroup.checkedButtonId == R.id.btnDeduct2 -> readAndDeduct(card, deductUnitAmount(2), isButtonMode = true)
+                    selectedButtonIndex >= 0 -> {
+                        val btn = customButtonList.getOrNull(selectedButtonIndex)
+                        if (btn != null) readAndDeduct(card, btn.amount, isButtonMode = true)
+                        else setPendingAction(PendingAction.NONE)
+                    }
                     customDeductAmount > 0 -> {
                         isCustomAmountMode = false
                         clearHiddenInput()
@@ -547,8 +570,10 @@ class MainActivity : AppCompatActivity() {
                         background = null
                     )
                     if (isButtonMode) {
-                        // Button remains active: keep WITHDRAW_BALANCE state for additional transactions.
-                        // No auto-reset scheduled; the user can tap another card immediately.
+                        // Schedule a soft UI reset after the auto-reset delay; button and pending
+                        // action remain active so another card can be served immediately.
+                        handler.removeCallbacks(buttonModeIdleRunnable)
+                        handler.postDelayed(buttonModeIdleRunnable, AUTO_RESET_DELAY_MS)
                     } else {
                         // Custom-amount is a one-shot transaction: clear it and schedule a full reset.
                         customDeductAmount = 0
@@ -642,24 +667,209 @@ class MainActivity : AppCompatActivity() {
         // Stroke: always the theme color
         val strokeTint = ColorStateList.valueOf(color)
 
-        for (i in 0 until toggleGroup.childCount) {
-            val child = toggleGroup.getChildAt(i) as? com.google.android.material.button.MaterialButton
-                ?: continue
-            child.backgroundTintList = bgTint
-            child.setTextColor(textTint)
-            child.strokeColor = strokeTint
-            child.rippleColor = rippleTint
+        // Custom buttons: apply theme colors
+        applyThemeToCustomButtons()
+    }
+
+    private fun applyThemeToCustomButtons() {
+        val color = AdvancedSettingsActivity.getThemeColor(this)
+        val textOnColor = AdvancedSettingsActivity.contrastColor(color)
+        val rippleTint = ColorStateList.valueOf(AdvancedSettingsActivity.rippleColor(color))
+
+        // For buttons with a custom background color, use that color's contrast as text color
+        // when selected; for transparent buttons, use theme color logic
+        customButtonViews.forEachIndexed { idx, btn ->
+            val customBg = customButtonList.getOrNull(idx)?.backgroundColor ?: 0
+            val isSelected = idx == selectedButtonIndex
+
+            if (customBg != 0) {
+                // Custom background: show full color always, darken when selected
+                val fillColor = if (isSelected) darkenColor(customBg) else customBg
+                btn.backgroundTintList = ColorStateList.valueOf(fillColor)
+                btn.setTextColor(AdvancedSettingsActivity.contrastColor(customBg))
+                btn.strokeColor = ColorStateList.valueOf(color)
+                btn.rippleColor = rippleTint
+            } else {
+                // No custom background: use theme color (filled when selected, outlined when not)
+                val bgTint = if (isSelected) color else Color.TRANSPARENT
+                btn.backgroundTintList = ColorStateList.valueOf(bgTint)
+                btn.setTextColor(if (isSelected) textOnColor else color)
+                btn.strokeColor = ColorStateList.valueOf(color)
+                btn.rippleColor = rippleTint
+            }
+        }
+    }
+
+    private fun darkenColor(color: Int): Int {
+        val hsv = FloatArray(3)
+        Color.colorToHSV(color, hsv)
+        hsv[2] *= 0.8f
+        return Color.HSVToColor(hsv)
+    }
+
+    // -------------------------------------------------------------------------
+    // Dynamic custom buttons
+    // -------------------------------------------------------------------------
+
+    /**
+     * Reads the saved custom button configuration and rebuilds the button grid.
+     * Called from [onResume] so any changes made in [CustomButtonsActivity] are reflected.
+     * Resets [selectedButtonIndex] to -1 (no selection) on every rebuild.
+     */
+    private fun rebuildCustomButtons() {
+        customButtonList = CustomButton.loadButtons(this)
+        selectedButtonIndex = -1
+        layoutCustomButtons.removeAllViews()
+
+        val themeColor = AdvancedSettingsActivity.getThemeColor(this)
+        val textOnColor = AdvancedSettingsActivity.contrastColor(themeColor)
+        val rippleTint = ColorStateList.valueOf(AdvancedSettingsActivity.rippleColor(themeColor))
+        val dp = resources.displayMetrics.density
+        val btnHeightPx = (100 * dp).toInt()
+        val rowMarginPx = (2 * dp).toInt()
+        val colMarginPx = (4 * dp).toInt()
+
+        val btnViews = mutableListOf<MaterialButton>()
+
+        var currentRow: LinearLayout? = null
+        for ((idx, btn) in customButtonList.withIndex()) {
+            if (idx % 3 == 0) {
+                currentRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    val lp = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        btnHeightPx
+                    )
+                    if (idx > 0) lp.topMargin = rowMarginPx
+                    layoutParams = lp
+                }
+                layoutCustomButtons.addView(currentRow)
+            }
+
+            val customBg = btn.backgroundColor
+            val btnView = MaterialButton(
+                this,
+                null,
+                com.google.android.material.R.attr.materialButtonOutlinedStyle
+            ).apply {
+                text = btn.buttonDisplayText()
+                textSize = if (btn.emoji.isNotEmpty()) 26f else 20f
+                isAllCaps = false
+                isSingleLine = false
+                setTextColor(if (customBg != 0) AdvancedSettingsActivity.contrastColor(customBg) else themeColor)
+                backgroundTintList = ColorStateList.valueOf(if (customBg != 0) customBg else Color.TRANSPARENT)
+                strokeColor = ColorStateList.valueOf(themeColor)
+                rippleColor = rippleTint
+
+                val lp = LinearLayout.LayoutParams(0, btnHeightPx, 1f)
+                if (idx % 3 > 0) lp.marginStart = colMarginPx
+                layoutParams = lp
+
+                val capturedIdx = idx
+                setOnClickListener { onCustomButtonClicked(capturedIdx) }
+            }
+
+            currentRow?.addView(btnView)
+            btnViews.add(btnView)
         }
 
-        // Update deduct button labels to reflect decimal mode
-        val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this)
-        val btnDeduct1 = toggleGroup.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnDeduct1)
-        val btnDeduct2 = toggleGroup.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnDeduct2)
-        val deductTextSizeSp = if (isDecimalMode) 20f else 26f
-        btnDeduct1?.text = if (isDecimalMode) "-1.00" else getString(R.string.deduct_1_short)
-        btnDeduct2?.text = if (isDecimalMode) "-2.00" else getString(R.string.deduct_2_short)
-        btnDeduct1?.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, deductTextSizeSp)
-        btnDeduct2?.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, deductTextSizeSp)
+        customButtonViews = btnViews
+    }
+
+    private fun onCustomButtonClicked(index: Int) {
+        val btn = customButtonList.getOrNull(index) ?: return
+
+        if (selectedButtonIndex == index) {
+            // Tapping the active button deselects it; revert state based on operation
+            val wasWithdraw = pendingAction == PendingAction.WITHDRAW_BALANCE
+            val wasAdd = pendingAction == PendingAction.ADD_BALANCE
+            handler.removeCallbacks(buttonModeIdleRunnable)
+            clearCustomButtonSelection()
+            when {
+                wasWithdraw && customDeductAmount == 0 -> {
+                    if (currentBalance >= 0) resetToWaiting()
+                    else {
+                        setPendingAction(PendingAction.NONE)
+                        resetBalanceToInitial()
+                        tvStatus.text = getString(R.string.waiting_card)
+                    }
+                }
+                wasAdd -> {
+                    setPendingAction(PendingAction.NONE)
+                    pendingAddAmount = 0
+                    resetBalanceToInitial()
+                    tvStatus.text = getString(R.string.waiting_card)
+                }
+            }
+            return
+        }
+
+        // Save before cancelAddBalance() may reset selectedButtonIndex via clearCustomButtonSelection.
+        val prevIdx = selectedButtonIndex
+
+        // Cancel any active inline add-balance mode
+        if (isAddBalanceMode || pendingAction == PendingAction.ADD_BALANCE) {
+            cancelAddBalance()
+        } else if (customDeductAmount > 0) {
+            resetBalanceToInitial()
+        }
+
+        // Deselect the previous button (if any) and select this one
+        selectedButtonIndex = index
+        if (prevIdx >= 0) applyButtonSelectionStyle(prevIdx, selected = false)
+        // Always clear card-specific UI when switching to a new button so previous transaction
+        // details don't bleed into the new session — regardless of how the previous state was set.
+        handler.removeCallbacks(buttonModeIdleRunnable)
+        handler.removeCallbacksAndMessages(FLASH_TOKEN)
+        rootLayout.setBackgroundColor(Color.TRANSPARENT)
+        tvCardId.text = getString(R.string.no_card_detected)
+        currentBalance = -1
+        layoutBeforeAfter.visibility = View.GONE
+        tvActualBalance.visibility = View.GONE
+        tvMinorIcon.visibility = View.GONE
+        layoutTransactionHistory.visibility = View.GONE
+        tvTx.forEach { it.visibility = View.GONE }
+        applyButtonSelectionStyle(index, selected = true)
+
+        if (btn.operation == CustomButton.OP_ADD) {
+            pendingAddAmount = btn.amount
+            setPendingAction(PendingAction.ADD_BALANCE)
+            tvStatus.text = getString(R.string.tap_card_to_add)
+        } else {
+            setPendingAction(PendingAction.WITHDRAW_BALANCE)
+            tvStatus.text = getString(R.string.tap_card_to_deduct)
+        }
+
+        // Show the button's amount in the big balance display as immediate visual feedback.
+        // Only show the "+" prefix for ADD operations; WITHDRAW shows the plain amount.
+        val prefix = if (btn.operation == CustomButton.OP_ADD) "+" else ""
+        tvBalance.setText("$prefix${formatBalanceDisplay(btn.amount)}")
+    }
+
+    private fun applyButtonSelectionStyle(index: Int, selected: Boolean) {
+        val btnView = customButtonViews.getOrNull(index) ?: return
+        val btn = customButtonList.getOrNull(index) ?: return
+        val themeColor = AdvancedSettingsActivity.getThemeColor(this)
+        val textOnColor = AdvancedSettingsActivity.contrastColor(themeColor)
+        val customBg = btn.backgroundColor
+
+        if (customBg != 0) {
+            val fillColor = if (selected) darkenColor(customBg) else customBg
+            btnView.backgroundTintList = ColorStateList.valueOf(fillColor)
+            btnView.setTextColor(AdvancedSettingsActivity.contrastColor(customBg))
+        } else {
+            val bgColor = if (selected) themeColor else Color.TRANSPARENT
+            btnView.backgroundTintList = ColorStateList.valueOf(bgColor)
+            btnView.setTextColor(if (selected) textOnColor else themeColor)
+        }
+    }
+
+    /** Clears the current custom button selection without changing pending action. */
+    private fun clearCustomButtonSelection() {
+        val prevIdx = selectedButtonIndex
+        selectedButtonIndex = -1
+        if (prevIdx >= 0) applyButtonSelectionStyle(prevIdx, selected = false)
     }
 
     private fun applyThemeToDialog(dialog: AlertDialog) {
@@ -669,7 +879,7 @@ class MainActivity : AppCompatActivity() {
             .forEach { which ->
                 val btn = dialog.getButton(which) ?: return@forEach
                 btn.setTextColor(color)
-                (btn as? com.google.android.material.button.MaterialButton)?.rippleColor = rippleTint
+                (btn as? MaterialButton)?.rippleColor = rippleTint
             }
     }
 
@@ -817,11 +1027,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resetToWaiting() {
+        handler.removeCallbacks(buttonModeIdleRunnable)
         handler.removeCallbacksAndMessages(FLASH_TOKEN)
         rootLayout.setBackgroundColor(Color.TRANSPARENT)
         tvCardId.text = getString(R.string.no_card_detected)
         currentBalance = -1
         isAddBalanceMode = false
+        clearCustomButtonSelection()
         resetBalanceToInitial()
         layoutBeforeAfter.visibility = View.GONE
         tvActualBalance.visibility = View.GONE
@@ -833,10 +1045,32 @@ class MainActivity : AppCompatActivity() {
         pendingAddAmount = 0
     }
 
+    /**
+     * Clears card-specific UI after a button-mode transaction while keeping the button selected
+     * and the pending action active, so the next card can be served immediately.
+     */
+    private fun resetButtonModeState() {
+        handler.removeCallbacksAndMessages(FLASH_TOKEN)
+        rootLayout.setBackgroundColor(Color.TRANSPARENT)
+        tvCardId.text = getString(R.string.no_card_detected)
+        currentBalance = -1
+        layoutBeforeAfter.visibility = View.GONE
+        tvActualBalance.visibility = View.GONE
+        tvMinorIcon.visibility = View.GONE
+        layoutTransactionHistory.visibility = View.GONE
+        tvTx.forEach { it.visibility = View.GONE }
+        val btn = customButtonList.getOrNull(selectedButtonIndex) ?: return
+        val prefix = if (btn.operation == CustomButton.OP_ADD) "+" else ""
+        tvBalance.setText("$prefix${formatBalanceDisplay(btn.amount)}")
+        tvStatus.text = if (btn.operation == CustomButton.OP_ADD)
+            getString(R.string.tap_card_to_add) else getString(R.string.tap_card_to_deduct)
+    }
+
     private fun cancelAddBalance() {
         isAddBalanceMode = false
         pendingAction = PendingAction.NONE
         pendingAddAmount = 0
+        clearCustomButtonSelection()
         clearHiddenInput()
         resetBalanceToInitial()
         tvStatus.text = getString(R.string.waiting_card)
@@ -891,7 +1125,7 @@ class MainActivity : AppCompatActivity() {
                     1 -> showFormatOptionsDialog()
                     2 -> {
                         cancelAddBalance()
-                        toggleGroup.clearChecked()
+                        clearCustomButtonSelection()
                         setPendingAction(PendingAction.RESET_CARD)
                         tvStatus.text = getString(R.string.tap_card_to_reset)
                     }
@@ -910,7 +1144,7 @@ class MainActivity : AppCompatActivity() {
      *   trailer during format (block 0 becomes increment-blocked). On the first balance add the
      *   app temporarily unlocks, adds balance, then re-locks.
      * - "Límite de edad" number input: accepts an age (1–99) or birth year (1900–currentYear).
-     *   Stores (birthYear − 1900) in the GPB user byte of the sector trailer access bits.
+     *   Stores (birthYear - 1900) in the GPB user byte of the sector trailer access bits.
      *   Defaults to [MifareClassicHelper.DEFAULT_USER_BYTE] when empty or invalid.
      */
     private fun showFormatOptionsDialog() {
@@ -961,7 +1195,7 @@ class MainActivity : AppCompatActivity() {
                 pendingSingleRecharge = checkboxSingleRecharge.isChecked
                 pendingUserBirthYear = parseUserBirthYear(editAge.text.toString())
                 cancelAddBalance()
-                toggleGroup.clearChecked()
+                clearCustomButtonSelection()
                 setPendingAction(PendingAction.FORMAT_CARD)
                 tvStatus.text = getString(R.string.tap_card_to_format)
             }
@@ -971,7 +1205,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Interprets [input] as an age (1–99, resolved to currentYear − age) or birth year
+     * Interprets [input] as an age (1–99, resolved to currentYear - age) or birth year
      * (1900–currentYear) and returns the birth year directly.
      * Returns the default birth year when the input is empty or out of range.
      */
@@ -1001,7 +1235,7 @@ class MainActivity : AppCompatActivity() {
         customDeductAmount = 0
         pendingAddAmount = 0
         currentBalance = -1
-        toggleGroup.clearChecked()
+        clearCustomButtonSelection()
         etHiddenInput.text?.clear()
         val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this)
         if (isDecimalMode) {
@@ -1028,8 +1262,8 @@ class MainActivity : AppCompatActivity() {
      * Aplica el saldo pendiente a la tarjeta. Solo intenta con la clave derivada del UID;
      * si falla la autenticación, la tarjeta no está formateada y se muestra un error.
      */
-    private fun addBalanceToCard(card: BaseCoinCard) {
-        hideKeyboardFrom(etHiddenInput)
+    private fun addBalanceToCard(card: BaseCoinCard, isButtonMode: Boolean = false) {
+        if (!isButtonMode) hideKeyboardFrom(etHiddenInput)
         isAddBalanceMode = false
         try {
             card.connect()
@@ -1142,8 +1376,19 @@ class MainActivity : AppCompatActivity() {
                         )
                     }
                     setScreenStatusSuccess(
-                        getString(R.string.balance_added_ok, formatBalanceDisplay(pendingAddAmount))
+                        message = getString(R.string.balance_added_ok, formatBalanceDisplay(pendingAddAmount)),
+                        scheduleAutoReset = !isButtonMode,
+                        background = null
                     )
+                    if (isButtonMode) {
+                        // Button remains active: keep ADD_BALANCE state for back-to-back transactions.
+                        setPendingAction(PendingAction.ADD_BALANCE)
+                        // Schedule a soft UI reset after the auto-reset delay; button and pending
+                        // action remain active so another card can be served immediately.
+                        handler.removeCallbacks(buttonModeIdleRunnable)
+                        handler.postDelayed(buttonModeIdleRunnable, AUTO_RESET_DELAY_MS)
+                        tvStatus.text = getString(R.string.tap_card_to_add)
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -1290,13 +1535,6 @@ class MainActivity : AppCompatActivity() {
             value.toString()
         }
     }
-
-    /**
-     * Returns the base deduct amount for the fixed-amount buttons in the current mode.
-     * In decimal mode the unit is 100 (= 1.00), otherwise it is [factor] itself.
-     */
-    private fun deductUnitAmount(factor: Int = 1): Int =
-        if (AdvancedSettingsActivity.isDecimalModeEnabled(this)) factor * 100 else factor
 
     /**
      * Parses a raw string from the decimal input field into the stored integer value.
@@ -1478,7 +1716,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     customDeductAmount = cappedValue
                     if (customDeductAmount > 0) {
-                        toggleGroup.clearChecked()
+                        clearCustomButtonSelection()
                         setPendingAction(PendingAction.WITHDRAW_BALANCE)
                         tvStatus.text = getString(R.string.tap_card_to_deduct)
                     } else {
@@ -1537,7 +1775,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 customDeductAmount = etHiddenInput.text.toString().toIntOrNull() ?: 0
                 if (customDeductAmount > 0) {
-                    toggleGroup.clearChecked()
+                    clearCustomButtonSelection()
                     setPendingAction(PendingAction.WITHDRAW_BALANCE)
                     tvStatus.text = getString(R.string.tap_card_to_deduct)
                 } else {
@@ -1574,35 +1812,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Selecting a fixed-deduction toggle button enters WITHDRAW_BALANCE; deselecting all
-        // buttons (with no custom amount pending) returns to NONE.
-        toggleGroup.addOnButtonCheckedListener { _, _, isChecked ->
-            if (isChecked) {
-                if (isAddBalanceMode || pendingAction == PendingAction.ADD_BALANCE) {
-                    cancelAddBalance()
-                } else if (customDeductAmount > 0) {
-                    resetBalanceToInitial()
-                }
-                setPendingAction(PendingAction.WITHDRAW_BALANCE)
-                tvStatus.text = getString(R.string.tap_card_to_deduct)
-            } else {
-                // Defer the check: when switching between buttons the unchecked event fires
-                // before the newly-selected button's checked event, so we wait until both
-                // events have been delivered before deciding whether to revert to NONE.
-                handler.post {
-                    if (toggleGroup.checkedButtonId == View.NO_ID
-                        && customDeductAmount == 0
-                        && pendingAction == PendingAction.WITHDRAW_BALANCE) {
-                        if (currentBalance >= 0) {
-                            resetToWaiting()
-                        } else {
-                            setPendingAction(PendingAction.NONE)
-                            tvStatus.text = getString(R.string.waiting_card)
-                        }
-                    }
-                }
-            }
-        }
     }
 
     /** Focuses the hidden input and opens the numeric keyboard for custom deduction entry. */

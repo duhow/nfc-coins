@@ -24,9 +24,6 @@
     <string name="error_writing">Error de escritura: %s</string>
     <string name="error_decryption">Error de descifrado</string>
 
-    <!-- Buttons -->
-    <string name="deduct_1">− 1 moneda</string>
-    <string name="deduct_2">− 2 monedas</string>
 
     <!-- Card management -->
     <string name="card_management">Gestión de tarjetas</string>
@@ -100,6 +97,29 @@
     <string name="card_tampered">Tarjeta manipulada. Operación cancelada.</string>
     <string name="replay_attack_detected">Posible ataque de repetición detectado. Operación cancelada.</string>
     <string name="write_retried">Escritura reiniciada tras interrupción anterior</string>
+
+    <!-- Custom Buttons -->
+    <string name="custom_buttons">Botones personalizados</string>
+    <string name="custom_buttons_hint">Toca un botón para editarlo. Mantén pulsado y arrastra para reordenar. Elimina desde el diálogo de edición.</string>
+    <string name="custom_button_add">Añadir botón</string>
+    <string name="custom_button_edit">Editar botón</string>
+    <string name="custom_button_delete">Eliminar</string>
+    <string name="custom_button_delete_confirm">¿Eliminar botón \'%s\'?</string>
+    <string name="custom_button_save">Guardar</string>
+    <string name="custom_button_operation">Operación</string>
+    <string name="custom_button_operation_add">Añadir saldo</string>
+    <string name="custom_button_operation_subtract">Descontar</string>
+    <string name="custom_button_label">Etiqueta</string>
+    <string name="custom_button_label_hint">p.ej. -1, Café…</string>
+    <string name="custom_button_emoji_short">Emoji</string>
+    <string name="custom_button_amount">Importe (prefijo + para añadir, - para descontar)</string>
+    <string name="custom_button_amount_hint">p.ej. 1 o 5</string>
+    <string name="custom_button_amount_hint_decimal">p.ej. 1,50 o 2,00</string>
+    <string name="custom_button_color">Color de fondo (toca para elegir)</string>
+    <string name="custom_button_color_clear">Borrar</string>
+    <string name="custom_button_amount_invalid">El importe debe ser mayor que 0</string>
+    <string name="custom_button_label_invalid">La etiqueta no puede estar vacía</string>
+    <string name="custom_button_max_reached">Se ha alcanzado el máximo de 9 botones</string>
 
     <!-- Operations History -->
     <string name="ops_history_title">Historial de operaciones</string>

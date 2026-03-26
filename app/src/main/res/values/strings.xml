@@ -25,12 +25,6 @@
     <string name="error_writing">Write error: %s</string>
     <string name="error_decryption">Decryption error</string>
 
-    <!-- Buttons -->
-    <string name="deduct_1">− 1 coin</string>
-    <string name="deduct_2">− 2 coins</string>
-    <string name="deduct_1_short">−1</string>
-    <string name="deduct_2_short">−2</string>
-
     <!-- Card management -->
     <string name="card_management">Card Management</string>
     <string name="action_add_balance">Add balance</string>
@@ -108,6 +102,29 @@
     <string name="card_tampered">Card tampered. Operation cancelled.</string>
     <string name="replay_attack_detected">Possible replay attack detected. Operation cancelled.</string>
     <string name="write_retried">Write retried after previous interruption</string>
+
+    <!-- Custom Buttons -->
+    <string name="custom_buttons">Custom Buttons</string>
+    <string name="custom_buttons_hint">Tap a button to edit. Hold and drag to reorder. Delete from the edit dialog.</string>
+    <string name="custom_button_add">Add button</string>
+    <string name="custom_button_edit">Edit button</string>
+    <string name="custom_button_delete">Delete</string>
+    <string name="custom_button_delete_confirm">Delete button \'%s\'?</string>
+    <string name="custom_button_save">Save</string>
+    <string name="custom_button_operation">Operation</string>
+    <string name="custom_button_operation_add">Add balance</string>
+    <string name="custom_button_operation_subtract">Withdraw</string>
+    <string name="custom_button_label">Label</string>
+    <string name="custom_button_label_hint">e.g. -1, Coffee…</string>
+    <string name="custom_button_emoji_short">Emoji</string>
+    <string name="custom_button_amount">Amount (prefix + to add, - to withdraw)</string>
+    <string name="custom_button_amount_hint">e.g. 1 or 5</string>
+    <string name="custom_button_amount_hint_decimal">e.g. 1.50 or 2.00</string>
+    <string name="custom_button_color">Background color (tap to pick)</string>
+    <string name="custom_button_color_clear">Clear</string>
+    <string name="custom_button_amount_invalid">Amount must be greater than 0</string>
+    <string name="custom_button_label_invalid">Label cannot be empty</string>
+    <string name="custom_button_max_reached">Maximum of 9 buttons reached</string>
 
     <!-- Operations History -->
     <string name="ops_history_title">Operations History</string>

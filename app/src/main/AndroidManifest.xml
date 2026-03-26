@@ -32,6 +32,11 @@
         </activity>
 
         <activity
+            android:name=".CustomButtonsActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity" />
+
+        <activity
             android:name=".AdvancedSettingsActivity"
             android:exported="false"
             android:parentActivityName=".MainActivity" />
