@@ -509,7 +509,7 @@ class CustomButtonsActivity : AppCompatActivity() {
 
     private fun formatAmount(amount: Int, isDecimalMode: Boolean): String {
         return if (isDecimalMode) {
-            String.format(Locale.getDefault(), "%d.%02d", amount / 100, Math.abs(amount % 100))
+            String.format(Locale.getDefault(), "%d.%02d", amount / 100, kotlin.math.abs(amount % 100))
         } else {
             amount.toString()
         }
