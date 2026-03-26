@@ -25,12 +25,6 @@
     <string name="error_writing">Write error: %s</string>
     <string name="error_decryption">Decryption error</string>
 
-    <!-- Buttons -->
-    <string name="deduct_1">- 1 coin</string>
-    <string name="deduct_2">- 2 coins</string>
-    <string name="deduct_1_short">-1</string>
-    <string name="deduct_2_short">-2</string>
-
     <!-- Card management -->
     <string name="card_management">Card Management</string>
     <string name="action_add_balance">Add balance</string>

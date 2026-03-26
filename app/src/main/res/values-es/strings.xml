@@ -24,9 +24,6 @@
     <string name="error_writing">Error de escritura: %s</string>
     <string name="error_decryption">Error de descifrado</string>
 
-    <!-- Buttons -->
-    <string name="deduct_1">- 1 moneda</string>
-    <string name="deduct_2">- 2 monedas</string>
 
     <!-- Card management -->
     <string name="card_management">Gestión de tarjetas</string>
