@@ -1,16 +1,19 @@
 package net.duhowpi.nfccoins
 
+import android.content.ClipData
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
+import android.text.TextWatcher
+import android.view.DragEvent
 import android.view.Gravity
 import android.view.MenuItem
 import android.view.View
-import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.RadioButton
@@ -68,7 +71,7 @@ class CustomButtonsActivity : AppCompatActivity() {
     }
 
     // -------------------------------------------------------------------------
-    // Grid rendering
+    // Grid rendering – shows configured buttons + ONE next empty "+" slot
     // -------------------------------------------------------------------------
 
     private fun renderGrid() {
@@ -78,20 +81,31 @@ class CustomButtonsActivity : AppCompatActivity() {
         val slotHeightPx = (100 * dp).toInt()
         val marginPx = (4 * dp).toInt()
 
-        for (row in 0 until 3) {
+        // Only show configured buttons + exactly one "+" slot at the end (if room).
+        val showAddSlot = buttons.size < CustomButton.MAX_BUTTONS
+        val totalCells = buttons.size + if (showAddSlot) 1 else 0
+        if (totalCells == 0) return
+
+        val totalRows = (totalCells + 2) / 3  // ceiling division
+
+        for (row in 0 until totalRows) {
+            // Use fixed row height (not WRAP_CONTENT) so all rows align identically.
             val rowLayout = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
+                    slotHeightPx
                 ).also { if (row > 0) it.topMargin = marginPx }
             }
 
             for (col in 0 until 3) {
-                val slotIndex = row * 3 + col
-                val btn = buttons.getOrNull(slotIndex)
-
-                val slotView = buildSlotView(slotIndex, btn)
+                val cellIndex = row * 3 + col
+                val isAddSlot = showAddSlot && cellIndex == buttons.size
+                val slotView: View = when {
+                    cellIndex >= totalCells -> View(this)  // invisible filler to maintain 3-col grid
+                    isAddSlot -> buildAddSlotView()
+                    else -> buildConfiguredSlotView(cellIndex, buttons[cellIndex])
+                }
                 val lp = LinearLayout.LayoutParams(0, slotHeightPx, 1f)
                 if (col > 0) lp.marginStart = marginPx
                 slotView.layoutParams = lp
@@ -102,68 +116,109 @@ class CustomButtonsActivity : AppCompatActivity() {
         }
     }
 
-    private fun buildSlotView(slotIndex: Int, btn: CustomButton?): View {
+    private fun buildAddSlotView(): View {
         val dp = resources.displayMetrics.density
-        val strokeWidthPx = (1 * dp).toInt()
         val themeColor = AdvancedSettingsActivity.getThemeColor(this)
+        return TextView(this).apply {
+            gravity = Gravity.CENTER
+            text = "+"
+            textSize = 32f
+            setTextColor(themeColor)
+            background = buildSlotDrawable(
+                fillColor = Color.TRANSPARENT,
+                strokeColor = themeColor,
+                strokeWidth = (1 * dp).toInt(),
+                dashed = true
+            )
+            setOnClickListener { showAddDialog(buttons.size) }
+        }
+    }
 
-        return if (btn != null) {
-            // Configured slot: show button preview with main text and subtitle
-            val container = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                background = buildSlotDrawable(
-                    fillColor = if (btn.backgroundColor != 0) btn.backgroundColor else Color.TRANSPARENT,
-                    strokeColor = themeColor,
-                    strokeWidth = strokeWidthPx
-                )
-                setOnClickListener { showEditDialog(slotIndex, btn) }
-                setOnLongClickListener {
-                    showDeleteConfirm(slotIndex)
-                    true
+    private fun buildConfiguredSlotView(slotIndex: Int, btn: CustomButton): View {
+        val dp = resources.displayMetrics.density
+        val themeColor = AdvancedSettingsActivity.getThemeColor(this)
+        val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this)
+        val opSign = if (btn.operation == CustomButton.OP_ADD) "+" else "−"
+        val amtText = formatAmount(btn.amount, isDecimalMode)
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            background = buildSlotDrawable(
+                fillColor = if (btn.backgroundColor != 0) btn.backgroundColor else Color.TRANSPARENT,
+                strokeColor = themeColor,
+                strokeWidth = (1 * dp).toInt()
+            )
+            // Tap to edit
+            setOnClickListener { showEditDialog(slotIndex, btn) }
+            // Long-click (≈500 ms, Android default) starts drag-and-drop reorder
+            setOnLongClickListener { v ->
+                val clipData = ClipData.newPlainText("", "")
+                val shadow = View.DragShadowBuilder(v)
+                v.startDragAndDrop(clipData, shadow, slotIndex, 0)
+                v.alpha = 0.5f
+                true
+            }
+            // Accept drops from other configured slots
+            setOnDragListener { v, event -> handleDragEvent(v, event, slotIndex) }
+        }
+
+        val tvMain = TextView(this).apply {
+            gravity = Gravity.CENTER
+            text = btn.buttonDisplayText()
+            textSize = if (btn.emoji.isNotEmpty()) 28f else 20f
+            if (btn.backgroundColor != 0)
+                setTextColor(AdvancedSettingsActivity.contrastColor(btn.backgroundColor))
+        }
+        val tvSub = TextView(this).apply {
+            gravity = Gravity.CENTER
+            text = "$opSign$amtText"
+            textSize = 12f
+            setTextColor(
+                if (btn.backgroundColor != 0)
+                    AdvancedSettingsActivity.contrastColor(btn.backgroundColor)
+                else Color.GRAY
+            )
+        }
+
+        container.addView(tvMain)
+        container.addView(tvSub)
+        return container
+    }
+
+    // Drag-and-drop event handler shared by all configured slot views.
+    private fun handleDragEvent(targetView: View, event: DragEvent, targetIndex: Int): Boolean {
+        return when (event.action) {
+            DragEvent.ACTION_DRAG_STARTED -> true
+            DragEvent.ACTION_DRAG_ENTERED -> {
+                targetView.alpha = 0.7f
+                true
+            }
+            DragEvent.ACTION_DRAG_EXITED -> {
+                targetView.alpha = 1f
+                true
+            }
+            DragEvent.ACTION_DROP -> {
+                targetView.alpha = 1f
+                val fromIndex = event.localState as? Int ?: return false
+                if (fromIndex != targetIndex
+                    && fromIndex in buttons.indices
+                    && targetIndex in buttons.indices) {
+                    val moved = buttons.removeAt(fromIndex)
+                    buttons.add(targetIndex, moved)
+                    reassignIds()
+                    CustomButton.saveButtons(this, buttons)
+                    // Defer renderGrid so the drag framework finishes before views are replaced.
+                    layoutButtonGrid.post { renderGrid() }
                 }
+                true
             }
-
-            val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this)
-            val opSign = if (btn.operation == CustomButton.OP_ADD) "+" else "−"
-            val amtText = formatAmount(btn.amount, isDecimalMode)
-
-            val tvMain = TextView(this).apply {
-                gravity = Gravity.CENTER
-                text = btn.buttonDisplayText()
-                textSize = if (btn.emoji.isNotEmpty()) 28f else 20f
-                if (btn.backgroundColor != 0) setTextColor(AdvancedSettingsActivity.contrastColor(btn.backgroundColor))
+            DragEvent.ACTION_DRAG_ENDED -> {
+                // Restore alpha whether or not a drop occurred (covers the drag-source view).
+                targetView.alpha = 1f
+                true
             }
-            val tvSub = TextView(this).apply {
-                gravity = Gravity.CENTER
-                text = "$opSign$amtText"
-                textSize = 12f
-                setTextColor(if (btn.backgroundColor != 0) AdvancedSettingsActivity.contrastColor(btn.backgroundColor) else Color.GRAY)
-            }
-
-            container.addView(tvMain)
-            container.addView(tvSub)
-            container
-        } else {
-            // Empty slot: show "+" add button
-            if (buttons.size >= CustomButton.MAX_BUTTONS) {
-                // All slots already have buttons but this slot is beyond the list—shouldn't happen
-                View(this)
-            } else {
-                TextView(this).apply {
-                    gravity = Gravity.CENTER
-                    text = "+"
-                    textSize = 32f
-                    setTextColor(themeColor)
-                    background = buildSlotDrawable(
-                        fillColor = Color.TRANSPARENT,
-                        strokeColor = themeColor,
-                        strokeWidth = strokeWidthPx,
-                        dashed = true
-                    )
-                    setOnClickListener { showAddDialog(slotIndex) }
-                }
-            }
+            else -> true
         }
     }
 
@@ -178,8 +233,6 @@ class CustomButtonsActivity : AppCompatActivity() {
             cornerRadius = 8 * resources.displayMetrics.density
             setColor(fillColor)
             if (dashed) {
-                // Dashed border for empty slots via a layered drawable approach is complex;
-                // use a solid thin stroke instead.
                 setStroke(strokeWidth, strokeColor, 12f, 8f)
             } else {
                 setStroke(strokeWidth, strokeColor)
@@ -203,8 +256,9 @@ class CustomButtonsActivity : AppCompatActivity() {
         showButtonDialog(slotIndex, existingButton = btn)
     }
 
-    private fun showDeleteConfirm(slotIndex: Int) {
+    private fun showDeleteConfirm(slotIndex: Int, parentDialog: AlertDialog) {
         val btn = buttons.getOrNull(slotIndex) ?: return
+        parentDialog.dismiss()
         AlertDialog.Builder(this)
             .setTitle(R.string.custom_button_delete)
             .setMessage(getString(R.string.custom_button_delete_confirm, btn.label))
@@ -223,11 +277,9 @@ class CustomButtonsActivity : AppCompatActivity() {
         val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this)
         val dp = resources.displayMetrics.density
         val pad = (16 * dp).toInt()
+        val smallPad = (8 * dp).toInt()
 
-        // Operation selector
-        val rgOperation = RadioGroup(this).apply {
-            orientation = RadioGroup.HORIZONTAL
-        }
+        // ── Operation selector ───────────────────────────────────────────────
         val rbSubtract = RadioButton(this).apply {
             text = getString(R.string.custom_button_operation_subtract)
             id = View.generateViewId()
@@ -236,88 +288,127 @@ class CustomButtonsActivity : AppCompatActivity() {
             text = getString(R.string.custom_button_operation_add)
             id = View.generateViewId()
         }
-        rgOperation.addView(rbSubtract)
-        rgOperation.addView(rbAdd)
+        val rgOperation = RadioGroup(this).apply {
+            orientation = RadioGroup.HORIZONTAL
+            addView(rbSubtract)
+            addView(rbAdd)
+        }
 
-        // Label
-        val tvLabelHint = TextView(this).apply {
+        // ── Label (80%) + Emoji (20%) on the same row ────────────────────────
+        // Header row
+        val tvLabelHeader = TextView(this).apply {
             text = getString(R.string.custom_button_label)
             setPadding(0, pad / 2, 0, 0)
         }
+        val tvEmojiHeader = TextView(this).apply {
+            text = getString(R.string.custom_button_emoji_short)
+            setPadding(smallPad, pad / 2, 0, 0)
+        }
+        val headerRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        headerRow.addView(tvLabelHeader, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 4f))
+        headerRow.addView(tvEmojiHeader, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+
+        // Input row
         val etLabel = EditText(this).apply {
             hint = getString(R.string.custom_button_label_hint)
             inputType = InputType.TYPE_CLASS_TEXT
             filters = arrayOf(InputFilter.LengthFilter(20))
         }
-
-        // Emoji
-        val tvEmojiHint = TextView(this).apply {
-            text = getString(R.string.custom_button_emoji)
-            setPadding(0, pad / 2, 0, 0)
-        }
         val etEmoji = EditText(this).apply {
-            hint = getString(R.string.custom_button_emoji_hint)
+            hint = "☺"
             inputType = InputType.TYPE_CLASS_TEXT
-            filters = arrayOf(InputFilter.LengthFilter(4))
+            // Allow only non-ASCII-letter characters (emoji, symbols, digits for keycap sequences)
+            filters = arrayOf(InputFilter.LengthFilter(8), makeEmojiFilter())
+            setPadding(smallPad, paddingTop, paddingRight, paddingBottom)
         }
+        val fieldRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        fieldRow.addView(etLabel, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 4f))
+        fieldRow.addView(etEmoji, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            .also { it.marginStart = smallPad })
 
-        // Amount
+        // ── Amount (with +/- sign) ───────────────────────────────────────────
         val tvAmountHint = TextView(this).apply {
             text = getString(R.string.custom_button_amount)
             setPadding(0, pad / 2, 0, 0)
         }
+        val amountHint = if (isDecimalMode)
+            getString(R.string.custom_button_amount_hint_decimal)
+        else
+            getString(R.string.custom_button_amount_hint)
         val etAmount = EditText(this).apply {
-            hint = if (isDecimalMode) getString(R.string.custom_button_amount_hint_decimal)
-                   else getString(R.string.custom_button_amount_hint)
-            inputType = if (isDecimalMode)
-                InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
-            else
-                InputType.TYPE_CLASS_NUMBER
+            hint = amountHint
+            // TYPE_CLASS_TEXT lets the user type '+' and '-' freely
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            filters = arrayOf(makeSignedNumericFilter(isDecimalMode))
         }
 
-        // Color picker
+        // ── Color – tappable swatch (no separate "Pick" button) ──────────────
         val tvColorHint = TextView(this).apply {
             text = getString(R.string.custom_button_color)
             setPadding(0, pad / 2, 0, 0)
         }
         var selectedColor = existingButton?.backgroundColor ?: 0
-        val colorRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, pad / 4, 0, 0)
-        }
+        val colorSizePx = (52 * dp).toInt()
         val colorPreview = View(this).apply {
-            val sizePx = (36 * dp).toInt()
-            layoutParams = LinearLayout.LayoutParams(sizePx, sizePx).also { it.marginEnd = (8 * dp).toInt() }
+            layoutParams = LinearLayout.LayoutParams(colorSizePx, colorSizePx)
+                .also { it.marginEnd = (8 * dp).toInt() }
             background = buildColorPreviewDrawable(selectedColor)
-        }
-        val btnPickColor = MaterialButton(this).apply {
-            text = getString(R.string.custom_button_color_pick)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).also { it.marginEnd = (8 * dp).toInt() }
+            isClickable = true
+            isFocusable = true
         }
         val btnClearColor = MaterialButton(this).apply {
             text = getString(R.string.custom_button_color_clear)
         }
-        colorRow.addView(colorPreview)
-        colorRow.addView(btnPickColor)
-        colorRow.addView(btnClearColor)
-
-        // Populate existing values
-        existingButton?.let { btn ->
-            if (btn.operation == CustomButton.OP_ADD) rgOperation.check(rbAdd.id)
-            else rgOperation.check(rbSubtract.id)
-            etLabel.setText(btn.label)
-            etEmoji.setText(btn.emoji)
-            etAmount.setText(formatAmount(btn.amount, isDecimalMode))
-        } ?: run {
-            rgOperation.check(rbSubtract.id)
+        val colorRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, pad / 4, 0, 0)
+            addView(colorPreview)
+            addView(btnClearColor)
         }
 
-        // Color picker button
-        btnPickColor.setOnClickListener {
+        // ── Populate existing values ─────────────────────────────────────────
+        val defaultOp = existingButton?.operation ?: CustomButton.OP_SUBTRACT
+        rgOperation.check(if (defaultOp == CustomButton.OP_ADD) rbAdd.id else rbSubtract.id)
+        existingButton?.let { btn ->
+            etLabel.setText(btn.label)
+            etEmoji.setText(btn.emoji)
+            val sign = if (btn.operation == CustomButton.OP_ADD) "+" else "-"
+            etAmount.setText("$sign${formatAmount(btn.amount, isDecimalMode)}")
+        } ?: run {
+            // New button: default sign is "-" (SUBTRACT)
+            etAmount.setText("-")
+        }
+
+        // ── Two-way binding: amount sign ↔ operation radio ───────────────────
+        var updatingSign = false
+        etAmount.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                if (updatingSign) return
+                val raw = s?.toString() ?: return
+                val targetId = if (raw.startsWith("+")) rbAdd.id else rbSubtract.id
+                if (rgOperation.checkedRadioButtonId != targetId) rgOperation.check(targetId)
+            }
+        })
+        rgOperation.setOnCheckedChangeListener { _, checkedId ->
+            val raw = etAmount.text?.toString() ?: ""
+            val digits = raw.trimStart('+', '-')
+            val newSign = if (checkedId == rbAdd.id) "+" else "-"
+            if (!raw.startsWith(newSign)) {
+                updatingSign = true
+                etAmount.setText("$newSign$digits")
+                etAmount.setSelection(etAmount.text?.length ?: 0)
+                updatingSign = false
+            }
+        }
+
+        // ── Color picker: tap swatch to open wheel ───────────────────────────
+        fun openColorPicker() {
             val wheel = ColorWheelView(this)
             if (selectedColor != 0) wheel.setColor(selectedColor)
             AlertDialog.Builder(this)
@@ -331,43 +422,47 @@ class CustomButtonsActivity : AppCompatActivity() {
                 .show()
                 .also { applyThemeToDialog(it) }
         }
+        colorPreview.setOnClickListener { openColorPicker() }
         btnClearColor.setOnClickListener {
             selectedColor = 0
             colorPreview.background = buildColorPreviewDrawable(0)
         }
 
-        // Layout
+        // ── Layout assembly ──────────────────────────────────────────────────
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad / 2, pad, 0)
+            addView(rgOperation)
+            addView(headerRow)
+            addView(fieldRow)
+            addView(tvAmountHint)
+            addView(etAmount)
+            addView(tvColorHint)
+            addView(colorRow)
         }
-        layout.addView(rgOperation)
-        layout.addView(tvLabelHint)
-        layout.addView(etLabel)
-        layout.addView(tvEmojiHint)
-        layout.addView(etEmoji)
-        layout.addView(tvAmountHint)
-        layout.addView(etAmount)
-        layout.addView(tvColorHint)
-        layout.addView(colorRow)
 
         val title = if (existingButton != null) R.string.custom_button_edit else R.string.custom_button_add
         val dialog = AlertDialog.Builder(this)
             .setTitle(title)
             .setView(layout)
-            .setPositiveButton(R.string.custom_button_save) { _, _ -> /* handled below */ }
+            .setPositiveButton(R.string.custom_button_save) { _, _ -> /* validated below */ }
             .setNegativeButton(android.R.string.cancel, null)
             .also { builder ->
                 if (existingButton != null) {
-                    builder.setNeutralButton(R.string.custom_button_delete) { _, _ ->
-                        showDeleteConfirm(slotIndex)
-                    }
+                    builder.setNeutralButton(R.string.custom_button_delete) { _, _ -> /* handled below */ }
                 }
             }
             .show()
             .also { applyThemeToDialog(it) }
 
-        // Override positive button to validate before dismissing
+        // Delete button: dismiss this dialog first, then show confirmation
+        if (existingButton != null) {
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                showDeleteConfirm(slotIndex, dialog)
+            }
+        }
+
+        // Save button: validate, then persist and refresh
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             val labelText = etLabel.text.toString().trim()
             if (labelText.isEmpty()) {
@@ -420,24 +515,64 @@ class CustomButtonsActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Parses the amount from the text field (which may start with '+' or '-').
+     * Strips the leading sign before parsing and caps at [MifareClassicHelper.MAX_BALANCE].
+     */
     private fun parseAmountInput(text: String, isDecimalMode: Boolean): Int {
-        if (text.isEmpty()) return 0
+        val stripped = text.trimStart('+', '-')
+        if (stripped.isEmpty()) return 0
+        val maxAllowed = MifareClassicHelper.MAX_BALANCE
         return if (isDecimalMode) {
-            val normalized = text.replace(',', '.')
-            if ('.' in normalized) {
+            val normalized = stripped.replace(',', '.')
+            val result = if ('.' in normalized) {
                 val parts = normalized.split('.')
                 val intPart = parts[0].toIntOrNull() ?: 0
                 val fracStr = (parts.getOrNull(1) ?: "").take(2).padEnd(2, '0')
                 val fracPart = fracStr.toIntOrNull() ?: 0
                 intPart * 100 + fracPart
             } else {
-                (text.toIntOrNull() ?: 0)
+                stripped.toIntOrNull() ?: 0
             }
+            result.coerceAtMost(maxAllowed)
         } else {
-            // In integer mode, strip any accidental decimal part and take the integer portion only
-            text.substringBefore('.').substringBefore(',').toIntOrNull() ?: 0
+            val raw = stripped.substringBefore('.').substringBefore(',').toIntOrNull() ?: 0
+            raw.coerceAtMost(maxAllowed)
         }
     }
+
+    /**
+     * InputFilter that blocks basic ASCII letters (a–z, A–Z) so only emoji and
+     * non-Latin characters can be entered in the emoji field.
+     */
+    private fun makeEmojiFilter(): InputFilter = InputFilter { source, start, end, _, _, _ ->
+        val sb = StringBuilder()
+        var i = start
+        while (i < end) {
+            val cp = Character.codePointAt(source, i)
+            val len = Character.charCount(cp)
+            val isAsciiLetter = cp in 0x41..0x5A || cp in 0x61..0x7A  // A-Z or a-z
+            if (!isAsciiLetter) sb.append(source, i, i + len)
+            i += len
+        }
+        if (sb.length == (end - start)) null else sb.toString()
+    }
+
+    /**
+     * InputFilter that restricts the amount field to digits, optional leading sign
+     * (+/-), and (in decimal mode) a decimal separator (. or ,).
+     */
+    private fun makeSignedNumericFilter(isDecimalMode: Boolean): InputFilter =
+        InputFilter { source, start, end, _, _, _ ->
+            val sb = StringBuilder()
+            for (i in start until end) {
+                val c = source[i]
+                if (c.isDigit() || c == '+' || c == '-' || (isDecimalMode && (c == '.' || c == ','))) {
+                    sb.append(c)
+                }
+            }
+            if (sb.length == (end - start)) null else sb.toString()
+        }
 
     private fun buildColorPreviewDrawable(color: Int): GradientDrawable {
         return GradientDrawable().apply {

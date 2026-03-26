@@ -111,7 +111,7 @@
 
     <!-- Custom Buttons -->
     <string name="custom_buttons">Custom Buttons</string>
-    <string name="custom_buttons_hint">Up to 9 buttons, 3 per row. Tap an empty slot to add, tap a button to edit, long-press to delete.</string>
+    <string name="custom_buttons_hint">Tap a button to edit. Hold and drag to reorder. Delete from the edit dialog.</string>
     <string name="custom_button_add">Add button</string>
     <string name="custom_button_edit">Edit button</string>
     <string name="custom_button_delete">Delete</string>
@@ -122,13 +122,11 @@
     <string name="custom_button_operation_subtract">Withdraw</string>
     <string name="custom_button_label">Label</string>
     <string name="custom_button_label_hint">e.g. −1, Coffee…</string>
-    <string name="custom_button_emoji">Emoji icon (optional, replaces label in button)</string>
-    <string name="custom_button_emoji_hint">e.g. ☕ 🎟️</string>
-    <string name="custom_button_amount">Amount</string>
-    <string name="custom_button_amount_hint">Number of coins</string>
-    <string name="custom_button_amount_hint_decimal">Amount (e.g. 1.50)</string>
-    <string name="custom_button_color">Background color</string>
-    <string name="custom_button_color_pick">Pick color</string>
+    <string name="custom_button_emoji_short">Emoji</string>
+    <string name="custom_button_amount">Amount (prefix + to add, − to withdraw)</string>
+    <string name="custom_button_amount_hint">e.g. −1 or +5</string>
+    <string name="custom_button_amount_hint_decimal">e.g. −1.50 or +2.00</string>
+    <string name="custom_button_color">Background color (tap to pick)</string>
     <string name="custom_button_color_clear">Clear</string>
     <string name="custom_button_amount_invalid">Amount must be greater than 0</string>
     <string name="custom_button_label_invalid">Label cannot be empty</string>
