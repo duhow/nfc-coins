@@ -10,6 +10,7 @@ import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
 import android.text.TextWatcher
+import android.view.inputmethod.EditorInfo
 import android.view.DragEvent
 import android.view.Gravity
 import android.view.MenuItem
@@ -349,6 +350,7 @@ class CustomButtonsActivity : AppCompatActivity() {
                     InputType.TYPE_NUMBER_FLAG_SIGNED or
                     (if (isDecimalMode) InputType.TYPE_NUMBER_FLAG_DECIMAL else 0)
             )
+            imeOptions = EditorInfo.IME_ACTION_DONE
             filters = arrayOf(makeSignedNumericFilter(isDecimalMode))
         }
 
@@ -383,33 +385,71 @@ class CustomButtonsActivity : AppCompatActivity() {
         existingButton?.let { btn ->
             etLabel.setText(btn.label)
             etEmoji.setText(btn.emoji)
-            val sign = if (btn.operation == CustomButton.OP_ADD) "+" else "-"
-            etAmount.setText("$sign${formatAmount(btn.amount, isDecimalMode)}")
+            // No sign prefix: the operation radio (pre-checked above) represents add/subtract.
+            etAmount.setText(formatAmount(btn.amount, isDecimalMode))
         } ?: Unit  // New button: starts empty; operation radio defaults to SUBTRACT
 
-        // ── Two-way binding: amount sign ↔ operation radio ───────────────────
-        var updatingSign = false
+        // ── Amount field normalisation ────────────────────────────────────────
+        // Any sign character typed into the amount field is immediately stripped from the
+        // text; instead, it updates the operation radio button.  Leading zeros and values
+        // above MAX_BALANCE are also corrected here so the field always shows a clean number.
+        var normalisingAmount = false
         etAmount.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                if (updatingSign) return
+                if (normalisingAmount) return
                 val raw = s?.toString() ?: return
-                val targetId = if (raw.startsWith("+")) rbAdd.id else rbSubtract.id
-                if (rgOperation.checkedRadioButtonId != targetId) rgOperation.check(targetId)
+
+                // Determine the intended operation from any sign character in the input.
+                // The last sign typed wins (handles "+5-" → subtract).
+                val lastSign = raw.lastOrNull { it == '+' || it == '-' }
+                val newRadioId = when (lastSign) {
+                    '+' -> rbAdd.id
+                    '-' -> rbSubtract.id
+                    else -> null  // no sign typed; keep current radio
+                }
+
+                // Strip all sign characters — the radio button represents the operation.
+                var digits = raw.filter { it.isDigit() || (isDecimalMode && (it == '.' || it == ',')) }
+
+                // Strip leading zeros (only when there is no decimal separator involved).
+                if (!isDecimalMode) {
+                    digits = digits.trimStart('0')
+                } else {
+                    // In decimal mode strip leading zeros before the decimal point only when
+                    // there is more than one digit before it (e.g. "05.5" → "5.5").
+                    // separatorIdx is -1 when no separator exists, 0/"1" when it's ".5"/"0.5"
+                    // (both fine without stripping), and >1 when leading zeros are present.
+                    val separatorIdx = maxOf(digits.indexOf('.'), digits.indexOf(','))
+                    if (separatorIdx > 1) {
+                        digits = digits.substring(0, separatorIdx).trimStart('0').ifEmpty { "0" } +
+                            digits.substring(separatorIdx)
+                    } else if (separatorIdx < 0 && digits.length > 1) {
+                        digits = digits.trimStart('0')
+                    }
+                }
+
+                // Cap the value at MAX_BALANCE while the user is typing.
+                val max = MifareClassicHelper.MAX_BALANCE
+                val capped: String = if (digits.isNotEmpty()) {
+                    if (isDecimalMode) {
+                        val parsed = parseAmountInput(digits, isDecimalMode = true)
+                        if (parsed > max) formatAmount(max, isDecimalMode = true) else digits
+                    } else {
+                        val parsed = digits.toIntOrNull() ?: 0
+                        if (parsed > max) max.toString() else digits
+                    }
+                } else digits
+
+                normalisingAmount = true
+                if (capped != raw) s?.replace(0, s.length, capped)
+                if (newRadioId != null && newRadioId != rgOperation.checkedRadioButtonId) {
+                    rgOperation.check(newRadioId)
+                }
+                normalisingAmount = false
             }
         })
-        rgOperation.setOnCheckedChangeListener { _, checkedId ->
-            val raw = etAmount.text?.toString() ?: ""
-            val digits = raw.trimStart('+', '-')
-            val newSign = if (checkedId == rbAdd.id) "+" else "-"
-            if (!raw.startsWith(newSign)) {
-                updatingSign = true
-                etAmount.setText("$newSign$digits")
-                etAmount.setSelection(etAmount.text?.length ?: 0)
-                updatingSign = false
-            }
-        }
 
         // ── Color picker: tap swatch to open wheel ───────────────────────────
         fun openColorPicker() {
@@ -464,6 +504,14 @@ class CustomButtonsActivity : AppCompatActivity() {
             dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
                 showDeleteConfirm(slotIndex, dialog)
             }
+        }
+
+        // Keyboard "Done" action on the amount field triggers Save directly.
+        etAmount.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+                true
+            } else false
         }
 
         // Save button: validate, then persist and refresh
@@ -525,6 +573,8 @@ class CustomButtonsActivity : AppCompatActivity() {
      * Strips the leading sign before parsing and caps at [MifareClassicHelper.MAX_BALANCE].
      */
     private fun parseAmountInput(text: String, isDecimalMode: Boolean): Int {
+        // The TextWatcher already strips signs from the field, but keep trimStart here
+        // as a safety measure for any direct calls (e.g. at save time).
         val stripped = text.trimStart('+', '-')
         if (stripped.isEmpty()) return 0
         val maxAllowed = MifareClassicHelper.MAX_BALANCE

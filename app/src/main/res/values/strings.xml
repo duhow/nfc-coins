@@ -124,8 +124,8 @@
     <string name="custom_button_label_hint">e.g. −1, Coffee…</string>
     <string name="custom_button_emoji_short">Emoji</string>
     <string name="custom_button_amount">Amount (prefix + to add, − to withdraw)</string>
-    <string name="custom_button_amount_hint">e.g. −1 or +5</string>
-    <string name="custom_button_amount_hint_decimal">e.g. −1.50 or +2.00</string>
+    <string name="custom_button_amount_hint">e.g. 1 or 5</string>
+    <string name="custom_button_amount_hint_decimal">e.g. 1.50 or 2.00</string>
     <string name="custom_button_color">Background color (tap to pick)</string>
     <string name="custom_button_color_clear">Clear</string>
     <string name="custom_button_amount_invalid">Amount must be greater than 0</string>
