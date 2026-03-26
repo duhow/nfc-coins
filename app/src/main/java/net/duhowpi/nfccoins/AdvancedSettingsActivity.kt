@@ -192,17 +192,17 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private lateinit var tilStaticKey: TextInputLayout
     private lateinit var btnToggleKeyVisibility: MaterialButton
     private lateinit var btnGenerateKey: MaterialButton
-    private lateinit var cbDynamicKey: MaterialSwitch
-    private lateinit var cbFlashEnabled: MaterialSwitch
-    private lateinit var cbVerifyIntegrity: MaterialSwitch
-    private lateinit var cbDebugEnabled: MaterialSwitch
-    private lateinit var cbSellerMode: MaterialSwitch
-    private lateinit var cbKeepScreenOn: MaterialSwitch
-    private lateinit var cbSoundEnabled: MaterialSwitch
-    private lateinit var cbVibrationEnabled: MaterialSwitch
-    private lateinit var cbDecimalMode: MaterialSwitch
-    private lateinit var cbDistributedPos: MaterialSwitch
-    private lateinit var cbBroadcastEnabled: MaterialSwitch
+    private lateinit var swDynamicKey: MaterialSwitch
+    private lateinit var swFlashEnabled: MaterialSwitch
+    private lateinit var swVerifyIntegrity: MaterialSwitch
+    private lateinit var swDebugEnabled: MaterialSwitch
+    private lateinit var swSellerMode: MaterialSwitch
+    private lateinit var swKeepScreenOn: MaterialSwitch
+    private lateinit var swSoundEnabled: MaterialSwitch
+    private lateinit var swVibrationEnabled: MaterialSwitch
+    private lateinit var swDecimalMode: MaterialSwitch
+    private lateinit var swDistributedPos: MaterialSwitch
+    private lateinit var swBroadcastEnabled: MaterialSwitch
     private lateinit var etLegalAge: TextInputEditText
     private lateinit var tilLegalAge: TextInputLayout
     private lateinit var colorSelectorLayout: LinearLayout
@@ -229,17 +229,17 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         tilStaticKey           = findViewById(R.id.tilStaticKey)
         btnToggleKeyVisibility = findViewById(R.id.btnToggleKeyVisibility)
         btnGenerateKey         = findViewById(R.id.btnGenerateKey)
-        cbDynamicKey           = findViewById(R.id.swDynamicKey)
-        cbFlashEnabled         = findViewById(R.id.swFlashEnabled)
-        cbVerifyIntegrity      = findViewById(R.id.swVerifyIntegrity)
-        cbDebugEnabled         = findViewById(R.id.swDebugEnabled)
-        cbSellerMode           = findViewById(R.id.swSellerMode)
-        cbKeepScreenOn         = findViewById(R.id.swKeepScreenOn)
-        cbSoundEnabled         = findViewById(R.id.swSoundEnabled)
-        cbVibrationEnabled     = findViewById(R.id.swVibrationEnabled)
-        cbDecimalMode          = findViewById(R.id.swDecimalMode)
-        cbDistributedPos       = findViewById(R.id.swDistributedPos)
-        cbBroadcastEnabled     = findViewById(R.id.swBroadcastEnabled)
+        swDynamicKey           = findViewById(R.id.swDynamicKey)
+        swFlashEnabled         = findViewById(R.id.swFlashEnabled)
+        swVerifyIntegrity      = findViewById(R.id.swVerifyIntegrity)
+        swDebugEnabled         = findViewById(R.id.swDebugEnabled)
+        swSellerMode           = findViewById(R.id.swSellerMode)
+        swKeepScreenOn         = findViewById(R.id.swKeepScreenOn)
+        swSoundEnabled         = findViewById(R.id.swSoundEnabled)
+        swVibrationEnabled     = findViewById(R.id.swVibrationEnabled)
+        swDecimalMode          = findViewById(R.id.swDecimalMode)
+        swDistributedPos       = findViewById(R.id.swDistributedPos)
+        swBroadcastEnabled     = findViewById(R.id.swBroadcastEnabled)
         etLegalAge             = findViewById(R.id.etLegalAge)
         tilLegalAge            = findViewById(R.id.tilLegalAge)
         colorSelectorLayout    = findViewById(R.id.colorSelectorLayout)
@@ -314,9 +314,9 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
             intArrayOf(rippleColor(color, alpha = 128), Color.GRAY)
         )
-        for (sw in listOf(cbDynamicKey, cbFlashEnabled, cbVerifyIntegrity,
-                          cbSellerMode, cbDebugEnabled, cbKeepScreenOn, cbSoundEnabled, cbVibrationEnabled,
-                          cbDecimalMode, cbDistributedPos, cbBroadcastEnabled)) {
+        for (sw in listOf(swDynamicKey, swFlashEnabled, swVerifyIntegrity,
+                          swSellerMode, swDebugEnabled, swKeepScreenOn, swSoundEnabled, swVibrationEnabled,
+                          swDecimalMode, swDistributedPos, swBroadcastEnabled)) {
             sw.thumbTintList = switchThumbTint
             sw.trackTintList = switchTrackTint
         }
@@ -344,17 +344,17 @@ class AdvancedSettingsActivity : AppCompatActivity() {
 
         etSector.setText(getTargetSector(this).toString())
         etStaticKey.setText(getStaticKey(this))
-        cbDynamicKey.isChecked = isDynamicKeyEnabled(this)
-        cbFlashEnabled.isChecked = isFlashEnabled(this)
-        cbVerifyIntegrity.isChecked = isVerifyIntegrityEnabled(this)
-        cbSellerMode.isChecked = isSellerModeEnabled(this)
-        cbDebugEnabled.isChecked = isDebugEnabled(this)
-        cbKeepScreenOn.isChecked = isKeepScreenOnEnabled(this)
-        cbSoundEnabled.isChecked = isSoundEnabled(this)
-        cbVibrationEnabled.isChecked = isVibrationEnabled(this)
-        cbDecimalMode.isChecked = isDecimalModeEnabled(this)
-        cbDistributedPos.isChecked = isDistributedPosEnabled(this)
-        cbBroadcastEnabled.isChecked = isBroadcastEnabled(this)
+        swDynamicKey.isChecked = isDynamicKeyEnabled(this)
+        swFlashEnabled.isChecked = isFlashEnabled(this)
+        swVerifyIntegrity.isChecked = isVerifyIntegrityEnabled(this)
+        swSellerMode.isChecked = isSellerModeEnabled(this)
+        swDebugEnabled.isChecked = isDebugEnabled(this)
+        swKeepScreenOn.isChecked = isKeepScreenOnEnabled(this)
+        swSoundEnabled.isChecked = isSoundEnabled(this)
+        swVibrationEnabled.isChecked = isVibrationEnabled(this)
+        swDecimalMode.isChecked = isDecimalModeEnabled(this)
+        swDistributedPos.isChecked = isDistributedPosEnabled(this)
+        swBroadcastEnabled.isChecked = isBroadcastEnabled(this)
         etLegalAge.setText(getLegalAge(this).toString())
         selectedThemeColor = getThemeColor(this)
 
@@ -533,17 +533,17 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             Toast.makeText(this, getString(R.string.key_too_short), Toast.LENGTH_SHORT).show()
             return
         }
-        val dynamicKeyEnabled = cbDynamicKey.isChecked
-        val flashEnabled = cbFlashEnabled.isChecked
-        val verifyIntegrity = cbVerifyIntegrity.isChecked
-        val sellerMode = cbSellerMode.isChecked
-        val debugEnabled = cbDebugEnabled.isChecked
-        val keepScreenOn = cbKeepScreenOn.isChecked
-        val soundEnabled = cbSoundEnabled.isChecked
-        val vibrationEnabled = cbVibrationEnabled.isChecked
-        val decimalMode = cbDecimalMode.isChecked
-        val distributedPos = cbDistributedPos.isChecked
-        val broadcastEnabled = cbBroadcastEnabled.isChecked
+        val dynamicKeyEnabled = swDynamicKey.isChecked
+        val flashEnabled = swFlashEnabled.isChecked
+        val verifyIntegrity = swVerifyIntegrity.isChecked
+        val sellerMode = swSellerMode.isChecked
+        val debugEnabled = swDebugEnabled.isChecked
+        val keepScreenOn = swKeepScreenOn.isChecked
+        val soundEnabled = swSoundEnabled.isChecked
+        val vibrationEnabled = swVibrationEnabled.isChecked
+        val decimalMode = swDecimalMode.isChecked
+        val distributedPos = swDistributedPos.isChecked
+        val broadcastEnabled = swBroadcastEnabled.isChecked
         val legalAge = etLegalAge.text?.toString()?.trim()?.toIntOrNull()?.coerceIn(1, 99) ?: DEFAULT_LEGAL_AGE
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
