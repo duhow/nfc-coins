@@ -110,13 +110,8 @@ class MainActivity : AppCompatActivity() {
     private val buttonModeIdleRunnable = Runnable { resetButtonModeState() }
     private val txDb: TransactionDatabase by lazy { TransactionDatabase(this) }
 
-    override fun attachBaseContext(newBase: Context) {
-        super.attachBaseContext(AdvancedSettingsActivity.wrapContextWithLocale(newBase))
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        initLanguageIfNeeded()
         setContentView(R.layout.activity_main)
 
         rootLayout        = findViewById(R.id.rootLayout)
@@ -608,33 +603,6 @@ class MainActivity : AppCompatActivity() {
     private fun flashRedBackground() = flashBackground(R.color.error_red_dark)
 
     // -------------------------------------------------------------------------
-    // Language initialisation
-    // -------------------------------------------------------------------------
-
-    /**
-     * Called once on first launch to persist the device's system language as the app language.
-     * If the system language is not one of the supported languages, English is used as fallback.
-     * When the detected language differs from the default that was applied in [attachBaseContext],
-     * the Activity is recreated so the correct locale takes effect.
-     */
-    private fun initLanguageIfNeeded() {
-        val prefs = getSharedPreferences(AdvancedSettingsActivity.PREFS_NAME, Context.MODE_PRIVATE)
-        if (!prefs.contains(AdvancedSettingsActivity.KEY_LANGUAGE)) {
-            val systemLang = Locale.getDefault().language
-            val supportedCodes = AdvancedSettingsActivity.getSupportedLanguageCodes(this)
-            val detectedLang = if (systemLang in supportedCodes) {
-                systemLang
-            } else {
-                AdvancedSettingsActivity.DEFAULT_LANGUAGE
-            }
-            prefs.edit().putString(AdvancedSettingsActivity.KEY_LANGUAGE, detectedLang).apply()
-            // attachBaseContext defaulted to English (no pref existed yet); recreate if needed.
-            if (detectedLang != AdvancedSettingsActivity.DEFAULT_LANGUAGE) {
-                recreate()
-            }
-        }
-    }
-
     // -------------------------------------------------------------------------
     // Theme color
     // -------------------------------------------------------------------------

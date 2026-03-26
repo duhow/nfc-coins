@@ -1,9 +1,7 @@
 package net.duhowpi.nfccoins
 
 import android.content.Context
-import android.content.Intent
 import android.content.res.ColorStateList
-import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
@@ -18,6 +16,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.core.view.WindowCompat
 import androidx.core.widget.CompoundButtonCompat
 import com.google.android.material.button.MaterialButton
@@ -25,7 +25,6 @@ import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import java.security.SecureRandom
-import java.util.Locale
 
 class AdvancedSettingsActivity : AppCompatActivity() {
 
@@ -44,16 +43,15 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         const val KEY_THEME_COLOR = "theme_color"
         const val KEY_DECIMAL_MODE = "decimal_mode"
         const val KEY_LEGAL_AGE = "legal_age"
-        const val KEY_LANGUAGE = "language"
         const val KEY_DISTRIBUTED_POS = "distributed_pos"
-        /** Default language code used when no preference has been saved yet. */
+        /** Default language code used when no per-app locale preference has been set. */
         const val DEFAULT_LANGUAGE = "en"
 
         /**
          * Returns the list of supported languages as (displayName, code) pairs by reading
          * `R.array.language_names` and `R.array.language_codes` from resources.
          * Adding a new language only requires updating those arrays in `res/values/arrays.xml`
-         * — no source-code change is needed.
+         * and `res/xml/locale_config.xml` — no source-code change is needed.
          */
         fun getLanguageEntries(context: Context): List<Pair<String, String>> {
             val codes = context.resources.getStringArray(R.array.language_codes)
@@ -64,9 +62,6 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             }
             return names.zip(codes)
         }
-
-        fun getSupportedLanguageCodes(context: Context): Array<String> =
-            context.resources.getStringArray(R.array.language_codes)
 
         const val DEFAULT_SECTOR = 14
         val DEFAULT_THEME_COLOR = 0xFF6200EE.toInt()
@@ -155,28 +150,12 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         }
 
         fun getLanguage(context: Context): String {
-            return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getString(KEY_LANGUAGE, DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE
-        }
-
-        /**
-         * Returns a context whose resources are configured to use the saved app language.
-         * If no language preference has been saved yet, returns [base] unchanged so that
-         * the system locale is used until the first launch detection runs.
-         *
-         * Android's resource resolution automatically falls back to the default `values/`
-         * directory (English) for any string not present in the selected locale's folder,
-         * so partial translations are handled transparently.
-         */
-        fun wrapContextWithLocale(base: Context): Context {
-            val prefs = base.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            if (!prefs.contains(KEY_LANGUAGE)) return base
-            val langCode = prefs.getString(KEY_LANGUAGE, DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE
-            val locale = Locale(langCode)
-            Locale.setDefault(locale)
-            val config = Configuration(base.resources.configuration)
-            config.setLocale(locale)
-            return base.createConfigurationContext(config)
+            val appLocales = AppCompatDelegate.getApplicationLocales()
+            return if (!appLocales.isEmpty) {
+                appLocales[0]?.language ?: DEFAULT_LANGUAGE
+            } else {
+                DEFAULT_LANGUAGE
+            }
         }
 
         /** Returns black or white, whichever contrasts better with [color]. */
@@ -223,10 +202,6 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private var selectedThemeColor: Int = DEFAULT_THEME_COLOR
 
     private val isCustomColor get() = selectedThemeColor !in COLOR_OPTIONS
-
-    override fun attachBaseContext(newBase: Context) {
-        super.attachBaseContext(wrapContextWithLocale(newBase))
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -542,16 +517,13 @@ class AdvancedSettingsActivity : AppCompatActivity() {
             .putBoolean(KEY_DISTRIBUTED_POS, distributedPos)
             .putInt(KEY_LEGAL_AGE, legalAge)
             .putInt(KEY_THEME_COLOR, selectedThemeColor)
-            .putString(KEY_LANGUAGE, newLangCode)
             .apply()
 
         Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()
 
         if (newLangCode != oldLangCode) {
-            // Restart the whole app task so the new locale takes effect everywhere.
-            val intent = Intent(this, MainActivity::class.java)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            startActivity(intent)
+            // Apply the new locale via AppCompatDelegate; the system persists and recreates activities.
+            AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(newLangCode))
         } else {
             finish()
         }
