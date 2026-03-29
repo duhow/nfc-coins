@@ -2,4 +2,4 @@
 - Settings now save automatically when you go back (top back arrow or Android back button), so the manual Save button is no longer needed.
 - The "Settings saved" message is now shown only when something actually changed.
 - Added a "Reading…" status while a card is being processed, and in Debug mode now shows total operation time in ms.
-- Improved NTAG card write performance by only writing pages that changed, while keeping compatibility with older NTAG203 cards.
+- Faster writes to NTAG213 cards while maintaining compatibility with older NTAG203 cards.

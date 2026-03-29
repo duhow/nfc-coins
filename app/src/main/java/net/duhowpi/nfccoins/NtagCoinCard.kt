@@ -41,13 +41,14 @@ class NtagCoinCard(
     private var dataStartPage: Int = -1
     private var supportsGetVersion: Boolean = false
     private var supportsFastRead: Boolean = false
+    private var supportsCompatWrite16: Boolean = false
     private var cachedMeta: HeaderMeta = HeaderMeta(
         version = CURRENT_VERSION,
         userBirthYear = MifareClassicHelper.toUserBirthYear(MifareClassicHelper.DEFAULT_USER_BYTE),
         isSingleRecharge = false
     )
     private var cachedBalance: Int = 0
-    private var cachedEncryptedPayload: ByteArray? = null
+    private var cachedStoredPayload: ByteArray? = null
 
     override fun connect() {
         nfcA.connect()
@@ -97,7 +98,7 @@ class NtagCoinCard(
 
         cachedMeta = meta
         cachedBalance = balance
-        cachedEncryptedPayload = rawPayload.copyOf()
+        cachedStoredPayload = rawPayload.copyOf()
 
         return ReadResult.Success(
             CardData(
@@ -147,12 +148,11 @@ class NtagCoinCard(
             ?: false
 
         val existing = if (hadMagic && existingRaw != null) {
-            runCatching { decryptStoredPayload(existingRaw) }.getOrNull()
+            runCatching { decryptStoredPayload(existingRaw) }
+                .onSuccess { cachedStoredPayload = existingRaw.copyOf() }
+                .getOrNull()
         } else {
             null
-        }
-        if (hadMagic && existing != null && existingRaw != null) {
-            cachedEncryptedPayload = existingRaw.copyOf()
         }
 
         val oldBalance = if (hadMagic && existing != null) {
@@ -194,7 +194,7 @@ class NtagCoinCard(
         ensureLayoutResolved()
         val emptyPayload = ByteArray(TOTAL_BYTES)
         writePages(dataStartPage, emptyPayload)
-        cachedEncryptedPayload = emptyPayload
+        cachedStoredPayload = emptyPayload
         cachedBalance = 0
         return true
     }
@@ -246,6 +246,7 @@ class NtagCoinCard(
         val version = runCatching { transceive(byteArrayOf(CMD_GET_VERSION)) }.getOrNull() ?: return null
         if (version.size < VERSION_RESPONSE_LEN) return null
         val sizeCode = version[6].toInt() and 0xFF
+        supportsCompatWrite16 = sizeCode == NTAG213_SIZE_CODE
         return TOTAL_PAGES_BY_SIZE_CODE[sizeCode]
     }
 
@@ -273,13 +274,13 @@ class NtagCoinCard(
         plainPayload[OFFSET_PADDING + 1] = (PADDING_VERSION_PREFIX or writeMeta.version).toByte()
 
         val payload = encryptStoredPayload(plainPayload)
-        val previousPayload = cachedEncryptedPayload
+        val previousPayload = cachedStoredPayload
         if (previousPayload != null) {
             writeChangedPages(dataStartPage, previousPayload, payload)
         } else {
             writePages(dataStartPage, payload)
         }
-        cachedEncryptedPayload = payload
+        cachedStoredPayload = payload
     }
 
     private fun encryptStoredPayload(plainPayload: ByteArray): ByteArray {
@@ -379,30 +380,102 @@ class NtagCoinCard(
     }
 
     private fun writeChangedPages(startPage: Int, previous: ByteArray, next: ByteArray) {
-        require(previous.size == next.size)
-        require(next.size % BYTES_PER_PAGE == 0)
-        var page = startPage
+        require(previous.size == next.size) {
+            "Previous and next payloads must have the same size"
+        }
+        require(next.size % BYTES_PER_PAGE == 0) {
+            "Payload size must be a multiple of page size"
+        }
+        var offset = 0
 
-        for (offset in next.indices step BYTES_PER_PAGE) {
-            val isDifferent =
-                previous[offset] != next[offset] ||
-                previous[offset + 1] != next[offset + 1] ||
-                previous[offset + 2] != next[offset + 2] ||
-                previous[offset + 3] != next[offset + 3]
+        while (offset < next.size) {
+            val page = startPage + (offset / BYTES_PER_PAGE)
+            val bytesLeft = next.size - offset
+            val shouldAttemptCompatWrite16 = supportsCompatWrite16 && bytesLeft >= BYTES_PER_COMPAT_WRITE
+
+            if (shouldAttemptCompatWrite16) {
+                val changed = hasDifferences(previous, next, offset, BYTES_PER_COMPAT_WRITE)
+                if (changed) {
+                    val wroteCompat = tryCompatWrite(page = page, data = next, offset = offset)
+                    if (!wroteCompat) {
+                        writeChangedPagesByA2(
+                            startPage = page,
+                            previous = previous,
+                            next = next,
+                            offset = offset,
+                            pageCount = PAGES_PER_COMPAT_WRITE
+                        )
+                    }
+                }
+                offset += BYTES_PER_COMPAT_WRITE
+            } else {
+                writeChangedPagesByA2(
+                    startPage = page,
+                    previous = previous,
+                    next = next,
+                    offset = offset,
+                    pageCount = 1
+                )
+                offset += BYTES_PER_PAGE
+            }
+        }
+    }
+
+    private fun writeChangedPagesByA2(
+        startPage: Int,
+        previous: ByteArray,
+        next: ByteArray,
+        offset: Int,
+        pageCount: Int
+    ) {
+        var page = startPage
+        var localOffset = offset
+        repeat(pageCount) {
+            val isDifferent = hasDifferences(previous, next, localOffset, BYTES_PER_PAGE)
             if (isDifferent) {
                 val cmd = byteArrayOf(
                     CMD_WRITE,
                     page.toByte(),
-                    next[offset],
-                    next[offset + 1],
-                    next[offset + 2],
-                    next[offset + 3]
+                    next[localOffset],
+                    next[localOffset + 1],
+                    next[localOffset + 2],
+                    next[localOffset + 3]
                 )
                 val response = transceive(cmd)
                 validateWriteAck(response, page)
             }
             page++
+            localOffset += BYTES_PER_PAGE
         }
+    }
+
+    private fun tryCompatWrite(page: Int, data: ByteArray, offset: Int): Boolean {
+        val cmd = ByteArray(2 + BYTES_PER_COMPAT_WRITE)
+        cmd[0] = CMD_COMPAT_WRITE
+        cmd[1] = page.toByte()
+        System.arraycopy(data, offset, cmd, 2, BYTES_PER_COMPAT_WRITE)
+        return runCatching {
+            val response = transceive(cmd)
+            validateWriteAck(response, page)
+            true
+        }.getOrElse {
+            // Maintain NTAG203 and other Type-2 tag compatibility by falling back to page writes.
+            supportsCompatWrite16 = false
+            false
+        }
+    }
+
+    private fun hasDifferences(
+        previous: ByteArray,
+        next: ByteArray,
+        offset: Int,
+        length: Int
+    ): Boolean {
+        val endExclusive = offset + length
+        for (idx in offset until endExclusive) {
+            if (previous[idx] != next[idx]) return true
+        }
+        return false
     }
 
     /**
@@ -534,10 +607,14 @@ class NtagCoinCard(
         private const val CMD_READ: Byte = 0x30
         private const val CMD_FAST_READ: Byte = 0x3A
         private const val CMD_WRITE: Byte = 0xA2.toByte()
+        private const val CMD_COMPAT_WRITE: Byte = 0xA0.toByte()
         private const val CMD_GET_VERSION: Byte = 0x60
         private const val VERSION_RESPONSE_LEN = 8
         private const val MAX_PAGE_PROBE = 255
         private const val SMALL_TAG_THRESHOLD_BYTES = 250
+        private const val NTAG213_SIZE_CODE = 0x0F
+        private const val PAGES_PER_COMPAT_WRITE = 4
+        private const val BYTES_PER_COMPAT_WRITE = PAGES_PER_COMPAT_WRITE * BYTES_PER_PAGE
 
         private val MAGIC = "COIN".toByteArray(Charsets.US_ASCII)
 
