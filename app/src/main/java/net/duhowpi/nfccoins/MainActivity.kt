@@ -521,11 +521,16 @@ class MainActivity : AppCompatActivity() {
                         val currentChecksum = data.checksum.toHex()
                         val lastState = txDb.getLastCardState(card.uid.toHex())
                         if (lastState != null && lastState.checksum != currentChecksum) {
-                            tvStatus.text = getString(R.string.replay_attack_detected)
-                            flashRedBackground()
-                            playNfcErrorBeep()
-                            scheduleAutoReset()
-                            return
+                            if (acceptPendingWriteState(card, data, currentChecksum)) {
+                                // Previous write likely completed on-card despite a transport error.
+                                // Accept this expected checksum once and continue.
+                            } else {
+                                tvStatus.text = getString(R.string.replay_attack_detected)
+                                flashRedBackground()
+                                playNfcErrorBeep()
+                                scheduleAutoReset()
+                                return
+                            }
                         }
                         if (lastState == null) {
                             // Only record the initial state when this card is seen for the first time.
@@ -596,22 +601,25 @@ class MainActivity : AppCompatActivity() {
                         // Integrity check disabled: invalid checksum is ignored and the transaction
                         // proceeds. The new write will produce a fresh valid checksum.
                     }
-                    pendingWrite = null  // Previous write (if any) was successful.
-
                     // Replay-attack detection: when not in distributed POS mode, verify the card's
                     // current checksum matches the last state we recorded locally.
                     if (!AdvancedSettingsActivity.isDistributedPosEnabled(this)) {
                         val currentChecksum = data.checksum.toHex()
                         if (!txDb.isChecksumValid(card.uid.toHex(), currentChecksum)) {
-                            showTransactionHistory(data.transactions)
-                            showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
-                            tvStatus.text = getString(R.string.replay_attack_detected)
-                            flashRedBackground()
-                            playNfcErrorBeep()
-                            // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
-                            return
+                            if (acceptPendingWriteState(card, data, currentChecksum)) {
+                                // Accepted as expected state from a previously interrupted write.
+                            } else {
+                                showTransactionHistory(data.transactions)
+                                showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
+                                tvStatus.text = getString(R.string.replay_attack_detected)
+                                flashRedBackground()
+                                playNfcErrorBeep()
+                                // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
+                                return
+                            }
                         }
                     }
+                    pendingWrite = pendingWrite?.takeUnless { it.matchesUid(card.uid) }
 
                     val balance = data.balance
                     if (balance < amount) {
@@ -719,6 +727,33 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun flashRedBackground() = flashBackground(R.color.error_red_dark)
+
+    /**
+     * Accepts a one-time checksum mismatch when it matches an in-memory pending write for
+     * the same card. This handles cases where the previous write succeeded on the card but
+     * the app observed a transport error before confirming completion.
+     */
+    private fun acceptPendingWriteState(
+        card: BaseCoinCard,
+        data: BaseCoinCard.CardData,
+        currentChecksum: String
+    ): Boolean {
+        val pw = pendingWrite ?: return false
+        if (!pw.matchesUid(card.uid)) return false
+        val pendingChecksum = pw.transactions
+            .copyOfRange(pw.transactions.size - TX_CHECKSUM_SIZE, pw.transactions.size)
+            .toHex()
+        if (pendingChecksum != currentChecksum) return false
+
+        txDb.recordCardState(
+            cardUid = card.uid.toHex(),
+            checksum = currentChecksum,
+            balanceBefore = data.balance,
+            balanceAfter = data.balance
+        )
+        pendingWrite = null
+        return true
+    }
 
     // -------------------------------------------------------------------------
     // Language migration
@@ -1409,22 +1444,25 @@ class MainActivity : AppCompatActivity() {
                         }
                         // Integrity check disabled: proceed with fresh checksum.
                     }
-                    pendingWrite = null
-
                     // Replay-attack detection: when not in distributed POS mode, verify the card's
                     // current checksum matches the last state we recorded locally.
                     if (!AdvancedSettingsActivity.isDistributedPosEnabled(this)) {
                         val currentChecksum = data.checksum.toHex()
                         if (!txDb.isChecksumValid(card.uid.toHex(), currentChecksum)) {
-                            showTransactionHistory(txBlock)
-                            showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
-                            tvStatus.text = getString(R.string.replay_attack_detected)
-                            flashRedBackground()
-                            playNfcErrorBeep()
-                            scheduleAutoReset()
-                            return
+                            if (acceptPendingWriteState(card, data, currentChecksum)) {
+                                // Accepted as expected state from a previously interrupted write.
+                            } else {
+                                showTransactionHistory(txBlock)
+                                showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
+                                tvStatus.text = getString(R.string.replay_attack_detected)
+                                flashRedBackground()
+                                playNfcErrorBeep()
+                                scheduleAutoReset()
+                                return
+                            }
                         }
                     }
+                    pendingWrite = pendingWrite?.takeUnless { it.matchesUid(card.uid) }
 
                     val oldBalance = data.balance
                     val newBalance = oldBalance + pendingAddAmount

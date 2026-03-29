@@ -3,3 +3,4 @@
 - The "Settings saved" message is now shown only when something actually changed.
 - Added a "Reading…" status while a card is being processed, and in Debug mode now shows total operation time in ms.
 - Faster writes to NTAG213 cards while maintaining compatibility with older NTAG203 cards.
+- Fixed interrupted card writes being wrongly flagged as replay attacks, allowing safe re-taps to recover and continue.
