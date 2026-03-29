@@ -534,7 +534,7 @@ class MainActivity : AppCompatActivity() {
                             } else if (acceptConfirmedReplayAllowance(card, data, currentChecksum)) {
                                 // User confirmed this checksum should be trusted for this card.
                             } else {
-                                return showReplayAttackDetected(card.uid.toHex(), currentChecksum, scheduleReset = true)
+                                return showReplayAttackDetected(card.uid.toHex(), currentChecksum, scheduleReset = false)
                             }
                         }
                         if (lastState == null) {
@@ -1534,7 +1534,7 @@ class MainActivity : AppCompatActivity() {
                             } else {
                                 showTransactionHistory(txBlock)
                                 showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
-                                return showReplayAttackDetected(card.uid.toHex(), currentChecksum, scheduleReset = true)
+                                return showReplayAttackDetected(card.uid.toHex(), currentChecksum, scheduleReset = false)
                             }
                         }
                     }

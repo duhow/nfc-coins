@@ -6,3 +6,4 @@
 - Fixed interrupted card writes being wrongly flagged as replay attacks, allowing safe re-taps to recover and continue.
 - Added a green Allow/Permitir action with confirmation when replay is detected, so trusted cards can be accepted on the next tap.
 - Improved replay action visibility with a small question-style button (Allow? / ¿Permitir?).
+- Replay warning now stays on screen without auto-refresh, so the warning and card data remain visible.
