@@ -1348,7 +1348,7 @@ class MainActivity : AppCompatActivity() {
         val githubUrl = getVersionAwareGithubUrl()
         val authorUsername = BuildConfig.AUTHOR_USERNAME
         val kofiUrl = "https://ko-fi.com/$authorUsername"
-        val paypalUrl = "http://paypal.me/$authorUsername"
+        val paypalUrl = "https://paypal.me/$authorUsername"
         val aboutMessage = getString(R.string.about_message, appName, BuildConfig.VERSION_NAME, kofiUrl, paypalUrl) +
             "\n\nGitHub: $githubUrl"
         val dialog = AlertDialog.Builder(this)
