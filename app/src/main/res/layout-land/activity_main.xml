@@ -126,23 +126,26 @@
                 android:textSize="14sp"
                 android:gravity="center" />
 
-            <TextView
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/tvReplayAllow"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/replay_allow_action"
                 android:contentDescription="@string/replay_allow_action_plain"
-                android:textSize="14sp"
+                android:textSize="12sp"
                 android:textStyle="bold"
-                android:textColor="@color/success_green"
-                android:background="?attr/selectableItemBackground"
+                android:textColor="@android:color/white"
                 android:clickable="true"
                 android:focusable="true"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
                 android:layout_marginTop="8dp"
+                app:backgroundTint="@color/success_green"
+                app:cornerRadius="12dp"
+                app:insetTop="0dp"
+                app:insetBottom="0dp"
                 android:visibility="gone" />
 
             <!-- Hidden EditText used as keyboard target for custom deduction entry.

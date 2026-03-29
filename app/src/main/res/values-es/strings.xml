@@ -118,8 +118,8 @@
     <string name="tx_subtract">-%d monedas</string>
     <string name="card_tampered">Tarjeta manipulada. Operación cancelada.</string>
     <string name="replay_attack_detected">Posible ataque de repetición detectado. Operación cancelada.</string>
-    <string name="replay_allow_action">✅ Permitir</string>
-    <string name="replay_allow_action_plain">Permitir</string>
+    <string name="replay_allow_action">¿Permitir?</string>
+    <string name="replay_allow_action_plain">¿Permitir?</string>
     <string name="replay_allow_dialog_title">¿Permitir este estado de tarjeta?</string>
     <string name="replay_allow_dialog_message">Úsalo solo si confías en la tarjeta y quieres aceptar este estado detectado. El siguiente acercamiento de esta tarjeta se tratará como válido.</string>
     <string name="replay_allow_confirmed">Permiso activado para el siguiente acercamiento de esta tarjeta</string>

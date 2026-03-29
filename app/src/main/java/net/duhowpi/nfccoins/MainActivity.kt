@@ -78,7 +78,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var rootLayout: View
     private lateinit var tvStatus: TextView
-    private lateinit var tvReplayAllow: TextView
+    private lateinit var tvReplayAllow: MaterialButton
     private lateinit var tvBalance: EditText
     private lateinit var tvMinorIcon: TextView
     private lateinit var tvCardId: TextView
