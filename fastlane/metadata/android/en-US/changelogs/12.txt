@@ -1,1 +1,1 @@
-Add user-facing changes for the next release here.
+- Fixed content overlap with the system status/header area across main, settings, and operations screens on some devices.
