@@ -111,7 +111,6 @@
     <string name="color_custom_swatch">Select custom color</string>
     <string name="sector_invalid">Sector must be between 1 and 15</string>
     <string name="key_too_short">Key must be at least 8 characters</string>
-    <string name="btn_save_settings">Save</string>
     <string name="settings_saved">Settings saved</string>
 
     <!-- Transaction history -->
