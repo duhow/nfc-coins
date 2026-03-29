@@ -108,7 +108,6 @@
     <string name="color_custom_swatch">Seleccionar color personalizado</string>
     <string name="sector_invalid">El sector debe estar entre 1 y 15</string>
     <string name="key_too_short">La clave debe tener al menos 8 caracteres</string>
-    <string name="btn_save_settings">Guardar</string>
     <string name="settings_saved">Ajustes guardados</string>
 
     <!-- Transaction history -->

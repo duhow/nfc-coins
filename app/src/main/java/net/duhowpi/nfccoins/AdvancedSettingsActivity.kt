@@ -16,6 +16,7 @@ import android.text.method.PasswordTransformationMethod
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.addCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
@@ -216,14 +217,33 @@ class AdvancedSettingsActivity : AppCompatActivity() {
     private lateinit var etLegalAge: TextInputEditText
     private lateinit var tilLegalAge: TextInputLayout
     private lateinit var colorSelectorLayout: LinearLayout
-    private lateinit var btnSaveSettings: MaterialButton
 
     private var keyVisible = false
     private var selectedThemeColor: Int = DEFAULT_THEME_COLOR
     /** Tracks the language code selected via dialog (API < 33 only); null means unchanged. */
     private var pendingLangCode: String? = null
+    private var originalSettingsSnapshot: SettingsSnapshot? = null
 
     private val isCustomColor get() = selectedThemeColor !in COLOR_OPTIONS
+
+    private data class SettingsSnapshot(
+        val sector: Int,
+        val staticKey: String,
+        val dynamicKeyEnabled: Boolean,
+        val flashEnabled: Boolean,
+        val verifyIntegrity: Boolean,
+        val sellerMode: Boolean,
+        val debugEnabled: Boolean,
+        val keepScreenOn: Boolean,
+        val soundEnabled: Boolean,
+        val vibrationEnabled: Boolean,
+        val decimalMode: Boolean,
+        val distributedPos: Boolean,
+        val broadcastEnabled: Boolean,
+        val legalAge: Int,
+        val themeColor: Int,
+        val languageCode: String?,
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -254,7 +274,6 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         etLegalAge             = findViewById(R.id.etLegalAge)
         tilLegalAge            = findViewById(R.id.tilLegalAge)
         colorSelectorLayout    = findViewById(R.id.colorSelectorLayout)
-        btnSaveSettings        = findViewById(R.id.btnSaveSettings)
 
 
         rowLanguage.setOnClickListener { openLanguagePicker() }
@@ -281,11 +300,18 @@ class AdvancedSettingsActivity : AppCompatActivity() {
 
         btnToggleKeyVisibility.setOnClickListener { toggleKeyVisibility() }
         btnGenerateKey.setOnClickListener { confirmGenerateKey() }
-        btnSaveSettings.setOnClickListener { saveSettings() }
+
+        onBackPressedDispatcher.addCallback(this) {
+            if (saveSettings()) {
+                finish()
+            }
+        }
     }
 
     override fun onSupportNavigateUp(): Boolean {
-        finish()
+        if (saveSettings()) {
+            finish()
+        }
         return true
     }
 
@@ -339,11 +365,6 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         btnGenerateKey.backgroundTintList = tintList
         btnGenerateKey.iconTint = contrastTint
         btnGenerateKey.rippleColor = rippleTint
-
-        // Save button: filled background + contrast text + ripple
-        btnSaveSettings.backgroundTintList = tintList
-        btnSaveSettings.setTextColor(contrastColor(color))
-        btnSaveSettings.rippleColor = ColorStateList.valueOf(rippleColor(color, alpha = 80))
 
         // Language system-settings button (API 33+): now handled by row click
 
@@ -403,6 +424,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         swBroadcastEnabled.isChecked = isBroadcastEnabled(this)
         etLegalAge.setText(getLegalAge(this).toString())
         selectedThemeColor = getThemeColor(this)
+        originalSettingsSnapshot = collectCurrentSettingsSnapshot()
 
         // Key is hidden by default
         etStaticKey.transformationMethod = PasswordTransformationMethod.getInstance()
@@ -411,6 +433,80 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         btnToggleKeyVisibility.setIconResource(R.drawable.ic_eye)
 
         renderColorSwatches()
+    }
+
+    private fun collectCurrentSettingsSnapshot(): SettingsSnapshot {
+        val currentLanguageCode = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            getEffectiveLanguage(this)
+        } else {
+            null
+        }
+
+        return SettingsSnapshot(
+            sector = getTargetSector(this),
+            staticKey = getStaticKey(this),
+            dynamicKeyEnabled = isDynamicKeyEnabled(this),
+            flashEnabled = isFlashEnabled(this),
+            verifyIntegrity = isVerifyIntegrityEnabled(this),
+            sellerMode = isSellerModeEnabled(this),
+            debugEnabled = isDebugEnabled(this),
+            keepScreenOn = isKeepScreenOnEnabled(this),
+            soundEnabled = isSoundEnabled(this),
+            vibrationEnabled = isVibrationEnabled(this),
+            decimalMode = isDecimalModeEnabled(this),
+            distributedPos = isDistributedPosEnabled(this),
+            broadcastEnabled = isBroadcastEnabled(this),
+            legalAge = getLegalAge(this),
+            themeColor = getThemeColor(this),
+            languageCode = currentLanguageCode,
+        )
+    }
+
+    private fun createSettingsSnapshot(
+        sector: Int,
+        staticKey: String,
+        legalAge: Int,
+        languageCode: String?,
+    ): SettingsSnapshot {
+        return SettingsSnapshot(
+            sector = sector,
+            staticKey = staticKey,
+            dynamicKeyEnabled = swDynamicKey.isChecked,
+            flashEnabled = swFlashEnabled.isChecked,
+            verifyIntegrity = swVerifyIntegrity.isChecked,
+            sellerMode = swSellerMode.isChecked,
+            debugEnabled = swDebugEnabled.isChecked,
+            keepScreenOn = swKeepScreenOn.isChecked,
+            soundEnabled = swSoundEnabled.isChecked,
+            vibrationEnabled = swVibrationEnabled.isChecked,
+            decimalMode = swDecimalMode.isChecked,
+            distributedPos = swDistributedPos.isChecked,
+            broadcastEnabled = swBroadcastEnabled.isChecked,
+            legalAge = legalAge,
+            themeColor = selectedThemeColor,
+            languageCode = languageCode,
+        )
+    }
+
+    private fun persistSettings(snapshot: SettingsSnapshot) {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putInt(KEY_TARGET_SECTOR, snapshot.sector)
+            .putString(KEY_STATIC_KEY, snapshot.staticKey)
+            .putBoolean(KEY_DYNAMIC_KEY_ENABLED, snapshot.dynamicKeyEnabled)
+            .putBoolean(KEY_FLASH_ENABLED, snapshot.flashEnabled)
+            .putBoolean(KEY_VERIFY_INTEGRITY, snapshot.verifyIntegrity)
+            .putBoolean(KEY_SELLER_MODE, snapshot.sellerMode)
+            .putBoolean(KEY_DEBUG_ENABLED, snapshot.debugEnabled)
+            .putBoolean(KEY_KEEP_SCREEN_ON, snapshot.keepScreenOn)
+            .putBoolean(KEY_SOUND_ENABLED, snapshot.soundEnabled)
+            .putBoolean(KEY_VIBRATION_ENABLED, snapshot.vibrationEnabled)
+            .putBoolean(KEY_DECIMAL_MODE, snapshot.decimalMode)
+            .putBoolean(KEY_DISTRIBUTED_POS, snapshot.distributedPos)
+            .putBoolean(KEY_BROADCAST_ENABLED, snapshot.broadcastEnabled)
+            .putInt(KEY_LEGAL_AGE, snapshot.legalAge)
+            .putInt(KEY_THEME_COLOR, snapshot.themeColor)
+            .apply()
     }
 
     private fun renderColorSwatches() {
@@ -553,7 +649,7 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun saveSettings() {
+    private fun saveSettings(): Boolean {
         // Language is only managed in-app on API < 33; on API 33+ the system handles it.
         val newLangCode: String?
         val oldLangCode: String?
@@ -569,53 +665,37 @@ class AdvancedSettingsActivity : AppCompatActivity() {
         val sector = sectorText.toIntOrNull()
         if (sector == null || sector < 1 || sector > 15) {
             Toast.makeText(this, getString(R.string.sector_invalid), Toast.LENGTH_SHORT).show()
-            return
+            return false
         }
 
         val staticKey = etStaticKey.text?.toString()?.trim() ?: ""
         if (staticKey.isNotEmpty() && staticKey.length < 8) {
             Toast.makeText(this, getString(R.string.key_too_short), Toast.LENGTH_SHORT).show()
-            return
+            return false
         }
-        val dynamicKeyEnabled = swDynamicKey.isChecked
-        val flashEnabled = swFlashEnabled.isChecked
-        val verifyIntegrity = swVerifyIntegrity.isChecked
-        val sellerMode = swSellerMode.isChecked
-        val debugEnabled = swDebugEnabled.isChecked
-        val keepScreenOn = swKeepScreenOn.isChecked
-        val soundEnabled = swSoundEnabled.isChecked
-        val vibrationEnabled = swVibrationEnabled.isChecked
-        val decimalMode = swDecimalMode.isChecked
-        val distributedPos = swDistributedPos.isChecked
-        val broadcastEnabled = swBroadcastEnabled.isChecked
+        val normalizedStaticKey = staticKey.ifEmpty { BuildConfig.NFC_PSK }
         val legalAge = etLegalAge.text?.toString()?.trim()?.toIntOrNull()?.coerceIn(1, 99) ?: DEFAULT_LEGAL_AGE
 
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putInt(KEY_TARGET_SECTOR, sector)
-            .putString(KEY_STATIC_KEY, staticKey.ifEmpty { BuildConfig.NFC_PSK })
-            .putBoolean(KEY_DYNAMIC_KEY_ENABLED, dynamicKeyEnabled)
-            .putBoolean(KEY_FLASH_ENABLED, flashEnabled)
-            .putBoolean(KEY_VERIFY_INTEGRITY, verifyIntegrity)
-            .putBoolean(KEY_SELLER_MODE, sellerMode)
-            .putBoolean(KEY_DEBUG_ENABLED, debugEnabled)
-            .putBoolean(KEY_KEEP_SCREEN_ON, keepScreenOn)
-            .putBoolean(KEY_SOUND_ENABLED, soundEnabled)
-            .putBoolean(KEY_VIBRATION_ENABLED, vibrationEnabled)
-            .putBoolean(KEY_DECIMAL_MODE, decimalMode)
-            .putBoolean(KEY_DISTRIBUTED_POS, distributedPos)
-            .putBoolean(KEY_BROADCAST_ENABLED, broadcastEnabled)
-            .putInt(KEY_LEGAL_AGE, legalAge)
-            .putInt(KEY_THEME_COLOR, selectedThemeColor)
-            .apply()
+        val newSettingsSnapshot = createSettingsSnapshot(
+            sector = sector,
+            staticKey = normalizedStaticKey,
+            legalAge = legalAge,
+            languageCode = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) newLangCode else null,
+        )
+        val hasChanges = newSettingsSnapshot != originalSettingsSnapshot
+        if (hasChanges) {
+            persistSettings(newSettingsSnapshot)
+        }
 
-        Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()
+        originalSettingsSnapshot = newSettingsSnapshot
+        if (hasChanges) {
+            Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()
+        }
 
         if (newLangCode != null && newLangCode != oldLangCode) {
             // Apply locale via AppCompat; it triggers a configuration change that recreates activities.
             AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(newLangCode))
-        } else {
-            finish()
         }
+        return true
     }
 }
