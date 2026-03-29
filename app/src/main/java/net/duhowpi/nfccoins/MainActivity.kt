@@ -1354,12 +1354,10 @@ class MainActivity : AppCompatActivity() {
         dialogView.findViewById<android.widget.TextView>(R.id.tvAboutMessage).text =
             getString(R.string.about_message, appName, BuildConfig.VERSION_NAME)
         dialogView.findViewById<android.widget.Button>(R.id.btnKofi).setOnClickListener {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(kofiUrl))
-            try { startActivity(intent) } catch (_: ActivityNotFoundException) { }
+            intentOpenUrl(kofiUrl)
         }
         dialogView.findViewById<android.widget.Button>(R.id.btnPaypal).setOnClickListener {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(paypalUrl))
-            try { startActivity(intent) } catch (_: ActivityNotFoundException) { }
+            intentOpenUrl(paypalUrl)
         }
 
         val dialog = AlertDialog.Builder(this)
@@ -1367,13 +1365,15 @@ class MainActivity : AppCompatActivity() {
             .setView(dialogView)
             .setPositiveButton(android.R.string.ok, null)
             .setNeutralButton(R.string.view_source) { _, _ ->
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(githubUrl))
-                try {
-                    startActivity(intent)
-                } catch (_: ActivityNotFoundException) { }
+                intentOpenUrl(githubUrl)
             }
             .show()
         applyThemeToDialog(dialog)
+    }
+
+    private fun intentOpenUrl(url: String) {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        try { startActivity(intent) } catch (_: ActivityNotFoundException) { }
     }
 
     private fun getVersionAwareGithubUrl(): String {
