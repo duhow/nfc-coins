@@ -64,7 +64,9 @@
     <!-- About -->
     <string name="about">About</string>
     <string name="about_title">About %s</string>
-    <string name="about_message">%1$s is an app to manage balances on Mifare Classic and NTAG cards via NFC.\n\nVersion: %2$s</string>
+    <string name="about_message">%1$s is an app to manage balances on Mifare Classic and NTAG cards via NFC.\n\nIf you like this program, invite me to a coffee.\n\nKo-fi: %3$s\nPayPal: %4$s\n\nVersion: %2$s</string>
+    <string name="about_donate_kofi">Ko-fi ☕</string>
+    <string name="about_donate_paypal">PayPal</string>
     <string name="view_source">GitHub</string>
     <string name="github_url" translatable="false">https://github.com/duhow/nfc-coins</string>
 

@@ -10,3 +10,4 @@
 - “Operation cancelled” is now stored as a separate message string and shown separately where needed.
 - Successful read/write now always clears any previous error flash color before showing success feedback.
 - NFC operations now time out after 1 second and show a clear orange timeout error.
+- Added Ko-fi ☕ and PayPal donate buttons in About, with direct links and a quick support message.

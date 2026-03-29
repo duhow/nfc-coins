@@ -1346,12 +1346,23 @@ class MainActivity : AppCompatActivity() {
     private fun showAboutDialog() {
         val appName = getString(R.string.app_name)
         val githubUrl = getVersionAwareGithubUrl()
+        val authorUsername = BuildConfig.AUTHOR_USERNAME
+        val kofiUrl = "https://ko-fi.com/$authorUsername"
+        val paypalUrl = "http://paypal.me/$authorUsername"
+        val aboutMessage = getString(R.string.about_message, appName, BuildConfig.VERSION_NAME, kofiUrl, paypalUrl) +
+            "\n\nGitHub: $githubUrl"
         val dialog = AlertDialog.Builder(this)
             .setTitle(getString(R.string.about_title, appName))
-            .setMessage(getString(R.string.about_message, appName, BuildConfig.VERSION_NAME))
+            .setMessage(aboutMessage)
             .setPositiveButton(android.R.string.ok, null)
-            .setNeutralButton(R.string.view_source) { _, _ ->
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(githubUrl))
+            .setNeutralButton(R.string.about_donate_kofi) { _, _ ->
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(kofiUrl))
+                try {
+                    startActivity(intent)
+                } catch (_: ActivityNotFoundException) { }
+            }
+            .setNegativeButton(R.string.about_donate_paypal) { _, _ ->
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(paypalUrl))
                 try {
                     startActivity(intent)
                 } catch (_: ActivityNotFoundException) { }
