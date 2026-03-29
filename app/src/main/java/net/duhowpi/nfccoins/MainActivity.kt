@@ -514,7 +514,7 @@ class MainActivity : AppCompatActivity() {
                     layoutBeforeAfter.visibility = View.GONE
                     tvActualBalance.visibility = View.GONE
                     if (!card.isDataValid(data)) {
-                        tvStatus.text = getString(R.string.card_tampered)
+                        tvStatus.text = "${getString(R.string.card_tampered)}\n${getString(R.string.operation_cancelled)}"
                         showTransactionHistory(txBlock)
                         showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
                         flashRedBackground()
@@ -538,7 +538,7 @@ class MainActivity : AppCompatActivity() {
                                     cardUid = card.uid.toHex(),
                                     checksum = currentChecksum,
                                     scheduleReset = false,
-                                    statusTextRes = R.string.replay_attack_detected_read_mode
+                                    includeOperationCancelled = false
                                 )
                             }
                         }
@@ -603,7 +603,7 @@ class MainActivity : AppCompatActivity() {
                         if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
                             showTransactionHistory(data.transactions)
                             showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
-                            tvStatus.text = getString(R.string.card_tampered)
+                            tvStatus.text = "${getString(R.string.card_tampered)}\n${getString(R.string.operation_cancelled)}"
                             flashRedBackground()
                             playNfcErrorBeep()
                             // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
@@ -741,10 +741,14 @@ class MainActivity : AppCompatActivity() {
         cardUid: String,
         checksum: String,
         scheduleReset: Boolean,
-        @StringRes statusTextRes: Int = R.string.replay_attack_detected
+        includeOperationCancelled: Boolean = true
     ) {
         replayAllowanceCandidate = ReplayAllowance(cardUid, checksum)
-        tvStatus.text = getString(statusTextRes)
+        tvStatus.text = if (includeOperationCancelled) {
+            "${getString(R.string.replay_attack_detected)}\n${getString(R.string.operation_cancelled)}"
+        } else {
+            getString(R.string.replay_attack_detected)
+        }
         tvReplayAllow.visibility = View.VISIBLE
         flashRedBackground()
         playNfcErrorBeep()
@@ -1522,7 +1526,7 @@ class MainActivity : AppCompatActivity() {
                             return
                         }
                         if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
-                            tvStatus.text = getString(R.string.card_tampered)
+                            tvStatus.text = "${getString(R.string.card_tampered)}\n${getString(R.string.operation_cancelled)}"
                             showTransactionHistory(txBlock)
                             showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
                             flashRedBackground()

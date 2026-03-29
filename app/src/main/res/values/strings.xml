@@ -121,9 +121,9 @@
     <string name="tx_subtract">-%d coins</string>
     <string name="tx_entry_format">%1$s  %2$s</string>
     <string name="tx_debug_checksum">stored: %1$s  calc: %2$s</string>
-    <string name="card_tampered">Card tampered. Operation cancelled.</string>
-    <string name="replay_attack_detected">Possible replay attack detected. Operation cancelled.</string>
-    <string name="replay_attack_detected_read_mode">Possible replay attack detected.</string>
+    <string name="operation_cancelled">Operation cancelled.</string>
+    <string name="card_tampered">Card tampered.</string>
+    <string name="replay_attack_detected">Possible replay attack detected.</string>
     <string name="replay_allow_action">Allow?</string>
     <string name="replay_allow_action_plain">Allow?</string>
     <string name="replay_allow_dialog_title">Allow this card state?</string>

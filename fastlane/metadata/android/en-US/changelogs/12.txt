@@ -7,4 +7,4 @@
 - Added a green Allow/Permitir action with confirmation when replay is detected, so trusted cards can be accepted on the next tap.
 - Improved replay action visibility with a small question-style button (Allow? / ¿Permitir?).
 - Replay warning now stays on screen without auto-refresh, so the warning and card data remain visible.
-- In read mode, replay warning text no longer says “operation cancelled.”
+- “Operation cancelled” is now stored as a separate message string and shown separately where needed.
