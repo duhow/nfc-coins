@@ -61,7 +61,6 @@ class NtagCoinCard(
     override fun readCardData(): ReadResult {
         ensureLayoutResolved()
         val rawPayload = readPayload44()
-        cachedEncryptedPayload = rawPayload.copyOf()
 
         if (!rawPayload.copyOfRange(0, MAGIC.size).contentEquals(MAGIC)) {
             return ReadResult.InvalidData("Unformatted or invalid NTAG payload")
@@ -98,6 +97,7 @@ class NtagCoinCard(
 
         cachedMeta = meta
         cachedBalance = balance
+        cachedEncryptedPayload = rawPayload.copyOf()
 
         return ReadResult.Success(
             CardData(
@@ -150,6 +150,9 @@ class NtagCoinCard(
             runCatching { decryptStoredPayload(existingRaw) }.getOrNull()
         } else {
             null
+        }
+        if (hadMagic && existing != null && existingRaw != null) {
+            cachedEncryptedPayload = existingRaw.copyOf()
         }
 
         val oldBalance = if (hadMagic && existing != null) {
@@ -271,7 +274,7 @@ class NtagCoinCard(
 
         val payload = encryptStoredPayload(plainPayload)
         val previousPayload = cachedEncryptedPayload
-        if (previousPayload != null && previousPayload.size == payload.size) {
+        if (previousPayload != null) {
             writeChangedPages(dataStartPage, previousPayload, payload)
         } else {
             writePages(dataStartPage, payload)
