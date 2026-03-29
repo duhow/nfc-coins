@@ -1,1 +1,2 @@
 - Fixed content overlap with the system status/header area across main, settings, and operations screens on some devices.
+- Settings now save when you go back (top back arrow or Android back button), and the "Settings saved" message is only shown when something actually changed.
