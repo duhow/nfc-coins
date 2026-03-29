@@ -740,6 +740,7 @@ class MainActivity : AppCompatActivity() {
     ): Boolean {
         val pw = pendingWrite ?: return false
         if (!pw.matchesUid(card.uid)) return false
+        if (pw.transactions.size < TX_CHECKSUM_SIZE) return false
         val pendingChecksum = pw.transactions
             .copyOfRange(pw.transactions.size - TX_CHECKSUM_SIZE, pw.transactions.size)
             .toHex()
@@ -751,7 +752,7 @@ class MainActivity : AppCompatActivity() {
             balanceBefore = data.balance,
             balanceAfter = data.balance
         )
-        pendingWrite = null
+        pendingWrite = pendingWrite?.takeUnless { it.matchesUid(card.uid) }
         return true
     }
 
