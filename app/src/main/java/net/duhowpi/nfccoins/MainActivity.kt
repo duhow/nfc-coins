@@ -16,6 +16,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.util.Log
@@ -363,71 +364,76 @@ class MainActivity : AppCompatActivity() {
 
     /** Entry point for tags discovered via reader mode (called on main thread). */
     private fun handleTag(tag: Tag) {
+        val operationStartMs = SystemClock.elapsedRealtime()
         triggerVibration()
-        tvStatus.text = getString(R.string.reading_card)
-        if (!BaseCoinCard.isSupported(tag)) {
-            return setScreenStatusError(
-                message = getString(R.string.unsupported_card),
-                background = null
-            )
-        }
-        val card = createCard(tag) ?: run {
-            return setScreenStatusError(
-                message = getString(R.string.error_get_mifare),
-                background = null
-            )
-        }
+        try {
+            tvStatus.text = getString(R.string.reading_card)
+            if (!BaseCoinCard.isSupported(tag)) {
+                return setScreenStatusError(
+                    message = getString(R.string.unsupported_card),
+                    background = null
+                )
+            }
+            val card = createCard(tag) ?: run {
+                return setScreenStatusError(
+                    message = getString(R.string.error_get_mifare),
+                    background = null
+                )
+            }
 
 
-        // Mifare Classic: validate that the configured sector exists on this card.
-        if (card is MifareClassicCoinCard) {
-            val sector = AdvancedSettingsActivity.getTargetSector(this)
-            if (sector >= card.mifare.sectorCount) {
-                return setScreenStatusError(getString(
-                    R.string.sector_unavailable,
-                    sector,
-                    card.mifare.sectorCount - 1
-                ))
-            }
-        }
-
-        handler.removeCallbacks(autoResetRunnable)
-        tvCardId.text = getString(R.string.card_id_format, card.uid.toHex())
-
-        when (pendingAction) {
-            PendingAction.ADD_BALANCE -> {
-                val isButtonMode = selectedButtonIndex >= 0
-                if (!isButtonMode) pendingAction = PendingAction.NONE
-                addBalanceToCard(card, isButtonMode = isButtonMode)
-            }
-            PendingAction.FORMAT_CARD -> {
-                pendingAction = PendingAction.NONE
-                formatCard(card)
-            }
-            PendingAction.RESET_CARD -> {
-                pendingAction = PendingAction.NONE
-                resetCard(card)
-            }
-            PendingAction.WITHDRAW_BALANCE -> {
-                // Do not clear pendingAction here; readAndDeduct manages state depending on
-                // success/failure and whether a custom button or custom amount is active.
-                when {
-                    selectedButtonIndex >= 0 -> {
-                        val btn = customButtonList.getOrNull(selectedButtonIndex)
-                        if (btn != null) readAndDeduct(card, btn.amount, isButtonMode = true)
-                        else setPendingAction(PendingAction.NONE)
-                    }
-                    customDeductAmount > 0 -> {
-                        isCustomAmountMode = false
-                        clearHiddenInput()
-                        readAndDeduct(card, customDeductAmount, isCustomAmount = true)
-                    }
-                    else -> setPendingAction(PendingAction.NONE)
+            // Mifare Classic: validate that the configured sector exists on this card.
+            if (card is MifareClassicCoinCard) {
+                val sector = AdvancedSettingsActivity.getTargetSector(this)
+                if (sector >= card.mifare.sectorCount) {
+                    return setScreenStatusError(getString(
+                        R.string.sector_unavailable,
+                        sector,
+                        card.mifare.sectorCount - 1
+                    ))
                 }
             }
-            PendingAction.NONE -> {
-                readAndShowBalance(card)
+
+            handler.removeCallbacks(autoResetRunnable)
+            tvCardId.text = getString(R.string.card_id_format, card.uid.toHex())
+
+            when (pendingAction) {
+                PendingAction.ADD_BALANCE -> {
+                    val isButtonMode = selectedButtonIndex >= 0
+                    if (!isButtonMode) pendingAction = PendingAction.NONE
+                    addBalanceToCard(card, isButtonMode = isButtonMode)
+                }
+                PendingAction.FORMAT_CARD -> {
+                    pendingAction = PendingAction.NONE
+                    formatCard(card)
+                }
+                PendingAction.RESET_CARD -> {
+                    pendingAction = PendingAction.NONE
+                    resetCard(card)
+                }
+                PendingAction.WITHDRAW_BALANCE -> {
+                    // Do not clear pendingAction here; readAndDeduct manages state depending on
+                    // success/failure and whether a custom button or custom amount is active.
+                    when {
+                        selectedButtonIndex >= 0 -> {
+                            val btn = customButtonList.getOrNull(selectedButtonIndex)
+                            if (btn != null) readAndDeduct(card, btn.amount, isButtonMode = true)
+                            else setPendingAction(PendingAction.NONE)
+                        }
+                        customDeductAmount > 0 -> {
+                            isCustomAmountMode = false
+                            clearHiddenInput()
+                            readAndDeduct(card, customDeductAmount, isCustomAmount = true)
+                        }
+                        else -> setPendingAction(PendingAction.NONE)
+                    }
+                }
+                PendingAction.NONE -> {
+                    readAndShowBalance(card)
+                }
             }
+        } finally {
+            showDebugOperationDuration(operationStartMs)
         }
     }
 
@@ -2021,5 +2027,13 @@ class MainActivity : AppCompatActivity() {
         tvTxDebug.text = getString(R.string.tx_debug_checksum, stored.toHex(), computed.toHex())
         layoutTransactionHistory.visibility = View.VISIBLE
         tvTxDebug.visibility = View.VISIBLE
+    }
+
+    private fun showDebugOperationDuration(startElapsedMs: Long) {
+        if (!AdvancedSettingsActivity.isDebugEnabled(this)) return
+        val elapsedMs = (SystemClock.elapsedRealtime() - startElapsedMs).coerceAtLeast(0)
+        val durationText = getString(R.string.debug_operation_duration_ms, elapsedMs)
+        val currentStatus = tvStatus.text?.toString().orEmpty()
+        tvStatus.text = if (currentStatus.isBlank()) durationText else "$currentStatus · $durationText"
     }
 }

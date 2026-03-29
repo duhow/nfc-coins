@@ -1,3 +1,4 @@
 - Fixed content overlap with the system status/header area across main, settings, and operations screens on some devices.
 - Settings now save automatically when you go back (top back arrow or Android back button), so the manual Save button is no longer needed.
 - The "Settings saved" message is now shown only when something actually changed.
+- Added a "Reading…" status while a card is being processed, and in Debug mode now shows total operation time in ms.
