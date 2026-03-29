@@ -8,3 +8,5 @@
 - Improved replay action visibility with a small question-style button (Allow? / ¿Permitir?).
 - Replay warning now stays on screen without auto-refresh, so the warning and card data remain visible.
 - “Operation cancelled” is now stored as a separate message string and shown separately where needed.
+- Successful read/write now always clears any previous error flash color before showing success feedback.
+- NFC operations now time out after 1 second and show a clear orange timeout error.

@@ -23,6 +23,7 @@
     <string name="error_get_mifare">Error: no se pudo acceder a la tarjeta NFC</string>
     <string name="error_reading">Error de lectura: %s</string>
     <string name="error_writing">Error de escritura: %s</string>
+    <string name="error_operation_timeout">La operación NFC agotó el tiempo. Inténtalo de nuevo.</string>
     <string name="error_decryption">Error de descifrado</string>
     <string name="debug_operation_duration_ms">%d ms</string>
 
