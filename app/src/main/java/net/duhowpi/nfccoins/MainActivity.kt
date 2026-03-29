@@ -80,6 +80,7 @@ class MainActivity : AppCompatActivity() {
         private const val UI_FRAME_DELAY_MS = 16L
         private const val NFC_OPERATION_TIMEOUT_MS = 1000L
         private const val LOG_TAG = "MainActivity"
+        const val PROJECT_AUTHOR = "duhow"
     }
 
     private enum class PendingAction { NONE, WITHDRAW_BALANCE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
@@ -1346,9 +1347,24 @@ class MainActivity : AppCompatActivity() {
     private fun showAboutDialog() {
         val appName = getString(R.string.app_name)
         val githubUrl = getVersionAwareGithubUrl()
+        val kofiUrl = "https://ko-fi.com/$PROJECT_AUTHOR"
+        val paypalUrl = "https://paypal.me/$PROJECT_AUTHOR"
+
+        val dialogView = layoutInflater.inflate(R.layout.dialog_about, null)
+        dialogView.findViewById<android.widget.TextView>(R.id.tvAboutMessage).text =
+            getString(R.string.about_message, appName, BuildConfig.VERSION_NAME)
+        dialogView.findViewById<android.widget.Button>(R.id.btnKofi).setOnClickListener {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(kofiUrl))
+            try { startActivity(intent) } catch (_: ActivityNotFoundException) { }
+        }
+        dialogView.findViewById<android.widget.Button>(R.id.btnPaypal).setOnClickListener {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(paypalUrl))
+            try { startActivity(intent) } catch (_: ActivityNotFoundException) { }
+        }
+
         val dialog = AlertDialog.Builder(this)
             .setTitle(getString(R.string.about_title, appName))
-            .setMessage(getString(R.string.about_message, appName, BuildConfig.VERSION_NAME))
+            .setView(dialogView)
             .setPositiveButton(android.R.string.ok, null)
             .setNeutralButton(R.string.view_source) { _, _ ->
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(githubUrl))
