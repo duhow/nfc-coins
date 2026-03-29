@@ -78,6 +78,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var rootLayout: View
     private lateinit var tvStatus: TextView
+    private lateinit var tvReplayAllow: TextView
     private lateinit var tvBalance: EditText
     private lateinit var tvMinorIcon: TextView
     private lateinit var tvCardId: TextView
@@ -106,6 +107,9 @@ class MainActivity : AppCompatActivity() {
     private var isAddBalanceMode = false
 
     private var pendingWrite: BaseCoinCard.PendingWriteData? = null
+    private data class ReplayAllowance(val cardUid: String, val checksum: String)
+    private var replayAllowanceCandidate: ReplayAllowance? = null
+    private var replayAllowanceConfirmed: ReplayAllowance? = null
 
     // Format card dialog options
     private var pendingSingleRecharge: Boolean = false
@@ -126,6 +130,7 @@ class MainActivity : AppCompatActivity() {
 
         rootLayout        = findViewById(R.id.rootLayout)
         tvStatus          = findViewById(R.id.tvStatus)
+        tvReplayAllow     = findViewById(R.id.tvReplayAllow)
         tvBalance         = findViewById(R.id.tvBalance)
         tvMinorIcon       = findViewById(R.id.tvMinorIcon)
         tvCardId          = findViewById(R.id.tvCardId)
@@ -148,6 +153,8 @@ class MainActivity : AppCompatActivity() {
         setupBalanceEditText()
         rebuildCustomButtons()
         applyThemeColor()
+        tvReplayAllow.setOnClickListener { onReplayAllowClicked() }
+        hideReplayAllowAction()
 
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         if (nfcAdapter == null) {
@@ -524,12 +531,10 @@ class MainActivity : AppCompatActivity() {
                             if (acceptPendingWriteState(card, data, currentChecksum)) {
                                 // Previous write likely completed on-card despite a transport error.
                                 // Accept this expected checksum once and continue.
+                            } else if (acceptConfirmedReplayAllowance(card, data, currentChecksum)) {
+                                // User confirmed this checksum should be trusted for this card.
                             } else {
-                                tvStatus.text = getString(R.string.replay_attack_detected)
-                                flashRedBackground()
-                                playNfcErrorBeep()
-                                scheduleAutoReset()
-                                return
+                                return showReplayAttackDetected(card.uid.toHex(), currentChecksum, scheduleReset = true)
                             }
                         }
                         if (lastState == null) {
@@ -584,6 +589,7 @@ class MainActivity : AppCompatActivity() {
                         if (pw != null && pw.matchesUid(card.uid)) {
                             // Interrupted write detected – retry the previous write and continue.
                             card.retryPendingWrite(pw)
+                            recordPendingWriteStateAsTrusted(card.uid.toHex(), data.balance, pw)
                             pendingWrite = null
                             tvStatus.text = getString(R.string.write_retried)
                             // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
@@ -608,14 +614,12 @@ class MainActivity : AppCompatActivity() {
                         if (!txDb.isChecksumValid(card.uid.toHex(), currentChecksum)) {
                             if (acceptPendingWriteState(card, data, currentChecksum)) {
                                 // Accepted as expected state from a previously interrupted write.
+                            } else if (acceptConfirmedReplayAllowance(card, data, currentChecksum)) {
+                                // User confirmed this checksum should be trusted for this card.
                             } else {
                                 showTransactionHistory(data.transactions)
                                 showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
-                                tvStatus.text = getString(R.string.replay_attack_detected)
-                                flashRedBackground()
-                                playNfcErrorBeep()
-                                // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
-                                return
+                                return showReplayAttackDetected(card.uid.toHex(), currentChecksum, scheduleReset = false)
                             }
                         }
                     }
@@ -728,6 +732,71 @@ class MainActivity : AppCompatActivity() {
 
     private fun flashRedBackground() = flashBackground(R.color.error_red_dark)
 
+    private fun showReplayAttackDetected(cardUid: String, checksum: String, scheduleReset: Boolean) {
+        replayAllowanceCandidate = ReplayAllowance(cardUid, checksum)
+        tvStatus.text = getString(R.string.replay_attack_detected)
+        tvReplayAllow.visibility = View.VISIBLE
+        flashRedBackground()
+        playNfcErrorBeep()
+        if (scheduleReset) {
+            scheduleAutoReset()
+        }
+    }
+
+    private fun hideReplayAllowAction() {
+        replayAllowanceCandidate = null
+        tvReplayAllow.visibility = View.GONE
+    }
+
+    private fun onReplayAllowClicked() {
+        val candidate = replayAllowanceCandidate ?: return
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(getString(R.string.replay_allow_dialog_title))
+            .setMessage(getString(R.string.replay_allow_dialog_message))
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.replay_allow_action_plain) { _, _ ->
+                replayAllowanceConfirmed = candidate
+                hideReplayAllowAction()
+                tvStatus.text = getString(R.string.replay_allow_confirmed)
+            }
+            .show()
+        applyThemeToDialog(dialog)
+    }
+
+    private fun acceptConfirmedReplayAllowance(
+        card: BaseCoinCard,
+        data: BaseCoinCard.CardData,
+        currentChecksum: String
+    ): Boolean {
+        val allowance = replayAllowanceConfirmed ?: return false
+        val cardUid = card.uid.toHex()
+        if (allowance.cardUid != cardUid) return false
+        if (allowance.checksum != currentChecksum) return false
+
+        txDb.recordCardState(
+            cardUid = cardUid,
+            checksum = currentChecksum,
+            balanceBefore = data.balance,
+            balanceAfter = data.balance
+        )
+        replayAllowanceConfirmed = null
+        return true
+    }
+
+    private fun recordPendingWriteStateAsTrusted(
+        cardUid: String,
+        observedBalance: Int,
+        pending: BaseCoinCard.PendingWriteData
+    ) {
+        val checksum = extractTxChecksumHex(pending.transactions) ?: return
+        txDb.recordCardState(
+            cardUid = cardUid,
+            checksum = checksum,
+            balanceBefore = observedBalance,
+            balanceAfter = observedBalance
+        )
+    }
+
     /**
      * Accepts a one-time checksum mismatch when it matches an in-memory pending write for
      * the same card. This handles cases where the previous write succeeded on the card but
@@ -740,10 +809,7 @@ class MainActivity : AppCompatActivity() {
     ): Boolean {
         val pw = pendingWrite ?: return false
         if (!pw.matchesUid(card.uid)) return false
-        if (pw.transactions.size < TX_CHECKSUM_SIZE) return false
-        val pendingChecksum = pw.transactions
-            .copyOfRange(pw.transactions.size - TX_CHECKSUM_SIZE, pw.transactions.size)
-            .toHex()
+        val pendingChecksum = extractTxChecksumHex(pw.transactions) ?: return false
         if (pendingChecksum != currentChecksum) return false
 
         txDb.recordCardState(
@@ -754,6 +820,13 @@ class MainActivity : AppCompatActivity() {
         )
         pendingWrite = pendingWrite?.takeUnless { it.matchesUid(card.uid) }
         return true
+    }
+
+    private fun extractTxChecksumHex(transactions: ByteArray): String? {
+        if (transactions.size < TX_CHECKSUM_SIZE) return null
+        return transactions
+            .copyOfRange(transactions.size - TX_CHECKSUM_SIZE, transactions.size)
+            .toHex()
     }
 
     // -------------------------------------------------------------------------
@@ -1129,6 +1202,7 @@ class MainActivity : AppCompatActivity() {
         scheduleAutoReset: Boolean = true,
         @ColorRes background: Int? = R.color.error_orange
     ) {
+        hideReplayAllowAction()
         tvStatus.text = message
         if (background != null) flashBackground(background)
         playNfcErrorBeep()
@@ -1143,6 +1217,7 @@ class MainActivity : AppCompatActivity() {
         scheduleAutoReset: Boolean = true,
         @ColorRes background: Int? = R.color.success_green
     ) {
+        hideReplayAllowAction()
         tvStatus.text = message
         if (background != null) flashBackground(background)
         playSuccessBeep()
@@ -1186,6 +1261,7 @@ class MainActivity : AppCompatActivity() {
         layoutTransactionHistory.visibility = View.GONE
         tvTx.forEach { it.visibility = View.GONE }
         tvStatus.text = getString(R.string.waiting_card)
+        hideReplayAllowAction()
         pendingAction = PendingAction.NONE
         pendingAddAmount = 0
     }
@@ -1429,6 +1505,7 @@ class MainActivity : AppCompatActivity() {
                         if (pw != null && pw.matchesUid(card.uid)) {
                             // Interrupted write detected – retry the previous write and continue.
                             card.retryPendingWrite(pw)
+                            recordPendingWriteStateAsTrusted(card.uid.toHex(), data.balance, pw)
                             pendingWrite = null
                             tvStatus.text = getString(R.string.write_retried)
                             scheduleAutoReset()
@@ -1452,14 +1529,12 @@ class MainActivity : AppCompatActivity() {
                         if (!txDb.isChecksumValid(card.uid.toHex(), currentChecksum)) {
                             if (acceptPendingWriteState(card, data, currentChecksum)) {
                                 // Accepted as expected state from a previously interrupted write.
+                            } else if (acceptConfirmedReplayAllowance(card, data, currentChecksum)) {
+                                // User confirmed this checksum should be trusted for this card.
                             } else {
                                 showTransactionHistory(txBlock)
                                 showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
-                                tvStatus.text = getString(R.string.replay_attack_detected)
-                                flashRedBackground()
-                                playNfcErrorBeep()
-                                scheduleAutoReset()
-                                return
+                                return showReplayAttackDetected(card.uid.toHex(), currentChecksum, scheduleReset = true)
                             }
                         }
                     }
