@@ -48,6 +48,14 @@
 
         </LinearLayout>
 
+        <TextView
+            android:id="@+id/tvAboutVersion"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:paddingTop="12dp"
+            android:gravity="center" />
+
     </LinearLayout>
 
 </ScrollView>

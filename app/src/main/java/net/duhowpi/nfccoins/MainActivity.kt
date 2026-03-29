@@ -1352,7 +1352,9 @@ class MainActivity : AppCompatActivity() {
 
         val dialogView = layoutInflater.inflate(R.layout.dialog_about, null)
         dialogView.findViewById<android.widget.TextView>(R.id.tvAboutMessage).text =
-            getString(R.string.about_message, appName, BuildConfig.VERSION_NAME)
+            getString(R.string.about_message, appName)
+        dialogView.findViewById<android.widget.TextView>(R.id.tvAboutVersion).text =
+            getString(R.string.about_version, BuildConfig.VERSION_NAME)
         dialogView.findViewById<android.widget.Button>(R.id.btnKofi).setOnClickListener {
             intentOpenUrl(kofiUrl)
         }

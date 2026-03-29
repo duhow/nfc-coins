@@ -64,7 +64,8 @@
     <!-- About -->
     <string name="about">Acerca de</string>
     <string name="about_title">Acerca de %s</string>
-    <string name="about_message">%1$s es una aplicación para gestionar saldos en tarjetas Mifare Classic y NTAG mediante NFC.\n\nVersión: %2$s</string>
+    <string name="about_message">%1$s es una aplicación para gestionar saldos en tarjetas Mifare Classic y NTAG mediante NFC.</string>
+    <string name="about_version">Versión: %s</string>
     <string name="about_donate_message">Si encuentras valioso este proyecto y deseas apoyar su mantenimiento y mejoras continuas, puedes considerar ofrecer un pequeño café!</string>
     <string name="donate_kofi">☕ Ko-fi</string>
     <string name="donate_paypal">💸 PayPal</string>
