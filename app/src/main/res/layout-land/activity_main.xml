@@ -126,6 +126,26 @@
                 android:textSize="14sp"
                 android:gravity="center" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/tvReplayAllow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/replay_allow_action"
+                android:contentDescription="@string/replay_allow_action_plain"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="@android:color/white"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:layout_marginTop="8dp"
+                app:backgroundTint="@color/success_green"
+                app:cornerRadius="12dp"
+                android:visibility="gone" />
+
             <!-- Hidden EditText used as keyboard target for custom deduction entry.
                  Height is 1dp (non-zero) so the IMM can show the keyboard; alpha=0 keeps it invisible. -->
             <net.duhowpi.nfccoins.BackspaceEditText

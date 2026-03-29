@@ -3,3 +3,8 @@
 - The "Settings saved" message is now shown only when something actually changed.
 - Added a "Reading…" status while a card is being processed, and in Debug mode now shows total operation time in ms.
 - Faster writes to NTAG213 cards while maintaining compatibility with older NTAG203 cards.
+- Fixed interrupted card writes being wrongly flagged as replay attacks, allowing safe re-taps to recover and continue.
+- Added a green Allow/Permitir action with confirmation when replay is detected, so trusted cards can be accepted on the next tap.
+- Improved replay action visibility with a small question-style button (Allow? / ¿Permitir?).
+- Replay warning now stays on screen without auto-refresh, so the warning and card data remain visible.
+- “Operation cancelled” is now stored as a separate message string and shown separately where needed.
