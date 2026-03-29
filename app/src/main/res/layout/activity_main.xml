@@ -134,8 +134,6 @@
             android:layout_marginBottom="8dp"
             app:backgroundTint="@color/success_green"
             app:cornerRadius="12dp"
-            app:insetTop="0dp"
-            app:insetBottom="0dp"
             android:visibility="gone" />
 
         <!-- Hidden EditText used as keyboard target for custom deduction entry.
