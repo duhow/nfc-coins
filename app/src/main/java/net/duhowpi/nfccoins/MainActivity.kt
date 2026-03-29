@@ -47,7 +47,9 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.ExecutionException
-import java.util.concurrent.FutureTask
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
@@ -77,6 +79,7 @@ class MainActivity : AppCompatActivity() {
         private const val TX_CHECKSUM_SIZE = 4
         private const val UI_FRAME_DELAY_MS = 16L
         private const val NFC_OPERATION_TIMEOUT_MS = 1000L
+        private const val LOG_TAG = "MainActivity"
     }
 
     private enum class PendingAction { NONE, WITHDRAW_BALANCE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
@@ -127,6 +130,9 @@ class MainActivity : AppCompatActivity() {
 
     private var wakeLock: PowerManager.WakeLock? = null
     private var batteryOptimizationRequested = false
+    private val nfcOperationExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "nfc-op-timeout").apply { isDaemon = true }
+    }
     private class NfcOperationTimeoutException : RuntimeException()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -266,6 +272,7 @@ class MainActivity : AppCompatActivity() {
                 sharedToneGenerator = null
             }
         }
+        nfcOperationExecutor.shutdownNow()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -569,6 +576,7 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             if (e is NfcOperationTimeoutException) {
+                closeCardAfterTimeout(card)
                 setScreenStatusError(getString(R.string.error_operation_timeout))
             } else {
                 setScreenStatusError(getString(R.string.error_reading, e.message))
@@ -723,6 +731,7 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             if (e is NfcOperationTimeoutException) {
+                closeCardAfterTimeout(card)
                 setScreenStatusError(
                     message = getString(R.string.error_operation_timeout),
                     scheduleAutoReset = false
@@ -1655,6 +1664,7 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             if (e is NfcOperationTimeoutException) {
+                closeCardAfterTimeout(card)
                 setScreenStatusError(getString(R.string.error_operation_timeout))
             } else {
                 setScreenStatusError(getString(R.string.error_writing, e.message))
@@ -1738,6 +1748,7 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             if (e is NfcOperationTimeoutException) {
+                closeCardAfterTimeout(card)
                 setScreenStatusError(getString(R.string.error_operation_timeout))
             } else {
                 setScreenStatusError(getString(R.string.error_writing, e.message))
@@ -1777,6 +1788,7 @@ class MainActivity : AppCompatActivity() {
             )
         } catch (e: Exception) {
             if (e is NfcOperationTimeoutException) {
+                closeCardAfterTimeout(card)
                 setScreenStatusError(getString(R.string.error_operation_timeout))
             } else {
                 setScreenStatusError(getString(R.string.error_writing, e.message))
@@ -1787,27 +1799,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun <T> runNfcOperationWithTimeout(action: () -> T): T {
-        val task = FutureTask(action)
-        val thread = Thread(task, "nfc-op-timeout")
-        thread.isDaemon = true
-        thread.start()
+        val future = nfcOperationExecutor.submit<T> { action() }
         return try {
-            task.get(NFC_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            future.get(NFC_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         } catch (_: TimeoutException) {
-            thread.interrupt()
-            task.cancel(true)
+            // Best-effort cancellation: some NFC stack calls may not be interruptible, so we
+            // also trigger an explicit close path from the caller to release resources ASAP.
+            future.cancel(true)
             throw NfcOperationTimeoutException()
         } catch (e: ExecutionException) {
-            val cause = e.cause
-            when (cause) {
-                is Exception -> throw cause
-                is Error -> throw cause
-                else -> throw RuntimeException(cause)
-            }
+            throw (e.cause ?: RuntimeException(e))
+        } catch (e: RejectedExecutionException) {
+            throw RuntimeException(e)
         } catch (e: InterruptedException) {
             Thread.currentThread().interrupt()
             throw RuntimeException(e)
         }
+    }
+
+    private fun closeCardAfterTimeout(card: BaseCoinCard) {
+        runCatching { card.close() }
+            .onFailure { closeError ->
+                Log.w(LOG_TAG, "Failed to close NFC card after timeout", closeError)
+            }
     }
 
     /**
