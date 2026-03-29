@@ -534,7 +534,12 @@ class MainActivity : AppCompatActivity() {
                             } else if (acceptConfirmedReplayAllowance(card, data, currentChecksum)) {
                                 // User confirmed this checksum should be trusted for this card.
                             } else {
-                                return showReplayAttackDetected(card.uid.toHex(), currentChecksum, scheduleReset = false)
+                                return showReplayAttackDetected(
+                                    cardUid = card.uid.toHex(),
+                                    checksum = currentChecksum,
+                                    scheduleReset = false,
+                                    statusTextRes = R.string.replay_attack_detected_read_mode
+                                )
                             }
                         }
                         if (lastState == null) {
@@ -732,9 +737,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun flashRedBackground() = flashBackground(R.color.error_red_dark)
 
-    private fun showReplayAttackDetected(cardUid: String, checksum: String, scheduleReset: Boolean) {
+    private fun showReplayAttackDetected(
+        cardUid: String,
+        checksum: String,
+        scheduleReset: Boolean,
+        @StringRes statusTextRes: Int = R.string.replay_attack_detected
+    ) {
         replayAllowanceCandidate = ReplayAllowance(cardUid, checksum)
-        tvStatus.text = getString(R.string.replay_attack_detected)
+        tvStatus.text = getString(statusTextRes)
         tvReplayAllow.visibility = View.VISIBLE
         flashRedBackground()
         playNfcErrorBeep()
