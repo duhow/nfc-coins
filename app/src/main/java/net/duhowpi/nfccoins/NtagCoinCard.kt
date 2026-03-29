@@ -47,6 +47,7 @@ class NtagCoinCard(
         isSingleRecharge = false
     )
     private var cachedBalance: Int = 0
+    private var cachedEncryptedPayload: ByteArray? = null
 
     override fun connect() {
         nfcA.connect()
@@ -60,6 +61,7 @@ class NtagCoinCard(
     override fun readCardData(): ReadResult {
         ensureLayoutResolved()
         val rawPayload = readPayload44()
+        cachedEncryptedPayload = rawPayload.copyOf()
 
         if (!rawPayload.copyOfRange(0, MAGIC.size).contentEquals(MAGIC)) {
             return ReadResult.InvalidData("Unformatted or invalid NTAG payload")
@@ -187,7 +189,9 @@ class NtagCoinCard(
 
     override fun resetCard(): Boolean {
         ensureLayoutResolved()
-        writePages(dataStartPage, ByteArray(TOTAL_BYTES))
+        val emptyPayload = ByteArray(TOTAL_BYTES)
+        writePages(dataStartPage, emptyPayload)
+        cachedEncryptedPayload = emptyPayload
         cachedBalance = 0
         return true
     }
@@ -266,7 +270,13 @@ class NtagCoinCard(
         plainPayload[OFFSET_PADDING + 1] = (PADDING_VERSION_PREFIX or writeMeta.version).toByte()
 
         val payload = encryptStoredPayload(plainPayload)
-        writePages(dataStartPage, payload)
+        val previousPayload = cachedEncryptedPayload
+        if (previousPayload != null && previousPayload.size == payload.size) {
+            writeChangedPages(dataStartPage, previousPayload, payload)
+        } else {
+            writePages(dataStartPage, payload)
+        }
+        cachedEncryptedPayload = payload
     }
 
     private fun encryptStoredPayload(plainPayload: ByteArray): ByteArray {
@@ -361,6 +371,33 @@ class NtagCoinCard(
             )
             val response = transceive(cmd)
             validateWriteAck(response, page)
+            page++
+        }
+    }
+
+    private fun writeChangedPages(startPage: Int, previous: ByteArray, next: ByteArray) {
+        require(previous.size == next.size)
+        require(next.size % BYTES_PER_PAGE == 0)
+        var page = startPage
+
+        for (offset in next.indices step BYTES_PER_PAGE) {
+            val isDifferent =
+                previous[offset] != next[offset] ||
+                previous[offset + 1] != next[offset + 1] ||
+                previous[offset + 2] != next[offset + 2] ||
+                previous[offset + 3] != next[offset + 3]
+            if (isDifferent) {
+                val cmd = byteArrayOf(
+                    CMD_WRITE,
+                    page.toByte(),
+                    next[offset],
+                    next[offset + 1],
+                    next[offset + 2],
+                    next[offset + 3]
+                )
+                val response = transceive(cmd)
+                validateWriteAck(response, page)
+            }
             page++
         }
     }
