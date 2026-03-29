@@ -364,6 +364,7 @@ class MainActivity : AppCompatActivity() {
     /** Entry point for tags discovered via reader mode (called on main thread). */
     private fun handleTag(tag: Tag) {
         triggerVibration()
+        tvStatus.text = getString(R.string.reading_card)
         if (!BaseCoinCard.isSupported(tag)) {
             return setScreenStatusError(
                 message = getString(R.string.unsupported_card),
