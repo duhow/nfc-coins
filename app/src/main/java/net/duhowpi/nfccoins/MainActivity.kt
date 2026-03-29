@@ -80,7 +80,6 @@ class MainActivity : AppCompatActivity() {
         private const val UI_FRAME_DELAY_MS = 16L
         private const val NFC_OPERATION_TIMEOUT_MS = 1000L
         private const val LOG_TAG = "MainActivity"
-        const val PROJECT_AUTHOR = "duhow"
     }
 
     private enum class PendingAction { NONE, WITHDRAW_BALANCE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
@@ -1347,8 +1346,8 @@ class MainActivity : AppCompatActivity() {
     private fun showAboutDialog() {
         val appName = getString(R.string.app_name)
         val githubUrl = getVersionAwareGithubUrl()
-        val kofiUrl = "https://ko-fi.com/$PROJECT_AUTHOR"
-        val paypalUrl = "https://paypal.me/$PROJECT_AUTHOR"
+        val kofiUrl = "https://ko-fi.com/${BuildConfig.PROJECT_AUTHOR}"
+        val paypalUrl = "https://paypal.me/${BuildConfig.PROJECT_AUTHOR}"
 
         val dialogView = layoutInflater.inflate(R.layout.dialog_about, null)
         dialogView.findViewById<android.widget.TextView>(R.id.tvAboutMessage).text =

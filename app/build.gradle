@@ -39,6 +39,9 @@ android {
         // PSK can be overridden at build time via -PNFC_POS_PSK=... or NFC_POS_PSK env variable
         def psk = project.findProperty("NFC_POS_PSK") ?: System.getenv("NFC_POS_PSK") ?: "NfcPosSecretKey2024"
         buildConfigField "String", "NFC_PSK", "\"${psk}\""
+
+        def projectAuthor = project.findProperty("PROJECT_AUTHOR") ?: System.getenv("PROJECT_AUTHOR") ?: "duhow"
+        buildConfigField "String", "PROJECT_AUTHOR", "\"${projectAuthor}\""
     }
 
     buildTypes {
