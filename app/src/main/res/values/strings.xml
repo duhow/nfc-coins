@@ -11,6 +11,7 @@
 
     <!-- Status messages -->
     <string name="waiting_card">Waiting for card…</string>
+    <string name="reading_card">Reading…</string>
     <string name="card_read_ok">Card read successfully</string>
     <string name="auth_failed">Card authentication error</string>
     <string name="unsupported_card">Unsupported card (Mifare Classic or NTAG required)</string>
@@ -24,6 +25,7 @@
     <string name="error_reading">Read error: %s</string>
     <string name="error_writing">Write error: %s</string>
     <string name="error_decryption">Decryption error</string>
+    <string name="debug_operation_duration_ms">%d ms</string>
 
     <!-- Card management -->
     <string name="card_management">Card Management</string>

@@ -10,6 +10,7 @@
 
     <!-- Status messages -->
     <string name="waiting_card">Esperando tarjeta…</string>
+    <string name="reading_card">Leyendo…</string>
     <string name="card_read_ok">Tarjeta leída correctamente</string>
     <string name="auth_failed">Error de autenticación con la tarjeta</string>
     <string name="unsupported_card">Tarjeta no compatible (se requiere Mifare Classic o NTAG)</string>
@@ -23,6 +24,7 @@
     <string name="error_reading">Error de lectura: %s</string>
     <string name="error_writing">Error de escritura: %s</string>
     <string name="error_decryption">Error de descifrado</string>
+    <string name="debug_operation_duration_ms">%d ms</string>
 
 
     <!-- Card management -->
