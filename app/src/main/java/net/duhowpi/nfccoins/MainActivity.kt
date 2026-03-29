@@ -71,6 +71,7 @@ class MainActivity : AppCompatActivity() {
         private val GIT_DESCRIBE_COMMIT_REGEX = Regex("-\\d+-g([0-9a-fA-F]+)$")
         private val NFC_DISABLED_TAG = Any()
         private const val TX_CHECKSUM_SIZE = 4
+        private const val UI_FRAME_DELAY_MS = 16L
     }
 
     private enum class PendingAction { NONE, WITHDRAW_BALANCE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
@@ -364,10 +365,15 @@ class MainActivity : AppCompatActivity() {
 
     /** Entry point for tags discovered via reader mode (called on main thread). */
     private fun handleTag(tag: Tag) {
-        val operationStartMs = SystemClock.elapsedRealtime()
         triggerVibration()
+        tvStatus.text = getString(R.string.reading_card)
+        val operationStartMs = SystemClock.elapsedRealtime()
+        // Let the UI render the "Reading…" state before starting NFC I/O on the main thread.
+        handler.postDelayed({ handleTagInternal(tag, operationStartMs) }, UI_FRAME_DELAY_MS)
+    }
+
+    private fun handleTagInternal(tag: Tag, operationStartMs: Long) {
         try {
-            tvStatus.text = getString(R.string.reading_card)
             if (!BaseCoinCard.isSupported(tag)) {
                 return setScreenStatusError(
                     message = getString(R.string.unsupported_card),
