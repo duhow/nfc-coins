@@ -25,7 +25,7 @@
     <string name="error_reading">Read error: %s</string>
     <string name="error_writing">Write error: %s</string>
     <string name="error_decryption">Decryption error</string>
-    <string name="debug_operation_duration_ms">%1$d ms</string>
+    <string name="debug_operation_duration_ms">%d ms</string>
 
     <!-- Card management -->
     <string name="card_management">Card Management</string>
