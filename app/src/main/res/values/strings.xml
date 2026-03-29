@@ -64,7 +64,11 @@
     <!-- About -->
     <string name="about">About</string>
     <string name="about_title">About %s</string>
-    <string name="about_message">%1$s is an app to manage balances on Mifare Classic and NTAG cards via NFC.\n\nVersion: %2$s</string>
+    <string name="about_message">%1$s is an app to manage balances on Mifare Classic and NTAG cards via NFC.</string>
+    <string name="about_version">Version: %s</string>
+    <string name="about_donate_message">If you find this project valuable and would like to support ongoing maintenance and improvements, you can consider offering a small coffee!</string>
+    <string name="donate_kofi">☕ Ko-fi</string>
+    <string name="donate_paypal">💸 PayPal</string>
     <string name="view_source">GitHub</string>
     <string name="github_url" translatable="false">https://github.com/duhow/nfc-coins</string>
 

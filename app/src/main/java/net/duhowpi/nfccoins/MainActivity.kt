@@ -1346,18 +1346,35 @@ class MainActivity : AppCompatActivity() {
     private fun showAboutDialog() {
         val appName = getString(R.string.app_name)
         val githubUrl = getVersionAwareGithubUrl()
+        val kofiUrl = "https://ko-fi.com/${BuildConfig.PROJECT_AUTHOR}"
+        val paypalUrl = "https://paypal.me/${BuildConfig.PROJECT_AUTHOR}"
+
+        val dialogView = layoutInflater.inflate(R.layout.dialog_about, null)
+        dialogView.findViewById<android.widget.TextView>(R.id.tvAboutMessage).text =
+            getString(R.string.about_message, appName)
+        dialogView.findViewById<android.widget.TextView>(R.id.tvAboutVersion).text =
+            getString(R.string.about_version, BuildConfig.VERSION_NAME)
+        dialogView.findViewById<android.widget.Button>(R.id.btnKofi).setOnClickListener {
+            intentOpenUrl(kofiUrl)
+        }
+        dialogView.findViewById<android.widget.Button>(R.id.btnPaypal).setOnClickListener {
+            intentOpenUrl(paypalUrl)
+        }
+
         val dialog = AlertDialog.Builder(this)
             .setTitle(getString(R.string.about_title, appName))
-            .setMessage(getString(R.string.about_message, appName, BuildConfig.VERSION_NAME))
+            .setView(dialogView)
             .setPositiveButton(android.R.string.ok, null)
             .setNeutralButton(R.string.view_source) { _, _ ->
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(githubUrl))
-                try {
-                    startActivity(intent)
-                } catch (_: ActivityNotFoundException) { }
+                intentOpenUrl(githubUrl)
             }
             .show()
         applyThemeToDialog(dialog)
+    }
+
+    private fun intentOpenUrl(url: String) {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        try { startActivity(intent) } catch (_: ActivityNotFoundException) { }
     }
 
     private fun getVersionAwareGithubUrl(): String {
