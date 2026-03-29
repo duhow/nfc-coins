@@ -46,12 +46,6 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.ExecutionException
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.RejectedExecutionException
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 
 /**
  * NFC POS – Monedero NFC
@@ -78,8 +72,6 @@ class MainActivity : AppCompatActivity() {
         private val NFC_DISABLED_TAG = Any()
         private const val TX_CHECKSUM_SIZE = 4
         private const val UI_FRAME_DELAY_MS = 16L
-        private const val NFC_OPERATION_TIMEOUT_MS = 1000L
-        private const val LOG_TAG = "MainActivity"
     }
 
     private enum class PendingAction { NONE, WITHDRAW_BALANCE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
@@ -130,10 +122,6 @@ class MainActivity : AppCompatActivity() {
 
     private var wakeLock: PowerManager.WakeLock? = null
     private var batteryOptimizationRequested = false
-    private val nfcOperationExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "nfc-op-timeout").apply { isDaemon = true }
-    }
-    private class NfcOperationTimeoutException : RuntimeException()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -272,7 +260,6 @@ class MainActivity : AppCompatActivity() {
                 sharedToneGenerator = null
             }
         }
-        nfcOperationExecutor.shutdownNow()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -510,8 +497,8 @@ class MainActivity : AppCompatActivity() {
     /** Modo sin botón activo: solo muestra el saldo en grande. */
     private fun readAndShowBalance(card: BaseCoinCard) {
         try {
-            runNfcOperationWithTimeout { card.connect() }
-            when (val result = runNfcOperationWithTimeout { card.readCardData() }) {
+            card.connect()
+            when (val result = card.readCardData()) {
                 is BaseCoinCard.ReadResult.AuthFailed -> {
                     return setScreenStatusError(getString(R.string.auth_failed))
                 }
@@ -575,12 +562,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (e: Exception) {
-            if (e is NfcOperationTimeoutException) {
-                closeCardAfterTimeout(card)
-                setScreenStatusError(getString(R.string.error_operation_timeout))
-            } else {
-                setScreenStatusError(getString(R.string.error_reading, e.message))
-            }
+            setScreenStatusError(getString(R.string.error_reading, e.message))
         } finally {
             card.close()
         }
@@ -589,8 +571,8 @@ class MainActivity : AppCompatActivity() {
     /** Modo con botón activo: descuenta monedas y muestra saldo inicial → final en grande. */
     private fun readAndDeduct(card: BaseCoinCard, amount: Int, isCustomAmount: Boolean = false, isButtonMode: Boolean = false) {
         try {
-            runNfcOperationWithTimeout { card.connect() }
-            when (val result = runNfcOperationWithTimeout { card.readCardData() }) {
+            card.connect()
+            when (val result = card.readCardData()) {
                 // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                 is BaseCoinCard.ReadResult.AuthFailed -> {
                     return setScreenStatusError(
@@ -611,7 +593,7 @@ class MainActivity : AppCompatActivity() {
                         val pw = pendingWrite
                         if (pw != null && pw.matchesUid(card.uid)) {
                             // Interrupted write detected – retry the previous write and continue.
-                            runNfcOperationWithTimeout { card.retryPendingWrite(pw) }
+                            card.retryPendingWrite(pw)
                             recordPendingWriteStateAsTrusted(card.uid.toHex(), data.balance, pw)
                             pendingWrite = null
                             tvStatus.text = getString(R.string.write_retried)
@@ -678,7 +660,7 @@ class MainActivity : AppCompatActivity() {
                     // Retain the intended state in memory so an interrupted write can be retried.
                     pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newBalanceData, newTransactions)
 
-                    runNfcOperationWithTimeout { card.deductBalance(amount, newTransactions) }
+                    card.deductBalance(amount, newTransactions)
                     pendingWrite = null
 
                     currentBalance = newBalance
@@ -730,18 +712,10 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (e: Exception) {
-            if (e is NfcOperationTimeoutException) {
-                closeCardAfterTimeout(card)
-                setScreenStatusError(
-                    message = getString(R.string.error_operation_timeout),
-                    scheduleAutoReset = false
-                )
-            } else {
-                setScreenStatusError(
-                    message = getString(R.string.error_writing, e.message),
-                    scheduleAutoReset = false
-                )
-            }
+            setScreenStatusError(
+                message = getString(R.string.error_writing, e.message),
+                scheduleAutoReset = false
+            )
             // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
         } finally {
             card.close()
@@ -1258,8 +1232,6 @@ class MainActivity : AppCompatActivity() {
         @ColorRes background: Int? = R.color.success_green
     ) {
         hideReplayAllowAction()
-        handler.removeCallbacksAndMessages(FLASH_TOKEN)
-        rootLayout.setBackgroundColor(Color.TRANSPARENT)
         tvStatus.text = message
         if (background != null) flashBackground(background)
         playSuccessBeep()
@@ -1529,8 +1501,8 @@ class MainActivity : AppCompatActivity() {
         if (!isButtonMode) hideKeyboardFrom(etHiddenInput)
         isAddBalanceMode = false
         try {
-            runNfcOperationWithTimeout { card.connect() }
-            when (val result = runNfcOperationWithTimeout { card.readCardData() }) {
+            card.connect()
+            when (val result = card.readCardData()) {
                 is BaseCoinCard.ReadResult.AuthFailed -> {
                     return setScreenStatusError(getString(R.string.card_not_formatted))
                 }
@@ -1546,7 +1518,7 @@ class MainActivity : AppCompatActivity() {
                         val pw = pendingWrite
                         if (pw != null && pw.matchesUid(card.uid)) {
                             // Interrupted write detected – retry the previous write and continue.
-                            runNfcOperationWithTimeout { card.retryPendingWrite(pw) }
+                            card.retryPendingWrite(pw)
                             recordPendingWriteStateAsTrusted(card.uid.toHex(), data.balance, pw)
                             pendingWrite = null
                             tvStatus.text = getString(R.string.write_retried)
@@ -1606,13 +1578,13 @@ class MainActivity : AppCompatActivity() {
                             pendingWrite = null
                             return setScreenStatusError(getString(R.string.single_recharge_already_used))
                         }
-                        runNfcOperationWithTimeout { card.unlockRecharge(data) }
+                        card.unlockRecharge(data)
                     }
 
-                    runNfcOperationWithTimeout { card.addBalance(pendingAddAmount, newTransactions) }
+                    card.addBalance(pendingAddAmount, newTransactions)
 
                     if (data.isSingleRecharge) {
-                        runNfcOperationWithTimeout { card.lockRecharge(data) }
+                        card.lockRecharge(data)
                     }
 
                     pendingWrite = null
@@ -1663,12 +1635,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (e: Exception) {
-            if (e is NfcOperationTimeoutException) {
-                closeCardAfterTimeout(card)
-                setScreenStatusError(getString(R.string.error_operation_timeout))
-            } else {
-                setScreenStatusError(getString(R.string.error_writing, e.message))
-            }
+            setScreenStatusError(getString(R.string.error_writing, e.message))
         } finally {
             card.close()
         }
@@ -1681,13 +1648,13 @@ class MainActivity : AppCompatActivity() {
      */
     private fun formatCard(card: BaseCoinCard) {
         try {
-            runNfcOperationWithTimeout { card.connect() }
+            card.connect()
             val formatOptions = BaseCoinCard.CardData(
                 balance = 0,
                 userBirthYear = pendingUserBirthYear,
                 isSingleRecharge = pendingSingleRecharge
             )
-            when (val result = runNfcOperationWithTimeout { card.formatCard(formatOptions) }) {
+            when (val result = card.formatCard(formatOptions)) {
                 is BaseCoinCard.FormatResult.Reformatted -> {
                     currentBalance = 0
                     setBalanceDisplay(0)
@@ -1747,12 +1714,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (e: Exception) {
-            if (e is NfcOperationTimeoutException) {
-                closeCardAfterTimeout(card)
-                setScreenStatusError(getString(R.string.error_operation_timeout))
-            } else {
-                setScreenStatusError(getString(R.string.error_writing, e.message))
-            }
+            setScreenStatusError(getString(R.string.error_writing, e.message))
         } finally {
             card.close()
         }
@@ -1764,8 +1726,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun resetCard(card: BaseCoinCard) {
         try {
-            runNfcOperationWithTimeout { card.connect() }
-            if (!runNfcOperationWithTimeout { card.resetCard() }) {
+            card.connect()
+            if (!card.resetCard()) {
                 return setScreenStatusError(getString(R.string.reset_card_no_key))
             }
 
@@ -1787,41 +1749,10 @@ class MainActivity : AppCompatActivity() {
                 background = R.color.success_purple_dark
             )
         } catch (e: Exception) {
-            if (e is NfcOperationTimeoutException) {
-                closeCardAfterTimeout(card)
-                setScreenStatusError(getString(R.string.error_operation_timeout))
-            } else {
-                setScreenStatusError(getString(R.string.error_writing, e.message))
-            }
+            setScreenStatusError(getString(R.string.error_writing, e.message))
         } finally {
             card.close()
         }
-    }
-
-    private fun <T> runNfcOperationWithTimeout(action: () -> T): T {
-        val future = nfcOperationExecutor.submit<T> { action() }
-        return try {
-            future.get(NFC_OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-        } catch (_: TimeoutException) {
-            // Best-effort cancellation: some NFC stack calls may not be interruptible, so we
-            // also trigger an explicit close path from the caller to release resources ASAP.
-            future.cancel(true)
-            throw NfcOperationTimeoutException()
-        } catch (e: ExecutionException) {
-            throw (e.cause ?: RuntimeException(e))
-        } catch (e: RejectedExecutionException) {
-            throw RuntimeException(e)
-        } catch (e: InterruptedException) {
-            Thread.currentThread().interrupt()
-            throw RuntimeException(e)
-        }
-    }
-
-    private fun closeCardAfterTimeout(card: BaseCoinCard) {
-        runCatching { card.close() }
-            .onFailure { closeError ->
-                Log.w(LOG_TAG, "Failed to close NFC card after timeout", closeError)
-            }
     }
 
     /**
