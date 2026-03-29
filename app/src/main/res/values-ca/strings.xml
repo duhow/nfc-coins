@@ -1,0 +1,182 @@
+<resources>
+    <string name="app_name">Monedes NFC</string>
+
+    <!-- Card info -->
+    <string name="no_card_detected">Apropa una targeta Mifare Classic o NTAG</string>
+    <string name="card_id_format">Targeta: %s</string>
+
+    <!-- Balance -->
+    <string name="balance_initial">--</string>
+    <string name="coins_label">monedes</string>
+
+    <!-- Status messages -->
+    <string name="waiting_card">Esperant targeta…</string>
+    <string name="reading_card">Llegint…</string>
+    <string name="card_read_ok">Targeta llegida correctament</string>
+    <string name="auth_failed">Error d\'autenticació amb la targeta</string>
+    <string name="unsupported_card">Targeta no compatible (cal Mifare Classic o NTAG)</string>
+    <string name="sector_unavailable">La targeta no té el sector %1$d (%2$d)</string>
+    <string name="nfc_not_available">NFC no disponible en aquest dispositiu</string>
+    <string name="nfc_disabled">Activa l\'NFC per usar aquesta aplicació</string>
+    <string name="no_card">No hi ha cap targeta. Apropa-la de nou.</string>
+    <string name="insufficient_balance">Saldo insuficient</string>
+    <string name="deduct_ok">S\'han descomptat %s moneda(es) correctament</string>
+    <string name="error_get_mifare">Error: no s\'ha pogut accedir a la targeta NFC</string>
+    <string name="error_reading">Error de lectura: %s</string>
+    <string name="error_writing">Error d\'escriptura: %s</string>
+    <string name="error_operation_timeout">L\'operació NFC ha excedit el temps. Torna-ho a provar.</string>
+    <string name="error_decryption">Error de desxifrat</string>
+    <string name="debug_operation_duration_ms">%d ms</string>
+
+    <!-- Card management -->
+    <string name="card_management">Gestió de targetes</string>
+    <string name="action_add_balance">Afegir saldo</string>
+    <string name="action_format_card">Formatar targeta nova</string>
+    <string name="action_reset_card">Reiniciar targeta</string>
+    <string name="action_confirm">Confirmar</string>
+    <string name="tap_card_to_add">Apropa la targeta per afegir saldo…</string>
+    <string name="tap_card_to_deduct">Apropa la targeta per descomptar…</string>
+    <string name="tap_card_to_format">Apropa la targeta per formatar…</string>
+    <string name="tap_card_to_reset">Apropa la targeta per reiniciar…</string>
+    <string name="hint_add_amount">Quantitat a afegir</string>
+    <string name="action_deduct_custom">Descomptar quantitat</string>
+    <string name="hint_deduct_amount">Quantitat a descomptar</string>
+    <string name="add_balance_title">Saldo actual: %d monedes</string>
+    <string name="invalid_amount">Quantitat no vàlida</string>
+    <string name="balance_too_high">El saldo màxim és de 65535 monedes</string>
+    <string name="balance_added_ok">S\'han afegit %s moneda(es) correctament</string>
+    <string name="card_not_formatted">Targeta no formatada. Usa primer \'Formatar targeta nova\'.</string>
+    <string name="format_no_key_found">No s\'ha trobat cap clau estàndard. És possible que la targeta ja estigui personalitzada.</string>
+    <string name="format_reset_success">Saldo reiniciat a 0 (targeta ja formatada)</string>
+    <string name="format_success">Targeta formatada</string>
+    <string name="format_success_message">Clau %1$s trobada: %2$s\nNova clau generada: %3$s</string>
+    <string name="reset_card_success">Targeta reiniciada a valors de fàbrica</string>
+    <string name="reset_card_no_key">No s\'ha pogut autenticar amb cap clau coneguda</string>
+    <string name="format_recarga_unica">Recàrrega única</string>
+    <string name="format_limite_edad">Límit d\'edat</string>
+    <string name="format_limite_edad_hint">Edat o any de naixement</string>
+    <string name="single_recharge_already_used">La recàrrega única ja s\'ha fet.\nNo es permeten més recàrregues.</string>
+    <string name="setting_legal_age">Edat legal d\'adult</string>
+    <string name="setting_legal_age_hint">Edat (anys)</string>
+    <string name="setting_legal_age_desc">Edat mínima per a la verificació de contingut per a adults</string>
+    <string name="minor_indicator_description">Menor d\'edat</string>
+
+    <!-- About -->
+    <string name="about">Quant a</string>
+    <string name="about_title">Quant a %s</string>
+    <string name="about_message">%1$s és una aplicació per gestionar saldos en targetes Mifare Classic i NTAG mitjançant NFC.</string>
+    <string name="about_version">Versió: %s</string>
+    <string name="about_donate_message">Si trobes valuós aquest projecte i vols donar suport al manteniment i a les millores contínues, pots considerar convidar-me a un cafè!</string>
+    <string name="donate_kofi">☕ Ko-fi</string>
+    <string name="donate_paypal">💸 PayPal</string>
+    <string name="view_source">GitHub</string>
+    <string name="github_url" translatable="false">https://github.com/duhow/nfc-coins</string>
+
+    <!-- Advanced settings -->
+    <string name="advanced_settings">Configuració</string>
+    <string name="setting_section_card">Configuració NFC</string>
+    <string name="setting_section_other">Altres</string>
+    <string name="setting_options">Opcions</string>
+    <string name="setting_language">Llengua</string>
+    <string name="setting_language_desc">Selecciona la llengua de l\'aplicació</string>
+    <string name="setting_language_change_system">Canvia la llengua a la configuració del sistema</string>
+    <string name="setting_target_sector">Sector objectiu</string>
+    <string name="setting_target_sector_hint">Sector (1–15)</string>
+    <string name="setting_target_sector_desc">Sector de la targeta Mifare Classic a llegir i escriure (1–15)</string>
+    <string name="setting_static_key">Clau estàtica</string>
+    <string name="setting_static_key_desc">Clau criptogràfica per autenticar la targeta</string>
+    <string name="btn_show_key">Mostra la clau</string>
+    <string name="btn_hide_key">Amaga la clau</string>
+    <string name="btn_generate_key">Genera aleatòria</string>
+    <string name="generate_key_confirm_title">Vols generar una clau nova?</string>
+    <string name="generate_key_confirm_message">Les targetes anteriors quedaran bloquejades o inaccessibles. Vols continuar?</string>
+    <string name="setting_dynamic_key">Clau dinàmica</string>
+    <string name="setting_dynamic_key_desc">Combina l\'UID de la targeta amb la clau estàtica per a una autenticació única</string>
+    <string name="setting_flash_enabled">Flash de fons</string>
+    <string name="setting_flash_enabled_desc">Canvia el color de fons en operacions correctes amb la targeta</string>
+    <string name="setting_verify_integrity">Verifica la integritat</string>
+    <string name="setting_verify_integrity_desc">Cancel·la l\'operació si les dades de la targeta semblen incoherents</string>
+    <string name="setting_seller_mode">Mode venedor</string>
+    <string name="setting_seller_mode_desc">Permet només operacions de descompte</string>
+    <string name="setting_debug_mode">Mode de depuració</string>
+    <string name="setting_debug_mode_desc">Mostra detalls tècnics de les operacions amb targeta</string>
+    <string name="setting_keep_screen_on">Mantén la pantalla encesa</string>
+    <string name="setting_keep_screen_on_desc">Evita que la pantalla s\'atenuï o s\'apagui</string>
+    <string name="setting_sound_enabled">So</string>
+    <string name="setting_sound_enabled_desc">Reprodueix un so en les operacions amb targeta</string>
+    <string name="setting_vibration_enabled">Vibració</string>
+    <string name="setting_vibration_enabled_desc">Vibra en les operacions amb targeta</string>
+    <string name="setting_decimal_mode">Mode decimal</string>
+    <string name="setting_decimal_mode_desc">Mostra les quantitats dividides per 100 amb 2 decimals</string>
+    <string name="setting_distributed_pos">TPV distribuït</string>
+    <string name="setting_distributed_pos_desc">Comparteix operacions d\'afegir i descomptar entre dispositius</string>
+    <string name="setting_broadcast_enabled">Difusió d\'esdeveniments</string>
+    <string name="setting_broadcast_enabled_desc">Envia una difusió del sistema després de cada operació</string>
+    <string name="setting_theme_color">Color del tema</string>
+    <string name="setting_theme_color_desc">Color d\'accent i de ressaltat de l\'aplicació</string>
+    <string name="color_pick_title">Color personalitzat</string>
+    <string name="color_custom_swatch">Selecciona un color personalitzat</string>
+    <string name="sector_invalid">El sector ha d\'estar entre 1 i 15</string>
+    <string name="key_too_short">La clau ha de tenir almenys 8 caràcters</string>
+    <string name="settings_saved">Configuració desada</string>
+
+    <!-- Transaction history -->
+    <string name="tx_history_label">Últimes transaccions</string>
+    <string name="tx_add">+%d monedes</string>
+    <string name="tx_subtract">-%d monedes</string>
+    <string name="tx_entry_format">%1$s  %2$s</string>
+    <string name="tx_debug_checksum">desat: %1$s  calc: %2$s</string>
+    <string name="operation_cancelled">Operació cancel·lada.</string>
+    <string name="card_tampered">Targeta manipulada.</string>
+    <string name="replay_attack_detected">S\'ha detectat un possible atac de repetició.</string>
+    <string name="replay_allow_action">Permetre?</string>
+    <string name="replay_allow_action_plain">Permetre?</string>
+    <string name="replay_allow_dialog_title">Vols permetre aquest estat de la targeta?</string>
+    <string name="replay_allow_dialog_message">Fes-ho servir només si confies en la targeta i vols acceptar aquest estat detectat. El següent toc d\'aquesta targeta es tractarà com a vàlid.</string>
+    <string name="replay_allow_confirmed">Permís activat per al següent toc d\'aquesta targeta</string>
+    <string name="write_retried">S\'ha reintentat l\'escriptura després d\'una interrupció anterior</string>
+
+    <!-- Custom Buttons -->
+    <string name="custom_buttons">Botons personalitzats</string>
+    <string name="custom_buttons_hint">Toca un botó per editar-lo. Mantén-lo premut i arrossega per reordenar. Elimina\'l des del diàleg d\'edició.</string>
+    <string name="custom_button_add">Afegeix botó</string>
+    <string name="custom_button_edit">Edita botó</string>
+    <string name="custom_button_delete">Suprimeix</string>
+    <string name="custom_button_delete_confirm">Vols suprimir el botó \'%s\'?</string>
+    <string name="custom_button_save">Desa</string>
+    <string name="custom_button_operation">Operació</string>
+    <string name="custom_button_operation_add">Afegeix saldo</string>
+    <string name="custom_button_operation_subtract">Retira</string>
+    <string name="custom_button_label">Etiqueta</string>
+    <string name="custom_button_label_hint">p. ex. -1, Cafè…</string>
+    <string name="custom_button_emoji_short">Emoji</string>
+    <string name="custom_button_amount">Quantitat (prefix + per afegir, - per retirar)</string>
+    <string name="custom_button_amount_hint">p. ex. 1 o 5</string>
+    <string name="custom_button_amount_hint_decimal">p. ex. 1,50 o 2,00</string>
+    <string name="custom_button_color">Color de fons (toca per triar)</string>
+    <string name="custom_button_color_clear">Neteja</string>
+    <string name="custom_button_amount_invalid">La quantitat ha de ser superior a 0</string>
+    <string name="custom_button_label_invalid">L\'etiqueta no pot estar buida</string>
+    <string name="custom_button_max_reached">S\'ha arribat al màxim de 9 botons</string>
+
+    <!-- Operations History -->
+    <string name="ops_history_title">Historial d\'operacions</string>
+    <string name="ops_hourly">Per hora</string>
+    <string name="ops_weekly">Setmanal</string>
+    <string name="ops_chart_label">Resum de saldo</string>
+    <string name="ops_no_data">No hi ha dades per al període seleccionat</string>
+    <string name="ops_no_button_data">Encara no hi ha retirades registrades</string>
+    <string name="ops_legend_added">Afegit</string>
+    <string name="ops_legend_subtracted">Descomptat</string>
+    <string name="ops_price_usage">Desglossament per quantitat</string>
+    <string name="ops_col_price">Quantitat</string>
+    <string name="ops_col_this_hour">Aquesta hora</string>
+    <string name="ops_col_last_hour">Hora passada</string>
+    <string name="ops_col_last_day">Ahir</string>
+    <string name="ops_col_today">Avui</string>
+    <string name="ops_col_last_week">Aquesta setmana</string>
+    <string name="ops_col_total">Total</string>
+    <string name="ops_nav_prev">Anterior</string>
+    <string name="ops_nav_next">Següent</string>
+    <string name="ops_summary">+%1$d afegit (%2$d ops) · -%3$d retirat (%4$d ops)</string>
+</resources>
