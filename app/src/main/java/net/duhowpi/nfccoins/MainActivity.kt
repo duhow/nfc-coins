@@ -397,8 +397,8 @@ class MainActivity : AppCompatActivity() {
         startNfcProgressAnimation()
         tvStatus.text = getString(R.string.reading_card)
         val operationStartMs = SystemClock.elapsedRealtime()
-        // Let the UI render the "Reading…" state before starting NFC I/O on the main thread.
-        handler.postDelayed({ handleTagInternal(tag, operationStartMs) }, UI_FRAME_DELAY_MS)
+        // Run NFC I/O on a background thread so the main thread remains free for UI animations.
+        Thread { handleTagInternal(tag, operationStartMs) }.apply { isDaemon = true }.start()
     }
 
     private fun handleTagInternal(tag: Tag, operationStartMs: Long) {
@@ -430,7 +430,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             handler.removeCallbacks(autoResetRunnable)
-            tvCardId.text = getString(R.string.card_id_format, card.uid.toHex())
+            runOnUiThread { tvCardId.text = getString(R.string.card_id_format, card.uid.toHex()) }
 
             when (pendingAction) {
                 PendingAction.ADD_BALANCE -> {
@@ -457,7 +457,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         customDeductAmount > 0 -> {
                             isCustomAmountMode = false
-                            clearHiddenInput()
+                            runOnUiThread { clearHiddenInput() }
                             readAndDeduct(card, customDeductAmount, isCustomAmount = true)
                         }
                         else -> setPendingAction(PendingAction.NONE)
@@ -533,10 +533,12 @@ class MainActivity : AppCompatActivity() {
                     currentBalance = data.balance
                     setBalanceDisplay(currentBalance)
                     updateMinorIndicator(data.userBirthYear)
-                    layoutBeforeAfter.visibility = View.GONE
-                    tvActualBalance.visibility = View.GONE
+                    runOnUiThread {
+                        layoutBeforeAfter.visibility = View.GONE
+                        tvActualBalance.visibility = View.GONE
+                    }
                     if (!card.isDataValid(data)) {
-                        tvStatus.text = "${getString(R.string.card_tampered)}\n${getString(R.string.operation_cancelled)}"
+                        runOnUiThread { tvStatus.text = "${getString(R.string.card_tampered)}\n${getString(R.string.operation_cancelled)}" }
                         showTransactionHistory(txBlock)
                         showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
                         flashRedBackground()
@@ -623,14 +625,14 @@ class MainActivity : AppCompatActivity() {
                             runNfcOperationWithTimeout { card.retryPendingWrite(pw) }
                             recordPendingWriteStateAsTrusted(card.uid.toHex(), data.balance, pw)
                             pendingWrite = null
-                            tvStatus.text = getString(R.string.write_retried)
+                            runOnUiThread { tvStatus.text = getString(R.string.write_retried) }
                             // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
                             return
                         }
                         if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
                             showTransactionHistory(data.transactions)
                             showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
-                            tvStatus.text = "${getString(R.string.card_tampered)}\n${getString(R.string.operation_cancelled)}"
+                            runOnUiThread { tvStatus.text = "${getString(R.string.card_tampered)}\n${getString(R.string.operation_cancelled)}" }
                             flashRedBackground()
                             playNfcErrorBeep()
                             // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
@@ -662,16 +664,21 @@ class MainActivity : AppCompatActivity() {
                         currentBalance = balance
                         if (isCustomAmount) {
                             setBalanceDisplay(amount)
-                            tvActualBalance.text = formatBalanceDisplay(balance)
-                            tvActualBalance.visibility = View.VISIBLE
+                            runOnUiThread {
+                                tvActualBalance.text = formatBalanceDisplay(balance)
+                                tvActualBalance.visibility = View.VISIBLE
+                                layoutBeforeAfter.visibility = View.GONE
+                            }
                         } else {
                             setBalanceDisplay(balance)
-                            tvActualBalance.visibility = View.GONE
+                            runOnUiThread {
+                                tvActualBalance.visibility = View.GONE
+                                layoutBeforeAfter.visibility = View.GONE
+                            }
                         }
-                        layoutBeforeAfter.visibility = View.GONE
                         showTransactionHistory(data.transactions)
                         showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
-                        tvStatus.text = getString(R.string.insufficient_balance)
+                        runOnUiThread { tvStatus.text = getString(R.string.insufficient_balance) }
                         flashRedBackground()
                         playInsufficientBalanceBeep()
                         // Keep WITHDRAW_BALANCE state: do not schedule auto-reset.
@@ -693,10 +700,12 @@ class MainActivity : AppCompatActivity() {
                     currentBalance = newBalance
                     setBalanceDisplay(newBalance)
                     updateMinorIndicator(data.userBirthYear)
-                    tvBalanceBefore.text = formatBalanceDisplay(balance)
-                    tvBalanceAfter.text = formatBalanceDisplay(newBalance)
-                    layoutBeforeAfter.visibility = View.VISIBLE
-                    tvActualBalance.visibility = View.GONE
+                    runOnUiThread {
+                        tvBalanceBefore.text = formatBalanceDisplay(balance)
+                        tvBalanceAfter.text = formatBalanceDisplay(newBalance)
+                        layoutBeforeAfter.visibility = View.VISIBLE
+                        tvActualBalance.visibility = View.GONE
+                    }
                     showTransactionHistory(updatedTxBlock)
                     showDebugChecksums(card, newBalance, newTransactions)
                     txDb.insertTransaction(
@@ -764,7 +773,7 @@ class MainActivity : AppCompatActivity() {
     private fun flashBackground(@ColorRes colorRes: Int) {
         if (!AdvancedSettingsActivity.isFlashEnabled(this)) return
         handler.removeCallbacksAndMessages(FLASH_TOKEN)
-        rootLayout.setBackgroundColor(ContextCompat.getColor(this, colorRes))
+        runOnUiThread { rootLayout.setBackgroundColor(ContextCompat.getColor(this, colorRes)) }
         handler.postDelayed({
             rootLayout.setBackgroundColor(Color.TRANSPARENT)
         }, FLASH_TOKEN, 3000)
@@ -846,12 +855,15 @@ class MainActivity : AppCompatActivity() {
         includeOperationCancelled: Boolean = true
     ) {
         replayAllowanceCandidate = ReplayAllowance(cardUid, checksum)
-        tvStatus.text = if (includeOperationCancelled) {
+        val statusText = if (includeOperationCancelled) {
             "${getString(R.string.replay_attack_detected)}\n${getString(R.string.operation_cancelled)}"
         } else {
             getString(R.string.replay_attack_detected)
         }
-        tvReplayAllow.visibility = View.VISIBLE
+        runOnUiThread {
+            tvStatus.text = statusText
+            tvReplayAllow.visibility = View.VISIBLE
+        }
         flashRedBackground()
         playNfcErrorBeep()
         if (scheduleReset) {
@@ -861,7 +873,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun hideReplayAllowAction() {
         replayAllowanceCandidate = null
-        tvReplayAllow.visibility = View.GONE
+        runOnUiThread { tvReplayAllow.visibility = View.GONE }
     }
 
     private fun onReplayAllowClicked() {
@@ -1321,15 +1333,16 @@ class MainActivity : AppCompatActivity() {
         scheduleAutoReset: Boolean = true,
         @ColorRes background: Int? = R.color.error_orange
     ) {
-        hideReplayAllowAction()
-        completeNfcProgressAnimation()
-        tvStatus.text = message
-        if (background != null) flashBackground(background)
-        playNfcErrorBeep()
-        if (scheduleAutoReset) {
-            this.scheduleAutoReset()
+        runOnUiThread {
+            hideReplayAllowAction()
+            completeNfcProgressAnimation()
+            tvStatus.text = message
+            if (background != null) flashBackground(background)
+            playNfcErrorBeep()
+            if (scheduleAutoReset) {
+                this.scheduleAutoReset()
+            }
         }
-        return
     }
 
     private fun setScreenStatusSuccess(
@@ -1337,17 +1350,18 @@ class MainActivity : AppCompatActivity() {
         scheduleAutoReset: Boolean = true,
         @ColorRes background: Int? = R.color.success_green
     ) {
-        hideReplayAllowAction()
-        completeNfcProgressAnimation()
-        handler.removeCallbacksAndMessages(FLASH_TOKEN)
-        rootLayout.setBackgroundColor(Color.TRANSPARENT)
-        tvStatus.text = message
-        if (background != null) flashBackground(background)
-        playSuccessBeep()
-        if (scheduleAutoReset) {
-            this.scheduleAutoReset()
+        runOnUiThread {
+            hideReplayAllowAction()
+            completeNfcProgressAnimation()
+            handler.removeCallbacksAndMessages(FLASH_TOKEN)
+            rootLayout.setBackgroundColor(Color.TRANSPARENT)
+            tvStatus.text = message
+            if (background != null) flashBackground(background)
+            playSuccessBeep()
+            if (scheduleAutoReset) {
+                this.scheduleAutoReset()
+            }
         }
-        return
     }
 
     /**
@@ -1624,7 +1638,7 @@ class MainActivity : AppCompatActivity() {
      * si falla la autenticación, la tarjeta no está formateada y se muestra un error.
      */
     private fun addBalanceToCard(card: BaseCoinCard, isButtonMode: Boolean = false) {
-        if (!isButtonMode) hideKeyboardFrom(etHiddenInput)
+        if (!isButtonMode) runOnUiThread { hideKeyboardFrom(etHiddenInput) }
         isAddBalanceMode = false
         try {
             runNfcOperationWithTimeout { card.connect() }
@@ -1647,12 +1661,12 @@ class MainActivity : AppCompatActivity() {
                             runNfcOperationWithTimeout { card.retryPendingWrite(pw) }
                             recordPendingWriteStateAsTrusted(card.uid.toHex(), data.balance, pw)
                             pendingWrite = null
-                            tvStatus.text = getString(R.string.write_retried)
+                            runOnUiThread { tvStatus.text = getString(R.string.write_retried) }
                             scheduleAutoReset()
                             return
                         }
                         if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
-                            tvStatus.text = "${getString(R.string.card_tampered)}\n${getString(R.string.operation_cancelled)}"
+                            runOnUiThread { tvStatus.text = "${getString(R.string.card_tampered)}\n${getString(R.string.operation_cancelled)}" }
                             showTransactionHistory(txBlock)
                             showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
                             flashRedBackground()
@@ -1683,7 +1697,7 @@ class MainActivity : AppCompatActivity() {
                     val oldBalance = data.balance
                     val newBalance = oldBalance + pendingAddAmount
                     if (newBalance > card.maxBalance) {
-                        Toast.makeText(this, getString(R.string.balance_too_high), Toast.LENGTH_SHORT).show()
+                        runOnUiThread { Toast.makeText(this, getString(R.string.balance_too_high), Toast.LENGTH_SHORT).show() }
                         pendingAddAmount = 0
                         scheduleAutoReset()
                         return
@@ -1718,9 +1732,11 @@ class MainActivity : AppCompatActivity() {
                     currentBalance = newBalance
                     setBalanceDisplay(newBalance)
                     updateMinorIndicator(data.userBirthYear)
-                    tvBalanceBefore.text = formatBalanceDisplay(oldBalance)
-                    tvBalanceAfter.text = formatBalanceDisplay(newBalance)
-                    layoutBeforeAfter.visibility = View.VISIBLE
+                    runOnUiThread {
+                        tvBalanceBefore.text = formatBalanceDisplay(oldBalance)
+                        tvBalanceAfter.text = formatBalanceDisplay(newBalance)
+                        layoutBeforeAfter.visibility = View.VISIBLE
+                    }
                     showTransactionHistory(updatedTxBlock)
                     showDebugChecksums(card, newBalance, newTransactions)
                     txDb.insertTransaction(
@@ -1756,7 +1772,7 @@ class MainActivity : AppCompatActivity() {
                         // action remain active so another card can be served immediately.
                         handler.removeCallbacks(buttonModeIdleRunnable)
                         handler.postDelayed(buttonModeIdleRunnable, AUTO_RESET_DELAY_MS)
-                        tvStatus.text = getString(R.string.tap_card_to_add)
+                        runOnUiThread { tvStatus.text = getString(R.string.tap_card_to_add) }
                     }
                 }
             }
@@ -1789,9 +1805,11 @@ class MainActivity : AppCompatActivity() {
                 is BaseCoinCard.FormatResult.Reformatted -> {
                     currentBalance = 0
                     setBalanceDisplay(0)
-                    tvBalanceBefore.text = formatBalanceDisplay(result.oldBalance)
-                    tvBalanceAfter.text = formatBalanceDisplay(0)
-                    layoutBeforeAfter.visibility = View.VISIBLE
+                    runOnUiThread {
+                        tvBalanceBefore.text = formatBalanceDisplay(result.oldBalance)
+                        tvBalanceAfter.text = formatBalanceDisplay(0)
+                        layoutBeforeAfter.visibility = View.VISIBLE
+                    }
                     showTransactionHistory(TransactionBlock(result.formattedAtSeconds))
                     showDebugChecksums(card, 0, result.transactionsData)
                     txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = card.uid.toHex())
@@ -1811,7 +1829,7 @@ class MainActivity : AppCompatActivity() {
                 is BaseCoinCard.FormatResult.NewlyFormatted -> {
                     currentBalance = 0
                     setBalanceDisplay(0)
-                    layoutBeforeAfter.visibility = View.GONE
+                    runOnUiThread { layoutBeforeAfter.visibility = View.GONE }
                     showTransactionHistory(TransactionBlock(result.formattedAtSeconds))
                     showDebugChecksums(card, 0, result.transactionsData)
                     txDb.insertTransaction(TransactionDatabase.TYPE_FORMAT, cardUid = card.uid.toHex())
@@ -1829,12 +1847,17 @@ class MainActivity : AppCompatActivity() {
                     )
 
                     if (AdvancedSettingsActivity.isDebugEnabled(this) && result.foundKeyType != null) {
-                        val debugDialog = AlertDialog.Builder(this)
-                            .setTitle(R.string.format_success)
-                            .setMessage(getString(R.string.format_success_message, result.foundKeyType, result.foundKeyHex, result.newKeyHex))
-                            .setPositiveButton(android.R.string.ok, null)
-                            .show()
-                        applyThemeToDialog(debugDialog)
+                        val keyType = result.foundKeyType
+                        val keyHex = result.foundKeyHex
+                        val newKeyHex = result.newKeyHex
+                        runOnUiThread {
+                            val debugDialog = AlertDialog.Builder(this)
+                                .setTitle(R.string.format_success)
+                                .setMessage(getString(R.string.format_success_message, keyType, keyHex, newKeyHex))
+                                .setPositiveButton(android.R.string.ok, null)
+                                .show()
+                            applyThemeToDialog(debugDialog)
+                        }
                     }
                 }
                 is BaseCoinCard.FormatResult.NoKeyFound -> {
@@ -1869,7 +1892,7 @@ class MainActivity : AppCompatActivity() {
 
             currentBalance = -1
             resetBalanceToInitial()
-            layoutBeforeAfter.visibility = View.GONE
+            runOnUiThread { layoutBeforeAfter.visibility = View.GONE }
             txDb.insertTransaction(TransactionDatabase.TYPE_RESET, cardUid = card.uid.toHex())
             if (!AdvancedSettingsActivity.isDistributedPosEnabled(this)) {
                 // Store a sentinel so any replay of the pre-reset card state is detected.
@@ -1977,10 +2000,12 @@ class MainActivity : AppCompatActivity() {
     private fun setBalanceText(text: String) {
         isCustomAmountMode = false
         isAddBalanceMode = false
-        tvBalance.setText(text)
-        tvBalance.inputType = InputType.TYPE_NULL
-        tvBalance.isFocusable = false
-        tvBalance.isFocusableInTouchMode = false
+        runOnUiThread {
+            tvBalance.setText(text)
+            tvBalance.inputType = InputType.TYPE_NULL
+            tvBalance.isFocusable = false
+            tvBalance.isFocusableInTouchMode = false
+        }
     }
 
     /**
@@ -1999,7 +2024,8 @@ class MainActivity : AppCompatActivity() {
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
         val age = currentYear - userBirthYear
         val legalAge = AdvancedSettingsActivity.getLegalAge(this)
-        tvMinorIcon.visibility = if (userBirthYear in 1900..currentYear && age in 0 until legalAge) View.VISIBLE else View.GONE
+        val isMinor = userBirthYear in 1900..currentYear && age in 0 until legalAge
+        runOnUiThread { tvMinorIcon.visibility = if (isMinor) View.VISIBLE else View.GONE }
     }
 
     /**
@@ -2009,11 +2035,13 @@ class MainActivity : AppCompatActivity() {
     private fun resetBalanceToInitial() {
         isCustomAmountMode = false
         customDeductAmount = 0
-        clearHiddenInput()
-        tvBalance.setText(getString(R.string.balance_initial))
-        tvBalance.inputType = InputType.TYPE_NULL
-        tvBalance.isFocusable = false
-        tvBalance.isFocusableInTouchMode = false
+        runOnUiThread {
+            clearHiddenInput()
+            tvBalance.setText(getString(R.string.balance_initial))
+            tvBalance.inputType = InputType.TYPE_NULL
+            tvBalance.isFocusable = false
+            tvBalance.isFocusableInTouchMode = false
+        }
     }
 
     /**
@@ -2266,46 +2294,48 @@ class MainActivity : AppCompatActivity() {
      * the date (dd/MM) is prepended.
      */
     private fun showTransactionHistory(txBlock: TransactionBlock) {
-        tvTxDebug.visibility = View.GONE
-        if (txBlock.initTimestamp <= 0L && txBlock.transactions.isEmpty()) {
-            layoutTransactionHistory.visibility = View.GONE
-            return
-        }
-        layoutTransactionHistory.visibility = View.VISIBLE
-        val entries = txBlock.transactions
+        runOnUiThread {
+            tvTxDebug.visibility = View.GONE
+            if (txBlock.initTimestamp <= 0L && txBlock.transactions.isEmpty()) {
+                layoutTransactionHistory.visibility = View.GONE
+                return@runOnUiThread
+            }
+            layoutTransactionHistory.visibility = View.VISIBLE
+            val entries = txBlock.transactions
 
-        val timeFmt  = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-        val dateFmt  = SimpleDateFormat("dd/MM HH:mm:ss", Locale.getDefault())
-        val todayStart = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
+            val timeFmt  = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+            val dateFmt  = SimpleDateFormat("dd/MM HH:mm:ss", Locale.getDefault())
+            val todayStart = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
 
-        val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this)
-        for (i in tvTx.indices) {
-            val tv = tvTx[i]
-            val entry = entries.getOrNull(i)
-            if (entry == null) {
-                tv.visibility = View.GONE
-            } else {
-                val txEpochMs = (txBlock.initTimestamp + entry.secondsOffset) * 1000L
-                val fmt = if (txEpochMs >= todayStart) timeFmt else dateFmt
-                val timeLabel = fmt.format(Date(txEpochMs))
-                val amtLabel = if (isDecimalMode) {
-                    when (entry.operation) {
-                        TxOperation.ADD      -> "+${formatBalanceDisplay(entry.amount)}"
-                        TxOperation.SUBTRACT -> "-${formatBalanceDisplay(entry.amount)}"
-                    }
+            val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this@MainActivity)
+            for (i in tvTx.indices) {
+                val tv = tvTx[i]
+                val entry = entries.getOrNull(i)
+                if (entry == null) {
+                    tv.visibility = View.GONE
                 } else {
-                    when (entry.operation) {
-                        TxOperation.ADD      -> getString(R.string.tx_add, entry.amount)
-                        TxOperation.SUBTRACT -> getString(R.string.tx_subtract, entry.amount)
+                    val txEpochMs = (txBlock.initTimestamp + entry.secondsOffset) * 1000L
+                    val fmt = if (txEpochMs >= todayStart) timeFmt else dateFmt
+                    val timeLabel = fmt.format(Date(txEpochMs))
+                    val amtLabel = if (isDecimalMode) {
+                        when (entry.operation) {
+                            TxOperation.ADD      -> "+${formatBalanceDisplay(entry.amount)}"
+                            TxOperation.SUBTRACT -> "-${formatBalanceDisplay(entry.amount)}"
+                        }
+                    } else {
+                        when (entry.operation) {
+                            TxOperation.ADD      -> getString(R.string.tx_add, entry.amount)
+                            TxOperation.SUBTRACT -> getString(R.string.tx_subtract, entry.amount)
+                        }
                     }
+                    tv.text = getString(R.string.tx_entry_format, timeLabel, amtLabel)
+                    tv.visibility = View.VISIBLE
                 }
-                tv.text = getString(R.string.tx_entry_format, timeLabel, amtLabel)
-                tv.visibility = View.VISIBLE
             }
         }
     }
@@ -2321,20 +2351,25 @@ class MainActivity : AppCompatActivity() {
         txData: ByteArray
     ) {
         if (!AdvancedSettingsActivity.isDebugEnabled(this)) {
-            tvTxDebug.visibility = View.GONE
+            runOnUiThread { tvTxDebug.visibility = View.GONE }
             return
         }
         val (stored, computed) = card.extractChecksums(balance, txData)
-        tvTxDebug.text = getString(R.string.tx_debug_checksum, stored.toHex(), computed.toHex())
-        layoutTransactionHistory.visibility = View.VISIBLE
-        tvTxDebug.visibility = View.VISIBLE
+        val debugText = getString(R.string.tx_debug_checksum, stored.toHex(), computed.toHex())
+        runOnUiThread {
+            tvTxDebug.text = debugText
+            layoutTransactionHistory.visibility = View.VISIBLE
+            tvTxDebug.visibility = View.VISIBLE
+        }
     }
 
     private fun showDebugOperationDuration(startElapsedMs: Long) {
         if (!AdvancedSettingsActivity.isDebugEnabled(this)) return
         val elapsedMs = (SystemClock.elapsedRealtime() - startElapsedMs).coerceAtLeast(0)
         val durationText = getString(R.string.debug_operation_duration_ms, elapsedMs)
-        val currentStatus = tvStatus.text?.toString().orEmpty()
-        tvStatus.text = if (currentStatus.isBlank()) durationText else "$currentStatus · $durationText"
+        runOnUiThread {
+            val currentStatus = tvStatus.text?.toString().orEmpty()
+            tvStatus.text = if (currentStatus.isBlank()) durationText else "$currentStatus · $durationText"
+        }
     }
 }
