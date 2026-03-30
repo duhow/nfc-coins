@@ -41,6 +41,11 @@ import androidx.core.view.WindowCompat
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import android.provider.Settings
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
+import android.widget.ProgressBar
 import com.google.android.material.button.MaterialButton
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -97,6 +102,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var layoutBeforeAfter: LinearLayout
     private lateinit var layoutCustomButtons: LinearLayout
     private lateinit var etHiddenInput: BackspaceEditText
+    private lateinit var progressBarNfc: ProgressBar
+    private var progressAnimator: ValueAnimator? = null
 
     private var selectedButtonIndex: Int = -1
     private var customButtonList: List<CustomButton> = emptyList()
@@ -153,6 +160,7 @@ class MainActivity : AppCompatActivity() {
         layoutBeforeAfter = findViewById(R.id.layoutBeforeAfter)
         layoutCustomButtons = findViewById(R.id.layoutCustomButtons)
         etHiddenInput     = findViewById(R.id.etHiddenInput)
+        progressBarNfc    = findViewById(R.id.progressBarNfc)
         layoutTransactionHistory = findViewById(R.id.layoutTransactionHistory)
         tvTx = arrayOf(
             findViewById(R.id.tvTx0),
@@ -386,6 +394,7 @@ class MainActivity : AppCompatActivity() {
     /** Entry point for tags discovered via reader mode (called on main thread). */
     private fun handleTag(tag: Tag) {
         triggerVibration()
+        startNfcProgressAnimation()
         tvStatus.text = getString(R.string.reading_card)
         val operationStartMs = SystemClock.elapsedRealtime()
         // Let the UI render the "Reading…" state before starting NFC I/O on the main thread.
@@ -761,6 +770,73 @@ class MainActivity : AppCompatActivity() {
         }, FLASH_TOKEN, 3000)
     }
 
+    /**
+     * Starts the NFC progress bar animation on card tap:
+     * phase 1 – 0 → 50% in 50 ms (fast, accelerate curve),
+     * phase 2 – 50 → 100% in 1 s (slow fill, decelerate curve).
+     */
+    private fun startNfcProgressAnimation() {
+        progressAnimator?.cancel()
+        progressBarNfc.alpha = 1f
+        progressBarNfc.visibility = View.VISIBLE
+        progressBarNfc.progress = 0
+
+        var cancelled = false
+        val phase1 = ValueAnimator.ofInt(0, 50).apply {
+            duration = 50
+            interpolator = AccelerateInterpolator()
+            addUpdateListener { progressBarNfc.setProgress(it.animatedValue as Int, false) }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationCancel(animation: android.animation.Animator) {
+                    cancelled = true
+                }
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (cancelled) return
+                    val phase2 = ValueAnimator.ofInt(50, 100).apply {
+                        duration = 1000
+                        interpolator = DecelerateInterpolator()
+                        addUpdateListener { progressBarNfc.setProgress(it.animatedValue as Int, false) }
+                    }
+                    progressAnimator = phase2
+                    phase2.start()
+                }
+            })
+        }
+        progressAnimator = phase1
+        phase1.start()
+    }
+
+    /**
+     * Completes the NFC progress bar animation on operation finish:
+     * jumps to 100% in 50 ms (accelerate), then fades out over 200 ms after a 100 ms delay.
+     */
+    private fun completeNfcProgressAnimation() {
+        if (progressBarNfc.visibility != View.VISIBLE) return
+        progressAnimator?.cancel()
+        val from = progressBarNfc.progress
+        val complete = ValueAnimator.ofInt(from, 100).apply {
+            duration = 50
+            interpolator = AccelerateInterpolator()
+            addUpdateListener { progressBarNfc.setProgress(it.animatedValue as Int, false) }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    progressBarNfc.animate()
+                        .alpha(0f)
+                        .setStartDelay(100)
+                        .setDuration(200)
+                        .setInterpolator(AccelerateInterpolator())
+                        .withEndAction {
+                            progressBarNfc.visibility = View.GONE
+                            progressBarNfc.progress = 0
+                            progressBarNfc.alpha = 1f
+                        }
+                        .start()
+                }
+            })
+        }
+        complete.start()
+    }
+
     private fun flashRedBackground() = flashBackground(R.color.error_red_dark)
 
     private fun showReplayAttackDetected(
@@ -927,6 +1003,9 @@ class MainActivity : AppCompatActivity() {
 
         // Custom buttons: apply theme colors
         applyThemeToCustomButtons()
+
+        // Progress bar: apply theme color as tint
+        progressBarNfc.progressTintList = ColorStateList.valueOf(color)
     }
 
     private fun applyThemeToCustomButtons() {
@@ -1243,6 +1322,7 @@ class MainActivity : AppCompatActivity() {
         @ColorRes background: Int? = R.color.error_orange
     ) {
         hideReplayAllowAction()
+        completeNfcProgressAnimation()
         tvStatus.text = message
         if (background != null) flashBackground(background)
         playNfcErrorBeep()
@@ -1258,6 +1338,7 @@ class MainActivity : AppCompatActivity() {
         @ColorRes background: Int? = R.color.success_green
     ) {
         hideReplayAllowAction()
+        completeNfcProgressAnimation()
         handler.removeCallbacksAndMessages(FLASH_TOKEN)
         rootLayout.setBackgroundColor(Color.TRANSPARENT)
         tvStatus.text = message

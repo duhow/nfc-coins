@@ -274,4 +274,16 @@
 
     </LinearLayout>
 
+    <ProgressBar
+        android:id="@+id/progressBarNfc"
+        style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="5dp"
+        android:layout_gravity="top"
+        android:max="100"
+        android:progress="0"
+        android:indeterminate="false"
+        android:progressBackgroundTint="@android:color/transparent"
+        android:visibility="gone" />
+
 </FrameLayout>
