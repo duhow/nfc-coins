@@ -1,1 +1,2 @@
-Add user-facing changes for the next release here.
+- Added animated progress bar at the top of the screen that shows NFC card reading progress
+- Unlock UI by moving NFC I/O to a separate thread
