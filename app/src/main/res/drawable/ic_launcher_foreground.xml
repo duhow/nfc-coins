@@ -4,10 +4,10 @@
     android:width="512dp"
     android:height="512dp">
   <group
-      android:scaleX="0.75"
-      android:scaleY="0.75"
-      android:translateX="17.067"
-      android:translateY="17.067">
+      android:scaleX="0.5"
+      android:scaleY="0.5"
+      android:translateX="34.133"
+      android:translateY="34.133">
     <group
         android:scaleX="1.35042"
         android:scaleY="1.35042"
