@@ -1,8 +1,13 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt"
     android:viewportWidth="136.5333"
     android:viewportHeight="136.5333"
-    android:width="768dp"
-    android:height="768dp">
+    android:width="512dp"
+    android:height="512dp">
+  <group
+      android:scaleX="0.75"
+      android:scaleY="0.75"
+      android:translateX="17.067"
+      android:translateY="17.067">
     <group
         android:scaleX="1.35042"
         android:scaleY="1.35042"
@@ -27,4 +32,5 @@
         android:fillColor="#BFBFBF"
         android:strokeLineCap="round"
         android:strokeLineJoin="bevel" />
+  </group>
 </vector>
