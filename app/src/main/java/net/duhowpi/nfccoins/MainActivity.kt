@@ -206,6 +206,15 @@ class MainActivity : AppCompatActivity() {
         menu.findItem(R.id.action_management)?.isVisible = !sellerMode
         menu.findItem(R.id.action_custom_buttons)?.isVisible = !sellerMode
         menu.findItem(R.id.action_undo)?.isVisible = !sellerMode
+        val isUndoActive = pendingAction == PendingAction.UNDO_TRANSACTION
+        handler.post {
+            val undoView = window.decorView.findViewWithId<View>(R.id.action_undo)
+            if (isUndoActive) {
+                undoView?.setBackgroundColor(0x33FFFFFF) // semi-transparent white overlay
+            } else {
+                undoView?.setBackgroundColor(Color.TRANSPARENT)
+            }
+        }
         return super.onPrepareOptionsMenu(menu)
     }
 
@@ -1390,8 +1399,10 @@ class MainActivity : AppCompatActivity() {
             PendingAction.NONE -> handler.removeCallbacks(autoResetRunnable)
             PendingAction.WITHDRAW_BALANCE -> handler.removeCallbacks(autoResetRunnable)
             PendingAction.ADD_BALANCE -> handler.removeCallbacks(autoResetRunnable)
+            PendingAction.UNDO_TRANSACTION -> handler.removeCallbacks(autoResetRunnable)
             else -> scheduleAutoReset() // removes any existing callback before posting the new one
         }
+        onUiThread { invalidateOptionsMenu() }
     }
 
     private fun resetToWaiting() {
@@ -1412,6 +1423,7 @@ class MainActivity : AppCompatActivity() {
         hideReplayAllowAction()
         pendingAction = PendingAction.NONE
         pendingAddAmount = 0
+        invalidateOptionsMenu()
     }
 
     /**
@@ -1451,7 +1463,6 @@ class MainActivity : AppCompatActivity() {
 
     /** Enters undo mode: one-shot, resets to NONE after the next card tap regardless of outcome. */
     private fun startUndoTransaction() {
-        handler.removeCallbacks(autoResetRunnable)
         cancelAddBalance()
         clearCustomButtonSelection()
         setPendingAction(PendingAction.UNDO_TRANSACTION)
@@ -1523,7 +1534,7 @@ class MainActivity : AppCompatActivity() {
                     if (entries.isEmpty()) {
                         showTransactionHistory(txBlock)
                         showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
-                        return setScreenStatusError(getString(R.string.undo_no_transactions))
+                        return setScreenStatusError("${getString(R.string.undo_cannot)}\n${getString(R.string.undo_no_transactions)}")
                     }
 
                     val lastTx = entries.last()
@@ -1532,7 +1543,7 @@ class MainActivity : AppCompatActivity() {
                     if (lastTx.operation.isUndo) {
                         showTransactionHistory(txBlock)
                         showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
-                        return setScreenStatusError(getString(R.string.undo_already_undone))
+                        return setScreenStatusError("${getString(R.string.undo_cannot)}\n${getString(R.string.undo_already_undone)}")
                     }
 
                     // Check 24-hour window
@@ -1541,7 +1552,7 @@ class MainActivity : AppCompatActivity() {
                     if (nowSeconds - txAbsoluteSeconds > UNDO_MAX_AGE_SECONDS) {
                         showTransactionHistory(txBlock)
                         showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
-                        return setScreenStatusError(getString(R.string.undo_expired))
+                        return setScreenStatusError("${getString(R.string.undo_cannot)}\n${getString(R.string.undo_expired)}")
                     }
 
                     // Determine the reverse operation

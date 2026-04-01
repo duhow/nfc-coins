@@ -140,9 +140,10 @@
     <string name="undo_transaction">Desfer transacció</string>
     <string name="tap_card_to_undo">Apropa la targeta per desfer l\'última operació…</string>
     <string name="undo_success">Transacció desfeta correctament</string>
-    <string name="undo_already_undone">No es pot desfer: l\'última transacció ja és una anul·lació</string>
-    <string name="undo_expired">No es pot desfer: la transacció té més de 24 hores</string>
-    <string name="undo_no_transactions">No es pot desfer: no s\'han trobat transaccions</string>
+    <string name="undo_cannot">No es pot desfer</string>
+    <string name="undo_already_undone">L\'última transacció ja és una anul·lació</string>
+    <string name="undo_expired">La transacció té més de 24 hores</string>
+    <string name="undo_no_transactions">No s\'han trobat transaccions</string>
 
     <!-- Custom Buttons -->
     <string name="custom_buttons">Botons personalitzats</string>

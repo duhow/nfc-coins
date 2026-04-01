@@ -132,9 +132,10 @@
     <string name="undo_transaction">Undo Transaction</string>
     <string name="tap_card_to_undo">Bring card closer to undo last operation…</string>
     <string name="undo_success">Transaction undone successfully</string>
-    <string name="undo_already_undone">Cannot undo: last transaction is already an undo</string>
-    <string name="undo_expired">Cannot undo: transaction is older than 24 hours</string>
-    <string name="undo_no_transactions">Cannot undo: no transactions found</string>
+    <string name="undo_cannot">Cannot undo</string>
+    <string name="undo_already_undone">Last transaction is already an undo</string>
+    <string name="undo_expired">Transaction is older than 24 hours</string>
+    <string name="undo_no_transactions">No transactions found</string>
 
     <string name="card_tampered">Card tampered.</string>
     <string name="replay_attack_detected">Possible replay attack detected.</string>

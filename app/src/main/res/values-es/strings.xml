@@ -135,9 +135,10 @@
     <string name="undo_transaction">Deshacer transacción</string>
     <string name="tap_card_to_undo">Acerca la tarjeta para deshacer la última operación…</string>
     <string name="undo_success">Transacción deshecha correctamente</string>
-    <string name="undo_already_undone">No se puede deshacer: la última transacción ya es una anulación</string>
-    <string name="undo_expired">No se puede deshacer: la transacción tiene más de 24 horas</string>
-    <string name="undo_no_transactions">No se puede deshacer: no se encontraron transacciones</string>
+    <string name="undo_cannot">No se puede deshacer</string>
+    <string name="undo_already_undone">La última transacción ya es una anulación</string>
+    <string name="undo_expired">La transacción tiene más de 24 horas</string>
+    <string name="undo_no_transactions">No se encontraron transacciones</string>
 
     <!-- Custom Buttons -->
     <string name="custom_buttons">Botones personalizados</string>
