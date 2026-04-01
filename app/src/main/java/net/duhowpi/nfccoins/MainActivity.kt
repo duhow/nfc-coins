@@ -1551,9 +1551,8 @@ class MainActivity : AppCompatActivity() {
 
                     // Compute new balance based on the reverse direction
                     val newBalance = when (undoOp.baseOperation) {
-                        TxOperation.ADD -> balance + amount
-                        TxOperation.SUBTRACT -> balance - amount
-                        else -> balance
+                        TxOperation.ADD, TxOperation.UNDO_ADD -> balance + amount
+                        TxOperation.SUBTRACT, TxOperation.UNDO_SUBTRACT -> balance - amount
                     }
 
                     if (newBalance < 0) {
@@ -1578,7 +1577,7 @@ class MainActivity : AppCompatActivity() {
                     pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newBalanceData, newTransactions)
 
                     when (undoOp.baseOperation) {
-                        TxOperation.ADD -> {
+                        TxOperation.ADD, TxOperation.UNDO_ADD -> {
                             if (data.isSingleRecharge) {
                                 runNfcOperationWithTimeout { card.unlockRecharge(data) }
                             }
@@ -1587,10 +1586,9 @@ class MainActivity : AppCompatActivity() {
                                 runNfcOperationWithTimeout { card.lockRecharge(data) }
                             }
                         }
-                        TxOperation.SUBTRACT -> {
+                        TxOperation.SUBTRACT, TxOperation.UNDO_SUBTRACT -> {
                             runNfcOperationWithTimeout { card.deductBalance(amount, newTransactions) }
                         }
-                        else -> {}
                     }
                     pendingWrite = null
 
@@ -1608,14 +1606,12 @@ class MainActivity : AppCompatActivity() {
 
                     // Record in local DB using the base operation type for operations history
                     val dbType = when (undoOp.baseOperation) {
-                        TxOperation.ADD -> TransactionDatabase.TYPE_ADD
-                        TxOperation.SUBTRACT -> TransactionDatabase.TYPE_SUBTRACT
-                        else -> TransactionDatabase.TYPE_SUBTRACT
+                        TxOperation.ADD, TxOperation.UNDO_ADD -> TransactionDatabase.TYPE_ADD
+                        TxOperation.SUBTRACT, TxOperation.UNDO_SUBTRACT -> TransactionDatabase.TYPE_SUBTRACT
                     }
                     val dbAmount = when (undoOp.baseOperation) {
-                        TxOperation.ADD -> amount
-                        TxOperation.SUBTRACT -> -amount
-                        else -> -amount
+                        TxOperation.ADD, TxOperation.UNDO_ADD -> amount
+                        TxOperation.SUBTRACT, TxOperation.UNDO_SUBTRACT -> -amount
                     }
                     txDb.insertTransaction(
                         type = dbType,
@@ -2545,15 +2541,13 @@ class MainActivity : AppCompatActivity() {
                 val undoPrefix = if (entry.operation.isUndo) "↩ " else ""
                 val amtLabel = if (isDecimalMode) {
                     when (entry.operation.baseOperation) {
-                        TxOperation.ADD      -> "$undoPrefix+${formatBalanceDisplay(entry.amount)}"
-                        TxOperation.SUBTRACT -> "$undoPrefix-${formatBalanceDisplay(entry.amount)}"
-                        else -> ""
+                        TxOperation.ADD, TxOperation.UNDO_ADD           -> "$undoPrefix+${formatBalanceDisplay(entry.amount)}"
+                        TxOperation.SUBTRACT, TxOperation.UNDO_SUBTRACT -> "$undoPrefix-${formatBalanceDisplay(entry.amount)}"
                     }
                 } else {
                     when (entry.operation.baseOperation) {
-                        TxOperation.ADD      -> "$undoPrefix${getString(R.string.tx_add, entry.amount)}"
-                        TxOperation.SUBTRACT -> "$undoPrefix${getString(R.string.tx_subtract, entry.amount)}"
-                        else -> ""
+                        TxOperation.ADD, TxOperation.UNDO_ADD           -> "$undoPrefix${getString(R.string.tx_add, entry.amount)}"
+                        TxOperation.SUBTRACT, TxOperation.UNDO_SUBTRACT -> "$undoPrefix${getString(R.string.tx_subtract, entry.amount)}"
                     }
                 }
                 tv.text = getString(R.string.tx_entry_format, timeLabel, amtLabel)

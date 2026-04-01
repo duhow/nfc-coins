@@ -30,9 +30,8 @@ enum class TxOperation(val code: Byte) {
 
         /** Returns the undo counterpart for a normal operation. */
         fun undoOf(op: TxOperation): TxOperation = when (op.baseOperation) {
-            ADD -> UNDO_SUBTRACT
-            SUBTRACT -> UNDO_ADD
-            else -> throw IllegalArgumentException("Cannot undo $op")
+            ADD, UNDO_ADD -> UNDO_SUBTRACT
+            SUBTRACT, UNDO_SUBTRACT -> UNDO_ADD
         }
     }
 }
