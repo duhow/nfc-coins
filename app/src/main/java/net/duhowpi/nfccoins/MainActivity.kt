@@ -208,7 +208,7 @@ class MainActivity : AppCompatActivity() {
         menu.findItem(R.id.action_undo)?.isVisible = !sellerMode
         val isUndoActive = pendingAction == PendingAction.UNDO_TRANSACTION
         handler.post {
-            val undoView = window.decorView.findViewWithId<View>(R.id.action_undo)
+            val undoView = window.decorView.findViewById<View>(R.id.action_undo)
             if (isUndoActive) {
                 undoView?.setBackgroundColor(0x33FFFFFF) // semi-transparent white overlay
             } else {
