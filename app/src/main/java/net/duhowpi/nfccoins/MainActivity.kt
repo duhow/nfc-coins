@@ -205,7 +205,6 @@ class MainActivity : AppCompatActivity() {
         val sellerMode = AdvancedSettingsActivity.isSellerModeEnabled(this)
         menu.findItem(R.id.action_management)?.isVisible = !sellerMode
         menu.findItem(R.id.action_custom_buttons)?.isVisible = !sellerMode
-        menu.findItem(R.id.action_undo)?.isVisible = !sellerMode
         val isUndoActive = pendingAction == PendingAction.UNDO_TRANSACTION
         handler.post {
             val undoView = window.decorView.findViewById<View>(R.id.action_undo)
