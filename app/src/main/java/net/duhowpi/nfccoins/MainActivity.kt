@@ -221,7 +221,7 @@ class MainActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_undo -> {
-                startUndoTransaction()
+                if (pendingAction == PendingAction.UNDO_TRANSACTION) resetToWaiting() else startUndoTransaction()
                 true
             }
             R.id.action_history -> {
@@ -1365,6 +1365,7 @@ class MainActivity : AppCompatActivity() {
         if (scheduleAutoReset) {
             this.scheduleAutoReset()
         }
+        invalidateOptionsMenu()
     }
 
     private fun setScreenStatusSuccess(
@@ -1382,6 +1383,7 @@ class MainActivity : AppCompatActivity() {
         if (scheduleAutoReset) {
             this.scheduleAutoReset()
         }
+        invalidateOptionsMenu()
     }
 
     /**
