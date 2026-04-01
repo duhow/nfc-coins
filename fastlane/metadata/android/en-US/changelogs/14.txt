@@ -1,1 +1,1 @@
-Add user-facing changes for the next release here.
+- Added undo transaction button to revert the last card operation

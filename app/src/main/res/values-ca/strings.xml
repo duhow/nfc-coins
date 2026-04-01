@@ -136,6 +136,15 @@
     <string name="replay_allow_confirmed">Permís activat per al següent toc d\'aquesta targeta</string>
     <string name="write_retried">S\'ha reintentat l\'escriptura després d\'una interrupció anterior</string>
 
+    <!-- Undo transaction -->
+    <string name="undo_transaction">Desfer transacció</string>
+    <string name="tap_card_to_undo">Apropa la targeta per desfer l\'última operació…</string>
+    <string name="undo_success">Transacció desfeta correctament</string>
+    <string name="undo_cannot">No es pot desfer</string>
+    <string name="undo_already_undone">L\'última transacció ja és una anul·lació</string>
+    <string name="undo_expired">La transacció té més de 24 hores</string>
+    <string name="undo_no_transactions">No s\'han trobat transaccions</string>
+
     <!-- Custom Buttons -->
     <string name="custom_buttons">Botons personalitzats</string>
     <string name="custom_buttons_hint">Toca un botó per editar-lo. Mantén-lo premut i arrossega per reordenar. Elimina\'l des del diàleg d\'edició.</string>

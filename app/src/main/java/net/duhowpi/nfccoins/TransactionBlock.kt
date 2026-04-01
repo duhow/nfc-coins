@@ -6,10 +6,33 @@ import javax.crypto.spec.SecretKeySpec
 /** Operation types stored in transaction records. */
 enum class TxOperation(val code: Byte) {
     ADD(0x01),
-    SUBTRACT(0x02);
+    SUBTRACT(0x02),
+    /** Undo of a previous ADD – effectively subtracts the amount back. */
+    UNDO_ADD(0x09),
+    /** Undo of a previous SUBTRACT – effectively adds the amount back. */
+    UNDO_SUBTRACT(0x0A);
+
+    /** `true` when this operation represents an undo (bit 4 set). */
+    val isUndo: Boolean get() = (code.toInt() and UNDO_FLAG) != 0
+
+    /** Returns the base direction of this operation ignoring the undo flag. */
+    val baseOperation: TxOperation
+        get() = when (this) {
+            ADD, UNDO_ADD -> ADD
+            SUBTRACT, UNDO_SUBTRACT -> SUBTRACT
+        }
 
     companion object {
+        /** Bit mask that marks an operation as an undo. */
+        const val UNDO_FLAG = 0x08
+
         fun fromByte(b: Byte): TxOperation? = entries.firstOrNull { it.code == b }
+
+        /** Returns the undo counterpart for a normal operation. */
+        fun undoOf(op: TxOperation): TxOperation = when (op.baseOperation) {
+            ADD, UNDO_ADD -> UNDO_SUBTRACT
+            SUBTRACT, UNDO_SUBTRACT -> UNDO_ADD
+        }
     }
 }
 

@@ -85,9 +85,11 @@ class MainActivity : AppCompatActivity() {
         private const val UI_FRAME_DELAY_MS = 16L
         private const val NFC_OPERATION_TIMEOUT_MS = 1000L
         private const val LOG_TAG = "MainActivity"
+        /** Maximum age of a transaction (in seconds) for it to be eligible for undo. */
+        private const val UNDO_MAX_AGE_SECONDS = 24L * 60 * 60
     }
 
-    private enum class PendingAction { NONE, WITHDRAW_BALANCE, ADD_BALANCE, FORMAT_CARD, RESET_CARD }
+    private enum class PendingAction { NONE, WITHDRAW_BALANCE, ADD_BALANCE, FORMAT_CARD, RESET_CARD, UNDO_TRANSACTION }
 
     private lateinit var rootLayout: View
     private lateinit var tvStatus: TextView
@@ -203,11 +205,24 @@ class MainActivity : AppCompatActivity() {
         val sellerMode = AdvancedSettingsActivity.isSellerModeEnabled(this)
         menu.findItem(R.id.action_management)?.isVisible = !sellerMode
         menu.findItem(R.id.action_custom_buttons)?.isVisible = !sellerMode
+        val isUndoActive = pendingAction == PendingAction.UNDO_TRANSACTION
+        handler.post {
+            val undoView = window.decorView.findViewById<View>(R.id.action_undo)
+            if (isUndoActive) {
+                undoView?.setBackgroundColor(0x33FFFFFF) // semi-transparent white overlay
+            } else {
+                undoView?.setBackgroundColor(Color.TRANSPARENT)
+            }
+        }
         return super.onPrepareOptionsMenu(menu)
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_undo -> {
+                if (pendingAction == PendingAction.UNDO_TRANSACTION) resetToWaiting() else startUndoTransaction()
+                true
+            }
             R.id.action_history -> {
                 startActivity(Intent(this, OperationsHistoryActivity::class.java))
                 true
@@ -445,6 +460,10 @@ class MainActivity : AppCompatActivity() {
                 PendingAction.RESET_CARD -> {
                     pendingAction = PendingAction.NONE
                     resetCard(card)
+                }
+                PendingAction.UNDO_TRANSACTION -> {
+                    pendingAction = PendingAction.NONE
+                    undoLastTransaction(card)
                 }
                 PendingAction.WITHDRAW_BALANCE -> {
                     // Do not clear pendingAction here; readAndDeduct manages state depending on
@@ -1345,6 +1364,7 @@ class MainActivity : AppCompatActivity() {
         if (scheduleAutoReset) {
             this.scheduleAutoReset()
         }
+        invalidateOptionsMenu()
     }
 
     private fun setScreenStatusSuccess(
@@ -1362,6 +1382,7 @@ class MainActivity : AppCompatActivity() {
         if (scheduleAutoReset) {
             this.scheduleAutoReset()
         }
+        invalidateOptionsMenu()
     }
 
     /**
@@ -1379,8 +1400,10 @@ class MainActivity : AppCompatActivity() {
             PendingAction.NONE -> handler.removeCallbacks(autoResetRunnable)
             PendingAction.WITHDRAW_BALANCE -> handler.removeCallbacks(autoResetRunnable)
             PendingAction.ADD_BALANCE -> handler.removeCallbacks(autoResetRunnable)
+            PendingAction.UNDO_TRANSACTION -> handler.removeCallbacks(autoResetRunnable)
             else -> scheduleAutoReset() // removes any existing callback before posting the new one
         }
+        onUiThread { invalidateOptionsMenu() }
     }
 
     private fun resetToWaiting() {
@@ -1401,6 +1424,7 @@ class MainActivity : AppCompatActivity() {
         hideReplayAllowAction()
         pendingAction = PendingAction.NONE
         pendingAddAmount = 0
+        invalidateOptionsMenu()
     }
 
     /**
@@ -1432,6 +1456,216 @@ class MainActivity : AppCompatActivity() {
         clearHiddenInput()
         resetBalanceToInitial()
         tvStatus.text = getString(R.string.waiting_card)
+    }
+
+    // -------------------------------------------------------------------------
+    // Undo transaction
+    // -------------------------------------------------------------------------
+
+    /** Enters undo mode: one-shot, resets to NONE after the next card tap regardless of outcome. */
+    private fun startUndoTransaction() {
+        cancelAddBalance()
+        clearCustomButtonSelection()
+        setPendingAction(PendingAction.UNDO_TRANSACTION)
+        resetBalanceToInitial()
+        layoutBeforeAfter.visibility = View.GONE
+        tvActualBalance.visibility = View.GONE
+        layoutTransactionHistory.visibility = View.GONE
+        tvTx.forEach { it.visibility = View.GONE }
+        tvStatus.text = getString(R.string.tap_card_to_undo)
+    }
+
+    /**
+     * Reads the card, validates that the last transaction can be undone, and performs the
+     * reverse operation. Resets to [PendingAction.NONE] on both success and failure.
+     */
+    private fun undoLastTransaction(card: BaseCoinCard) {
+        try {
+            runNfcOperationWithTimeout { card.connect() }
+            when (val result = runNfcOperationWithTimeout { card.readCardData() }) {
+                is BaseCoinCard.ReadResult.AuthFailed -> {
+                    return setScreenStatusError(getString(R.string.auth_failed))
+                }
+                is BaseCoinCard.ReadResult.InvalidData -> {
+                    return setScreenStatusError(invalidDataMessage(result.reason))
+                }
+                is BaseCoinCard.ReadResult.Success -> {
+                    val data = result.data
+                    val txBlock = data.transactions
+
+                    // Anti-tampering: verify checksum before performing any operation.
+                    if (!card.isDataValid(data)) {
+                        val pw = pendingWrite
+                        if (pw != null && pw.matchesUid(card.uid)) {
+                            runNfcOperationWithTimeout { card.retryPendingWrite(pw) }
+                            recordPendingWriteStateAsTrusted(card.uid.toHex(), data.balance, pw)
+                            pendingWrite = null
+                            onUiThread { tvStatus.text = getString(R.string.write_retried) }
+                            scheduleAutoReset()
+                            return
+                        }
+                        if (AdvancedSettingsActivity.isVerifyIntegrityEnabled(this)) {
+                            showTransactionHistory(txBlock)
+                            showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
+                            onUiThread { tvStatus.text = "${getString(R.string.card_tampered)}\n${getString(R.string.operation_cancelled)}" }
+                            flashRedBackground()
+                            playNfcErrorBeep()
+                            scheduleAutoReset()
+                            return
+                        }
+                    }
+                    // Replay-attack detection
+                    if (!AdvancedSettingsActivity.isDistributedPosEnabled(this)) {
+                        val currentChecksum = data.checksum.toHex()
+                        if (!txDb.isChecksumValid(card.uid.toHex(), currentChecksum)) {
+                            if (acceptPendingWriteState(card, data, currentChecksum)) {
+                                // Accepted
+                            } else if (acceptConfirmedReplayAllowance(card, data, currentChecksum)) {
+                                // User confirmed
+                            } else {
+                                showTransactionHistory(txBlock)
+                                showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
+                                return showReplayAttackDetected(card.uid.toHex(), currentChecksum, scheduleReset = true)
+                            }
+                        }
+                    }
+                    pendingWrite = pendingWrite?.takeUnless { it.matchesUid(card.uid) }
+
+                    val entries = txBlock.transactions
+                    if (entries.isEmpty()) {
+                        showTransactionHistory(txBlock)
+                        showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
+                        return setScreenStatusError("${getString(R.string.undo_cannot)}\n${getString(R.string.undo_no_transactions)}")
+                    }
+
+                    val lastTx = entries.last()
+
+                    // Prevent undoing an undo
+                    if (lastTx.operation.isUndo) {
+                        showTransactionHistory(txBlock)
+                        showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
+                        return setScreenStatusError("${getString(R.string.undo_cannot)}\n${getString(R.string.undo_already_undone)}")
+                    }
+
+                    // Check 24-hour window
+                    val nowSeconds = System.currentTimeMillis() / 1000L
+                    val txAbsoluteSeconds = txBlock.initTimestamp + lastTx.secondsOffset
+                    if (nowSeconds - txAbsoluteSeconds > UNDO_MAX_AGE_SECONDS) {
+                        showTransactionHistory(txBlock)
+                        showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
+                        return setScreenStatusError("${getString(R.string.undo_cannot)}\n${getString(R.string.undo_expired)}")
+                    }
+
+                    // Determine the reverse operation
+                    val undoOp = TxOperation.undoOf(lastTx.operation)
+                    val amount = lastTx.amount
+                    val balance = data.balance
+
+                    // Compute new balance based on the reverse direction
+                    val newBalance = when (undoOp.baseOperation) {
+                        TxOperation.ADD, TxOperation.UNDO_ADD -> balance + amount
+                        TxOperation.SUBTRACT, TxOperation.UNDO_SUBTRACT -> balance - amount
+                    }
+
+                    if (newBalance < 0) {
+                        showTransactionHistory(txBlock)
+                        showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
+                        return setScreenStatusError(getString(R.string.insufficient_balance))
+                    }
+                    if (newBalance > card.maxBalance) {
+                        showTransactionHistory(txBlock)
+                        showDebugChecksums(card, data.balance, data.transactionsDataWithChecksum)
+                        onUiThread { Toast.makeText(this, getString(R.string.balance_too_high), Toast.LENGTH_SHORT).show() }
+                        scheduleAutoReset()
+                        return
+                    }
+
+                    val newBalanceData = card.encodeBalance(newBalance)
+                    val (updatedTxBlock, newTransactions) = card.buildUpdatedTxBlocks(
+                        txBlock, newBalanceData, undoOp, amount
+                    )
+
+                    // Retain the intended state for interrupted write recovery.
+                    pendingWrite = BaseCoinCard.PendingWriteData(card.uid, newBalanceData, newTransactions)
+
+                    when (undoOp.baseOperation) {
+                        TxOperation.ADD, TxOperation.UNDO_ADD -> {
+                            if (data.isSingleRecharge) {
+                                runNfcOperationWithTimeout { card.unlockRecharge(data) }
+                            }
+                            runNfcOperationWithTimeout { card.addBalance(amount, newTransactions) }
+                            if (data.isSingleRecharge) {
+                                runNfcOperationWithTimeout { card.lockRecharge(data) }
+                            }
+                        }
+                        TxOperation.SUBTRACT, TxOperation.UNDO_SUBTRACT -> {
+                            runNfcOperationWithTimeout { card.deductBalance(amount, newTransactions) }
+                        }
+                    }
+                    pendingWrite = null
+
+                    currentBalance = newBalance
+                    setBalanceDisplay(newBalance)
+                    updateMinorIndicator(data.userBirthYear)
+                    onUiThread {
+                        tvBalanceBefore.text = formatBalanceDisplay(balance)
+                        tvBalanceAfter.text = formatBalanceDisplay(newBalance)
+                        layoutBeforeAfter.visibility = View.VISIBLE
+                        tvActualBalance.visibility = View.GONE
+                    }
+                    showTransactionHistory(updatedTxBlock)
+                    showDebugChecksums(card, newBalance, newTransactions)
+
+                    // Record in local DB using the base operation type for operations history
+                    val dbType = when (undoOp.baseOperation) {
+                        TxOperation.ADD, TxOperation.UNDO_ADD -> TransactionDatabase.TYPE_ADD
+                        TxOperation.SUBTRACT, TxOperation.UNDO_SUBTRACT -> TransactionDatabase.TYPE_SUBTRACT
+                    }
+                    val dbAmount = when (undoOp.baseOperation) {
+                        TxOperation.ADD, TxOperation.UNDO_ADD -> amount
+                        TxOperation.SUBTRACT, TxOperation.UNDO_SUBTRACT -> -amount
+                    }
+                    txDb.insertTransaction(
+                        type = dbType,
+                        amount = dbAmount,
+                        balanceBefore = balance,
+                        balanceAfter = newBalance,
+                        cardUid = card.uid.toHex(),
+                        buttonValue = amount
+                    )
+                    if (!AdvancedSettingsActivity.isDistributedPosEnabled(this)) {
+                        txDb.recordCardState(
+                            cardUid = card.uid.toHex(),
+                            checksum = newTransactions.copyOfRange(
+                                newTransactions.size - TX_CHECKSUM_SIZE,
+                                newTransactions.size
+                            ).toHex(),
+                            balanceBefore = balance,
+                            balanceAfter = newBalance
+                        )
+                    }
+                    setScreenStatusSuccess(
+                        message = getString(R.string.undo_success),
+                        background = null
+                    )
+                    if (AdvancedSettingsActivity.isBroadcastEnabled(this)) {
+                        sendBroadcast(Intent("$packageName.ACTION_TRANSACTION").apply {
+                            putExtra("uid", card.uid.toHex())
+                            putExtra("amount", dbAmount)
+                        })
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            if (e is NfcOperationTimeoutException) {
+                closeCardAfterTimeout(card)
+                setScreenStatusError(getString(R.string.error_operation_timeout))
+            } else {
+                setScreenStatusError(getString(R.string.error_writing, e.message))
+            }
+        } finally {
+            card.close()
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -2316,15 +2550,16 @@ class MainActivity : AppCompatActivity() {
                 val txEpochMs = (txBlock.initTimestamp + entry.secondsOffset) * 1000L
                 val fmt = if (txEpochMs >= todayStart) timeFmt else dateFmt
                 val timeLabel = fmt.format(Date(txEpochMs))
+                val undoPrefix = if (entry.operation.isUndo) "↩ " else ""
                 val amtLabel = if (isDecimalMode) {
-                    when (entry.operation) {
-                        TxOperation.ADD      -> "+${formatBalanceDisplay(entry.amount)}"
-                        TxOperation.SUBTRACT -> "-${formatBalanceDisplay(entry.amount)}"
+                    when (entry.operation.baseOperation) {
+                        TxOperation.ADD, TxOperation.UNDO_ADD           -> "$undoPrefix+${formatBalanceDisplay(entry.amount)}"
+                        TxOperation.SUBTRACT, TxOperation.UNDO_SUBTRACT -> "$undoPrefix-${formatBalanceDisplay(entry.amount)}"
                     }
                 } else {
-                    when (entry.operation) {
-                        TxOperation.ADD      -> getString(R.string.tx_add, entry.amount)
-                        TxOperation.SUBTRACT -> getString(R.string.tx_subtract, entry.amount)
+                    when (entry.operation.baseOperation) {
+                        TxOperation.ADD, TxOperation.UNDO_ADD           -> "$undoPrefix${getString(R.string.tx_add, entry.amount)}"
+                        TxOperation.SUBTRACT, TxOperation.UNDO_SUBTRACT -> "$undoPrefix${getString(R.string.tx_subtract, entry.amount)}"
                     }
                 }
                 tv.text = getString(R.string.tx_entry_format, timeLabel, amtLabel)
