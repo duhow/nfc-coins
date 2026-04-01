@@ -131,6 +131,14 @@
     <string name="replay_allow_confirmed">Permiso activado para el siguiente acercamiento de esta tarjeta</string>
     <string name="write_retried">Escritura reiniciada tras interrupción anterior</string>
 
+    <!-- Undo transaction -->
+    <string name="undo_transaction">Deshacer transacción</string>
+    <string name="tap_card_to_undo">Acerca la tarjeta para deshacer la última operación…</string>
+    <string name="undo_success">Transacción deshecha correctamente</string>
+    <string name="undo_already_undone">No se puede deshacer: la última transacción ya es una anulación</string>
+    <string name="undo_expired">No se puede deshacer: la transacción tiene más de 24 horas</string>
+    <string name="undo_no_transactions">No se puede deshacer: no se encontraron transacciones</string>
+
     <!-- Custom Buttons -->
     <string name="custom_buttons">Botones personalizados</string>
     <string name="custom_buttons_hint">Toca un botón para editarlo. Mantén pulsado y arrastra para reordenar. Elimina desde el diálogo de edición.</string>
