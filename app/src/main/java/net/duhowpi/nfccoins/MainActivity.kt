@@ -87,6 +87,37 @@ class MainActivity : AppCompatActivity() {
         private const val LOG_TAG = "MainActivity"
         /** Maximum age of a transaction (in seconds) for it to be eligible for undo. */
         private const val UNDO_MAX_AGE_SECONDS = 24L * 60 * 60
+
+        // Keys used in onSaveInstanceState / onRestoreInstanceState
+        private const val KEY_PENDING_ACTION            = "pendingAction"
+        private const val KEY_SELECTED_BUTTON_INDEX     = "selectedButtonIndex"
+        private const val KEY_CURRENT_BALANCE           = "currentBalance"
+        private const val KEY_PENDING_ADD_AMOUNT        = "pendingAddAmount"
+        private const val KEY_CUSTOM_DEDUCT_AMOUNT      = "customDeductAmount"
+        private const val KEY_IS_CUSTOM_AMOUNT_MODE     = "isCustomAmountMode"
+        private const val KEY_IS_ADD_BALANCE_MODE       = "isAddBalanceMode"
+        private const val KEY_PENDING_WRITE_UID         = "pendingWriteUid"
+        private const val KEY_PENDING_WRITE_BALANCE     = "pendingWriteBalance"
+        private const val KEY_PENDING_WRITE_TX          = "pendingWriteTx"
+        private const val KEY_REPLAY_CANDIDATE_UID      = "replayCandidateUid"
+        private const val KEY_REPLAY_CANDIDATE_CHECKSUM = "replayCandidateChecksum"
+        private const val KEY_REPLAY_CONFIRMED_UID      = "replayConfirmedUid"
+        private const val KEY_REPLAY_CONFIRMED_CHECKSUM = "replayConfirmedChecksum"
+        private const val KEY_PENDING_SINGLE_RECHARGE   = "pendingSingleRecharge"
+        private const val KEY_PENDING_USER_BIRTH_YEAR   = "pendingUserBirthYear"
+        private const val KEY_BATTERY_OPT_REQUESTED     = "batteryOptRequested"
+        private const val KEY_TV_STATUS                 = "tvStatus"
+        private const val KEY_TV_CARD_ID                = "tvCardId"
+        private const val KEY_TV_BALANCE_BEFORE         = "tvBalanceBefore"
+        private const val KEY_TV_BALANCE_AFTER          = "tvBalanceAfter"
+        private const val KEY_TV_ACTUAL_BALANCE         = "tvActualBalance"
+        private const val KEY_VIS_BEFORE_AFTER          = "visBeforeAfter"
+        private const val KEY_VIS_ACTUAL_BALANCE        = "visActualBalance"
+        private const val KEY_VIS_MINOR_ICON            = "visMinorIcon"
+        private const val KEY_VIS_TX_HISTORY            = "visTxHistory"
+        private const val KEY_TV_TX_PREFIX              = "tvTx_"
+        private const val KEY_VIS_TX_PREFIX             = "visTx_"
+        private const val KEY_VIS_REPLAY_ALLOW          = "visReplayAllow"
     }
 
     private enum class PendingAction { NONE, WITHDRAW_BALANCE, ADD_BALANCE, FORMAT_CARD, RESET_CARD, UNDO_TRANSACTION }
@@ -139,6 +170,8 @@ class MainActivity : AppCompatActivity() {
 
     private var wakeLock: PowerManager.WakeLock? = null
     private var batteryOptimizationRequested = false
+    /** Holds the bundle passed to [onRestoreInstanceState] until it can be consumed at the end of [onResume]. */
+    private var savedStateToRestore: Bundle? = null
     private val nfcOperationExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "nfc-op-timeout").apply { isDaemon = true }
     }
@@ -185,10 +218,12 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        if (intent?.action == NfcAdapter.ACTION_TECH_DISCOVERED) {
-            handleNfcIntent(intent)
-        } else if (intent?.action == Intent.ACTION_VIEW) {
-            handleAmountIntent(intent)
+        if (savedInstanceState == null) {
+            if (intent?.action == NfcAdapter.ACTION_TECH_DISCOVERED) {
+                handleNfcIntent(intent)
+            } else if (intent?.action == Intent.ACTION_VIEW) {
+                handleAmountIntent(intent)
+            }
         }
 
         // Pre-warm the audio hardware so the first startTone() call fires without the
@@ -271,6 +306,10 @@ class MainActivity : AppCompatActivity() {
         applyThemeColor()
         rebuildCustomButtons()
         invalidateOptionsMenu()
+        // Restore operation state after a configuration change (e.g. rotation). This must run
+        // after checkNfcEnabled() and rebuildCustomButtons() so they don't overwrite our state.
+        savedStateToRestore?.let { restoreOperationState(it) }
+        savedStateToRestore = null
     }
 
     override fun onPause() {
@@ -279,7 +318,9 @@ class MainActivity : AppCompatActivity() {
         releaseWakeLock()
         // Deselect any active button and reset UI state when leaving so that returning from
         // another activity (history, settings, …) never leaves the interface in a stale mode.
-        if (selectedButtonIndex >= 0 || isAddBalanceMode) {
+        // Skip this reset during configuration changes (e.g. rotation) so the operation state
+        // is preserved and can be restored in the new Activity instance.
+        if (!isChangingConfigurations && (selectedButtonIndex >= 0 || isAddBalanceMode)) {
             handler.removeCallbacks(autoResetRunnable)
             resetToWaiting()
         }
@@ -289,6 +330,12 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         releaseWakeLock()
         handler.removeCallbacksAndMessages(BEEP_TOKEN)
+        if (isChangingConfigurations) {
+            // Clean up any pending UI runnables so they don't fire on stale views.
+            handler.removeCallbacks(autoResetRunnable)
+            handler.removeCallbacks(buttonModeIdleRunnable)
+            handler.removeCallbacksAndMessages(FLASH_TOKEN)
+        }
         if (isFinishing) {
             synchronized(toneGeneratorLock) {
                 sharedToneGenerator?.release()
@@ -305,6 +352,119 @@ class MainActivity : AppCompatActivity() {
         } else {
             handleNfcIntent(intent)
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(KEY_PENDING_ACTION, pendingAction.ordinal)
+        outState.putInt(KEY_SELECTED_BUTTON_INDEX, selectedButtonIndex)
+        outState.putInt(KEY_CURRENT_BALANCE, currentBalance)
+        outState.putInt(KEY_PENDING_ADD_AMOUNT, pendingAddAmount)
+        outState.putInt(KEY_CUSTOM_DEDUCT_AMOUNT, customDeductAmount)
+        outState.putBoolean(KEY_IS_CUSTOM_AMOUNT_MODE, isCustomAmountMode)
+        outState.putBoolean(KEY_IS_ADD_BALANCE_MODE, isAddBalanceMode)
+        outState.putBoolean(KEY_PENDING_SINGLE_RECHARGE, pendingSingleRecharge)
+        outState.putInt(KEY_PENDING_USER_BIRTH_YEAR, pendingUserBirthYear)
+        outState.putBoolean(KEY_BATTERY_OPT_REQUESTED, batteryOptimizationRequested)
+        pendingWrite?.let {
+            outState.putByteArray(KEY_PENDING_WRITE_UID, it.uid)
+            outState.putByteArray(KEY_PENDING_WRITE_BALANCE, it.balanceData)
+            outState.putByteArray(KEY_PENDING_WRITE_TX, it.transactions)
+        }
+        replayAllowanceCandidate?.let {
+            outState.putString(KEY_REPLAY_CANDIDATE_UID, it.cardUid)
+            outState.putString(KEY_REPLAY_CANDIDATE_CHECKSUM, it.checksum)
+        }
+        replayAllowanceConfirmed?.let {
+            outState.putString(KEY_REPLAY_CONFIRMED_UID, it.cardUid)
+            outState.putString(KEY_REPLAY_CONFIRMED_CHECKSUM, it.checksum)
+        }
+        // Save display state for views that Android does not auto-persist
+        outState.putString(KEY_TV_STATUS, tvStatus.text.toString())
+        outState.putString(KEY_TV_CARD_ID, tvCardId.text.toString())
+        outState.putInt(KEY_VIS_BEFORE_AFTER, layoutBeforeAfter.visibility)
+        outState.putString(KEY_TV_BALANCE_BEFORE, tvBalanceBefore.text.toString())
+        outState.putString(KEY_TV_BALANCE_AFTER, tvBalanceAfter.text.toString())
+        outState.putInt(KEY_VIS_ACTUAL_BALANCE, tvActualBalance.visibility)
+        outState.putString(KEY_TV_ACTUAL_BALANCE, tvActualBalance.text.toString())
+        outState.putInt(KEY_VIS_MINOR_ICON, tvMinorIcon.visibility)
+        outState.putInt(KEY_VIS_TX_HISTORY, layoutTransactionHistory.visibility)
+        tvTx.forEachIndexed { i, tv ->
+            outState.putString("$KEY_TV_TX_PREFIX$i", tv.text.toString())
+            outState.putInt("$KEY_VIS_TX_PREFIX$i", tv.visibility)
+        }
+        outState.putInt(KEY_VIS_REPLAY_ALLOW, tvReplayAllow.visibility)
+    }
+
+    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
+        super.onRestoreInstanceState(savedInstanceState)
+        // Defer the full restore until the end of onResume, after checkNfcEnabled() and
+        // rebuildCustomButtons() have run, so they don't overwrite our restored state.
+        savedStateToRestore = savedInstanceState
+    }
+
+    /**
+     * Restores operation state and display after a configuration change (e.g. screen rotation).
+     * Called at the end of [onResume] so it runs after [checkNfcEnabled] and [rebuildCustomButtons].
+     */
+    private fun restoreOperationState(b: Bundle) {
+        // Restore logical state
+        pendingAction = PendingAction.values()[b.getInt(KEY_PENDING_ACTION, PendingAction.NONE.ordinal)]
+        selectedButtonIndex = b.getInt(KEY_SELECTED_BUTTON_INDEX, -1)
+        currentBalance = b.getInt(KEY_CURRENT_BALANCE, -1)
+        pendingAddAmount = b.getInt(KEY_PENDING_ADD_AMOUNT, 0)
+        customDeductAmount = b.getInt(KEY_CUSTOM_DEDUCT_AMOUNT, 0)
+        isCustomAmountMode = b.getBoolean(KEY_IS_CUSTOM_AMOUNT_MODE, false)
+        isAddBalanceMode = b.getBoolean(KEY_IS_ADD_BALANCE_MODE, false)
+        pendingSingleRecharge = b.getBoolean(KEY_PENDING_SINGLE_RECHARGE, false)
+        pendingUserBirthYear = b.getInt(KEY_PENDING_USER_BIRTH_YEAR, pendingUserBirthYear)
+        batteryOptimizationRequested = b.getBoolean(KEY_BATTERY_OPT_REQUESTED, false)
+        val uid = b.getByteArray(KEY_PENDING_WRITE_UID)
+        val balanceData = b.getByteArray(KEY_PENDING_WRITE_BALANCE)
+        val txData = b.getByteArray(KEY_PENDING_WRITE_TX)
+        pendingWrite = if (uid != null && balanceData != null && txData != null)
+            BaseCoinCard.PendingWriteData(uid, balanceData, txData) else null
+        val candidateUid = b.getString(KEY_REPLAY_CANDIDATE_UID)
+        val candidateChecksum = b.getString(KEY_REPLAY_CANDIDATE_CHECKSUM)
+        replayAllowanceCandidate = if (candidateUid != null && candidateChecksum != null)
+            ReplayAllowance(candidateUid, candidateChecksum) else null
+        val confirmedUid = b.getString(KEY_REPLAY_CONFIRMED_UID)
+        val confirmedChecksum = b.getString(KEY_REPLAY_CONFIRMED_CHECKSUM)
+        replayAllowanceConfirmed = if (confirmedUid != null && confirmedChecksum != null)
+            ReplayAllowance(confirmedUid, confirmedChecksum) else null
+
+        // Restore display state
+        b.getString(KEY_TV_STATUS)?.let { tvStatus.text = it }
+        b.getString(KEY_TV_CARD_ID)?.let { tvCardId.text = it }
+        layoutBeforeAfter.visibility = b.getInt(KEY_VIS_BEFORE_AFTER, View.GONE)
+        if (layoutBeforeAfter.visibility == View.VISIBLE) {
+            tvBalanceBefore.text = b.getString(KEY_TV_BALANCE_BEFORE, "")
+            tvBalanceAfter.text = b.getString(KEY_TV_BALANCE_AFTER, "")
+        }
+        tvActualBalance.visibility = b.getInt(KEY_VIS_ACTUAL_BALANCE, View.GONE)
+        if (tvActualBalance.visibility == View.VISIBLE) {
+            tvActualBalance.text = b.getString(KEY_TV_ACTUAL_BALANCE, "")
+        }
+        tvMinorIcon.visibility = b.getInt(KEY_VIS_MINOR_ICON, View.GONE)
+        layoutTransactionHistory.visibility = b.getInt(KEY_VIS_TX_HISTORY, View.GONE)
+        tvTx.forEachIndexed { i, tv ->
+            tv.text = b.getString("$KEY_TV_TX_PREFIX$i", "")
+            tv.visibility = b.getInt("$KEY_VIS_TX_PREFIX$i", View.GONE)
+        }
+        tvReplayAllow.visibility = b.getInt(KEY_VIS_REPLAY_ALLOW, View.GONE)
+
+        // Re-apply button selection styling on the freshly-built button views
+        if (selectedButtonIndex >= 0) {
+            applyButtonSelectionStyle(selectedButtonIndex, selected = true)
+        }
+
+        // Re-schedule auto-reset for actions that use it
+        when (pendingAction) {
+            PendingAction.FORMAT_CARD, PendingAction.RESET_CARD -> scheduleAutoReset()
+            else -> {}
+        }
+
+        invalidateOptionsMenu()
     }
 
     // -------------------------------------------------------------------------
