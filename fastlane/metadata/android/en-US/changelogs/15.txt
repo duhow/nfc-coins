@@ -1,1 +1,1 @@
-- Fixed screen rotation resetting the active operation (selected button, amount, pending action)
+- Fixed screen rotation resetting active operation

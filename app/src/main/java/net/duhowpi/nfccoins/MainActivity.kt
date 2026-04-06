@@ -417,7 +417,7 @@ class MainActivity : AppCompatActivity() {
         isCustomAmountMode = b.getBoolean(KEY_IS_CUSTOM_AMOUNT_MODE, false)
         isAddBalanceMode = b.getBoolean(KEY_IS_ADD_BALANCE_MODE, false)
         pendingSingleRecharge = b.getBoolean(KEY_PENDING_SINGLE_RECHARGE, false)
-        pendingUserBirthYear = b.getInt(KEY_PENDING_USER_BIRTH_YEAR, pendingUserBirthYear)
+        pendingUserBirthYear = b.getInt(KEY_PENDING_USER_BIRTH_YEAR, MifareClassicHelper.toUserBirthYear(MifareClassicHelper.DEFAULT_USER_BYTE))
         batteryOptimizationRequested = b.getBoolean(KEY_BATTERY_OPT_REQUESTED, false)
         val uid = b.getByteArray(KEY_PENDING_WRITE_UID)
         val balanceData = b.getByteArray(KEY_PENDING_WRITE_BALANCE)
