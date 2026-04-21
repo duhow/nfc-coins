@@ -5,6 +5,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.graphics.Color
@@ -149,29 +150,7 @@ class MainActivity : AppCompatActivity() {
         migrateLanguagePrefIfNeeded()
         setContentView(R.layout.activity_main)
 
-        rootLayout        = findViewById(R.id.rootLayout)
-        tvStatus          = findViewById(R.id.tvStatus)
-        tvReplayAllow     = findViewById(R.id.tvReplayAllow)
-        tvBalance         = findViewById(R.id.tvBalance)
-        tvMinorIcon       = findViewById(R.id.tvMinorIcon)
-        tvCardId          = findViewById(R.id.tvCardId)
-        tvCoinsLabel      = findViewById(R.id.tvCoinsLabel)
-        tvBalanceBefore   = findViewById(R.id.tvBalanceBefore)
-        tvBalanceAfter    = findViewById(R.id.tvBalanceAfter)
-        tvActualBalance   = findViewById(R.id.tvActualBalance)
-        layoutBeforeAfter = findViewById(R.id.layoutBeforeAfter)
-        layoutCustomButtons = findViewById(R.id.layoutCustomButtons)
-        etHiddenInput     = findViewById(R.id.etHiddenInput)
-        progressBarNfc    = findViewById(R.id.progressBarNfc)
-        layoutTransactionHistory = findViewById(R.id.layoutTransactionHistory)
-        tvTx = arrayOf(
-            findViewById(R.id.tvTx0),
-            findViewById(R.id.tvTx1),
-            findViewById(R.id.tvTx2),
-            findViewById(R.id.tvTx3)
-        )
-        tvTxDebug = findViewById(R.id.tvTxDebug)
-
+        bindViews()
         setupBalanceEditText()
         rebuildCustomButtons()
         applyThemeColor()
@@ -305,6 +284,96 @@ class MainActivity : AppCompatActivity() {
         } else {
             handleNfcIntent(intent)
         }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // Snapshot current display state before the view tree is replaced.
+        val statusText         = tvStatus.text
+        val statusVis          = tvStatus.visibility
+        val cardIdText         = tvCardId.text
+        val balanceText        = tvBalance.text
+        val balanceTag         = tvBalance.tag
+        val coinsLabelVis      = tvCoinsLabel.visibility
+        val customButtonsVis   = layoutCustomButtons.visibility
+        val beforeAfterVis     = layoutBeforeAfter.visibility
+        val balanceBeforeText  = tvBalanceBefore.text
+        val balanceAfterText   = tvBalanceAfter.text
+        val actualBalanceVis   = tvActualBalance.visibility
+        val actualBalanceText  = tvActualBalance.text
+        val minorIconVis       = tvMinorIcon.visibility
+        val txHistoryVis       = layoutTransactionHistory.visibility
+        val txTexts            = tvTx.map { it.text }
+        val txVis              = tvTx.map { it.visibility }
+        val txDebugText        = tvTxDebug.text
+        val txDebugVis         = tvTxDebug.visibility
+        val replayAllowVis     = tvReplayAllow.visibility
+        val progressVis        = progressBarNfc.visibility
+        val progressValue      = progressBarNfc.progress
+
+        // Re-inflate layout; Android automatically selects layout-land in landscape.
+        setContentView(R.layout.activity_main)
+        bindViews()
+        setupBalanceEditText()
+        rebuildCustomButtons()
+        applyThemeColor()
+        tvReplayAllow.setOnClickListener { onReplayAllowClicked() }
+
+        // Restore display state onto the freshly-inflated views.
+        tvStatus.text              = statusText
+        tvStatus.visibility        = statusVis
+        tvCardId.text              = cardIdText
+        tvBalance.setText(balanceText)
+        tvBalance.tag              = balanceTag
+        tvCoinsLabel.visibility    = coinsLabelVis
+        layoutCustomButtons.visibility = customButtonsVis
+        layoutBeforeAfter.visibility = beforeAfterVis
+        tvBalanceBefore.text       = balanceBeforeText
+        tvBalanceAfter.text        = balanceAfterText
+        tvActualBalance.visibility = actualBalanceVis
+        tvActualBalance.text       = actualBalanceText
+        tvMinorIcon.visibility     = minorIconVis
+        layoutTransactionHistory.visibility = txHistoryVis
+        tvTx.forEachIndexed { i, tv ->
+            tv.text       = txTexts[i]
+            tv.visibility = txVis[i]
+        }
+        tvTxDebug.text       = txDebugText
+        tvTxDebug.visibility = txDebugVis
+        tvReplayAllow.visibility  = replayAllowVis
+        progressBarNfc.visibility = progressVis
+        progressBarNfc.progress   = progressValue
+
+        // Re-apply button selection styling on the freshly-built button grid.
+        if (selectedButtonIndex >= 0) {
+            applyButtonSelectionStyle(selectedButtonIndex, selected = true)
+        }
+        invalidateOptionsMenu()
+    }
+
+    private fun bindViews() {
+        rootLayout               = findViewById(R.id.rootLayout)
+        tvStatus                 = findViewById(R.id.tvStatus)
+        tvReplayAllow            = findViewById(R.id.tvReplayAllow)
+        tvBalance                = findViewById(R.id.tvBalance)
+        tvMinorIcon              = findViewById(R.id.tvMinorIcon)
+        tvCardId                 = findViewById(R.id.tvCardId)
+        tvCoinsLabel             = findViewById(R.id.tvCoinsLabel)
+        tvBalanceBefore          = findViewById(R.id.tvBalanceBefore)
+        tvBalanceAfter           = findViewById(R.id.tvBalanceAfter)
+        tvActualBalance          = findViewById(R.id.tvActualBalance)
+        layoutBeforeAfter        = findViewById(R.id.layoutBeforeAfter)
+        layoutCustomButtons      = findViewById(R.id.layoutCustomButtons)
+        etHiddenInput            = findViewById(R.id.etHiddenInput)
+        progressBarNfc           = findViewById(R.id.progressBarNfc)
+        layoutTransactionHistory = findViewById(R.id.layoutTransactionHistory)
+        tvTx = arrayOf(
+            findViewById(R.id.tvTx0),
+            findViewById(R.id.tvTx1),
+            findViewById(R.id.tvTx2),
+            findViewById(R.id.tvTx3)
+        )
+        tvTxDebug = findViewById(R.id.tvTxDebug)
     }
 
     // -------------------------------------------------------------------------
