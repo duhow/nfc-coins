@@ -106,7 +106,7 @@
 
             </LinearLayout>
 
-            <!-- Saldo actual (visible solo en caso de saldo insuficiente con cantidad personalizada) -->
+            <!-- Actual balance (visible only in case of insufficient balance with custom amount) -->
             <TextView
                 android:id="@+id/tvActualBalance"
                 android:layout_width="wrap_content"
@@ -168,7 +168,7 @@
             android:layout_marginStart="8dp"
             android:layout_marginEnd="8dp" />
 
-        <!-- Right panel: toggle coin deduction buttons + transaction history -->
+        <!-- Right panel: coin deduction buttons + transaction history -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"

@@ -8,212 +8,246 @@
     android:fitsSystemWindows="true"
     tools:context=".MainActivity">
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:gravity="center_horizontal"
-        android:padding="24dp">
+        android:fillViewport="true">
 
-        <!-- Card ID -->
-        <TextView
-            android:id="@+id/tvCardId"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/no_card_detected"
-            android:textSize="14sp"
-            android:layout_marginBottom="16dp" />
-
-        <!-- Large balance number (EditText to allow custom deduction entry), with minor indicator -->
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="4dp">
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:padding="24dp">
 
-            <EditText
-                android:id="@+id/tvBalance"
+            <!-- Card ID -->
+            <TextView
+                android:id="@+id/tvCardId"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/balance_initial"
-                android:textSize="72sp"
+                android:text="@string/no_card_detected"
+                android:textSize="14sp"
+                android:layout_marginBottom="16dp" />
+
+            <!-- Large balance number (EditText to allow custom deduction entry), with minor indicator -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="4dp">
+
+                <EditText
+                    android:id="@+id/tvBalance"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/balance_initial"
+                    android:textSize="72sp"
+                    android:textStyle="bold"
+                    android:background="@null"
+                    android:inputType="none"
+                    android:gravity="center" />
+
+                <TextView
+                    android:id="@+id/tvMinorIcon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🧒"
+                    android:textSize="24sp"
+                    android:layout_marginStart="16dp"
+                    android:contentDescription="@string/minor_indicator_description"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvCoinsLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/coins_label"
+                android:textSize="16sp"
+                android:layout_marginBottom="8dp" />
+
+            <!-- Before → After balance row (shown after deduction or add) -->
+            <LinearLayout
+                android:id="@+id/layoutBeforeAfter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:id="@+id/tvBalanceBefore"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="32sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=" → "
+                    android:textSize="28sp" />
+
+                <TextView
+                    android:id="@+id/tvBalanceAfter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="32sp"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
+
+            <!-- Saldo actual (visible solo en caso de saldo insuficiente con cantidad personalizada) -->
+            <TextView
+                android:id="@+id/tvActualBalance"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="32sp"
                 android:textStyle="bold"
-                android:background="@null"
-                android:inputType="none"
-                android:gravity="center" />
-
-            <TextView
-                android:id="@+id/tvMinorIcon"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🧒"
-                android:textSize="24sp"
-                android:layout_marginStart="16dp"
-                android:contentDescription="@string/minor_indicator_description"
+                android:gravity="center"
+                android:layout_marginBottom="8dp"
                 android:visibility="gone" />
 
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/tvCoinsLabel"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/coins_label"
-            android:textSize="16sp"
-            android:layout_marginBottom="8dp" />
-
-        <!-- Before → After balance row (shown after deduction or add) -->
-        <LinearLayout
-            android:id="@+id/layoutBeforeAfter"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:visibility="gone"
-            android:layout_marginBottom="8dp">
-
+            <!-- Status message -->
             <TextView
-                android:id="@+id/tvBalanceBefore"
+                android:id="@+id/tvStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="32sp"
-                android:textStyle="bold" />
+                android:text="@string/waiting_card"
+                android:textSize="14sp"
+                android:gravity="center"
+                android:layout_marginBottom="8dp" />
 
-            <TextView
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/tvReplayAllow"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text=" → "
-                android:textSize="28sp" />
-
-            <TextView
-                android:id="@+id/tvBalanceAfter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textSize="32sp"
-                android:textStyle="bold" />
-
-        </LinearLayout>
-
-        <!-- Saldo actual (visible solo en caso de saldo insuficiente con cantidad personalizada) -->
-        <TextView
-            android:id="@+id/tvActualBalance"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="32sp"
-            android:textStyle="bold"
-            android:gravity="center"
-            android:layout_marginBottom="8dp"
-            android:visibility="gone" />
-
-        <!-- Status message -->
-        <TextView
-            android:id="@+id/tvStatus"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/waiting_card"
-            android:textSize="14sp"
-            android:gravity="center"
-            android:layout_marginBottom="8dp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/tvReplayAllow"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/replay_allow_action"
-            android:contentDescription="@string/replay_allow_action_plain"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:textColor="@android:color/white"
-            android:clickable="true"
-            android:focusable="true"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:paddingTop="6dp"
-            android:paddingBottom="6dp"
-            android:layout_marginBottom="8dp"
-            app:backgroundTint="@color/success_green"
-            app:cornerRadius="12dp"
-            android:visibility="gone" />
-
-        <!-- Hidden EditText used as keyboard target for custom deduction entry.
-             Height is 1dp (non-zero) so the IMM can show the keyboard; alpha=0 keeps it invisible. -->
-        <net.duhowpi.nfccoins.BackspaceEditText
-            android:id="@+id/etHiddenInput"
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:inputType="number"
-            android:background="@null"
-            android:alpha="0"
-            android:cursorVisible="false"
-            android:importantForAccessibility="no" />
-
-        <!-- Custom coin deduction/add buttons (populated dynamically) -->
-        <LinearLayout
-            android:id="@+id/layoutCustomButtons"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="center_horizontal" />
-
-        <!-- Transaction history (shown after reading a card) -->
-        <LinearLayout
-            android:id="@+id/layoutTransactionHistory"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginTop="24dp"
-            android:visibility="gone">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/tx_history_label"
+                android:text="@string/replay_allow_action"
+                android:contentDescription="@string/replay_allow_action_plain"
                 android:textSize="12sp"
-                android:textAllCaps="true"
-                android:alpha="0.6"
-                android:layout_marginBottom="4dp" />
-
-            <TextView
-                android:id="@+id/tvTx0"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="@android:color/white"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:layout_marginBottom="8dp"
+                app:backgroundTint="@color/success_green"
+                app:cornerRadius="12dp"
                 android:visibility="gone" />
 
-            <TextView
-                android:id="@+id/tvTx1"
+            <!-- Hidden EditText used as keyboard target for custom deduction entry.
+                 Height is 1dp (non-zero) so the IMM can show the keyboard; alpha=0 keeps it invisible. -->
+            <net.duhowpi.nfccoins.BackspaceEditText
+                android:id="@+id/etHiddenInput"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textSize="13sp"
-                android:visibility="gone" />
+                android:layout_height="1dp"
+                android:inputType="number"
+                android:background="@null"
+                android:alpha="0"
+                android:cursorVisible="false"
+                android:importantForAccessibility="no" />
 
-            <TextView
-                android:id="@+id/tvTx2"
-                android:layout_width="match_parent"
+            <!-- Custom coin deduction/add buttons (populated dynamically) -->
+            <LinearLayout
+                android:id="@+id/layoutCustomButtons"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="13sp"
-                android:visibility="gone" />
+                android:orientation="vertical"
+                android:gravity="center_horizontal" />
 
-            <TextView
-                android:id="@+id/tvTx3"
+            <!-- Transaction history (shown after reading a card) -->
+            <LinearLayout
+                android:id="@+id/layoutTransactionHistory"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="13sp"
-                android:visibility="gone" />
+                android:orientation="vertical"
+                android:layout_marginTop="24dp"
+                android:visibility="gone">
 
-            <TextView
-                android:id="@+id/tvTxDebug"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textSize="11sp"
-                android:alpha="0.7"
-                android:layout_marginTop="4dp"
-                android:visibility="gone" />
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/tx_history_label"
+                    android:textSize="12sp"
+                    android:textAllCaps="true"
+                    android:alpha="0.6"
+                    android:layout_marginBottom="4dp" />
+
+                <!-- 2-column grid: tvTx0/tvTx1 in left column, tvTx2/tvTx3 in right column -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:paddingStart="0dp"
+                        android:paddingEnd="8dp">
+
+                        <TextView
+                            android:id="@+id/tvTx0"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="13sp"
+                            android:visibility="gone" />
+
+                        <TextView
+                            android:id="@+id/tvTx1"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="13sp"
+                            android:visibility="gone" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:paddingStart="8dp">
+
+                        <TextView
+                            android:id="@+id/tvTx2"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="13sp"
+                            android:visibility="gone" />
+
+                        <TextView
+                            android:id="@+id/tvTx3"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="13sp"
+                            android:visibility="gone" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvTxDebug"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="11sp"
+                    android:alpha="0.7"
+                    android:layout_marginTop="4dp"
+                    android:visibility="gone" />
+
+            </LinearLayout>
 
         </LinearLayout>
 
-    </LinearLayout>
+    </ScrollView>
 
     <ProgressBar
         android:id="@+id/progressBarNfc"
