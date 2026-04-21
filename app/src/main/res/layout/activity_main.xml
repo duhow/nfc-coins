@@ -190,6 +190,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:orientation="vertical"
+                        android:paddingStart="0dp"
                         android:paddingEnd="8dp">
 
                         <TextView
