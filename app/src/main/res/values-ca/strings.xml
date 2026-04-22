@@ -56,8 +56,7 @@
     <string name="format_limite_edad">Límit d\'edat</string>
     <string name="format_limite_edad_hint">Edat o any de naixement</string>
     <string name="format_initial_balance">Saldo inicial</string>
-    <string name="format_initial_balance_hint">0</string>
-    <string name="format_initial_balance_hint_decimal">0.00</string>
+    <string name="format_success_with_balance">Targeta formatada (saldo: %1$s)</string>
     <string name="single_recharge_already_used">La recàrrega única ja s\'ha fet.\nNo es permeten més recàrregues.</string>
     <string name="setting_legal_age">Edat legal d\'adult</string>
     <string name="setting_legal_age_hint">Edat (anys)</string>

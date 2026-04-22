@@ -1797,8 +1797,7 @@ class MainActivity : AppCompatActivity() {
 
         val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this)
         val editInitialBalance = EditText(this).apply {
-            hint = if (isDecimalMode) getString(R.string.format_initial_balance_hint_decimal)
-                   else getString(R.string.format_initial_balance_hint)
+            hint = if (isDecimalMode) "0.00" else "0"
             inputType = if (isDecimalMode) InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
                         else InputType.TYPE_CLASS_NUMBER
         }
@@ -2195,7 +2194,7 @@ class MainActivity : AppCompatActivity() {
             )
         }
         setScreenStatusSuccess(
-            message = getString(R.string.balance_added_ok, formatBalanceDisplay(amount)),
+            message = getString(R.string.format_success_with_balance, formatBalanceDisplay(amount)),
             background = R.color.success_purple_dark
         )
     }
