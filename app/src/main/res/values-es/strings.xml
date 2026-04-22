@@ -55,6 +55,9 @@
     <string name="format_recarga_unica">Recarga única</string>
     <string name="format_limite_edad">Límite de edad</string>
     <string name="format_limite_edad_hint">Edad o año de nacimiento</string>
+    <string name="format_initial_balance">Saldo inicial</string>
+    <string name="format_initial_balance_hint">0</string>
+    <string name="format_initial_balance_hint_decimal">0.00</string>
     <string name="single_recharge_already_used">Recarga única ya realizada.\nNo se permiten más recargas.</string>
     <string name="setting_legal_age">Edad adulta legal</string>
     <string name="setting_legal_age_hint">Edad (años)</string>

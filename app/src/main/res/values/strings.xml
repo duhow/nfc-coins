@@ -55,6 +55,9 @@
     <string name="format_recarga_unica">Single recharge</string>
     <string name="format_limite_edad">Age limit</string>
     <string name="format_limite_edad_hint">Age or birth year</string>
+    <string name="format_initial_balance">Initial balance</string>
+    <string name="format_initial_balance_hint">0</string>
+    <string name="format_initial_balance_hint_decimal">0.00</string>
     <string name="single_recharge_already_used">Single recharge already done.\nNo more recharges allowed.</string>
     <string name="setting_legal_age">Legal adult age</string>
     <string name="setting_legal_age_hint">Age (years)</string>

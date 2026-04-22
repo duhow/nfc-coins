@@ -1,1 +1,2 @@
 Add user-facing changes for the next release here.
+- Added initial balance option when formatting a card
