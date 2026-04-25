@@ -146,6 +146,8 @@ class MifareClassicCoinCard(
         val userByte = MifareClassicHelper.toUserBirthByte(userBirthYear)
         val start = mifare.sectorToBlock(sector)
         val blocks = mifare.getBlockCountInSector(sector)
+        sectorStart = start
+        blocksInSector = blocks
         val trailerIdx = start + blocks - 1
 
         // Ensure block 0 is writable (in case card had single-recharge bits).
@@ -206,6 +208,8 @@ class MifareClassicCoinCard(
 
         val start = mifare.sectorToBlock(sector)
         val blocks = mifare.getBlockCountInSector(sector)
+        sectorStart = start
+        blocksInSector = blocks
 
         val zeroValueBlock = MifareClassicHelper.makeValueBlock(0)
         val nowSecs = System.currentTimeMillis() / 1000L

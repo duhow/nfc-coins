@@ -2162,10 +2162,16 @@ class MainActivity : AppCompatActivity() {
             isSingleRecharge = pendingSingleRecharge,
             userBirthYear = pendingUserBirthYear
         )
-        runNfcOperationWithTimeout { card.connect() }
-        val readResult = runNfcOperationWithTimeout { card.readCardData() }
-        if (readResult !is BaseCoinCard.ReadResult.Success) {
-            error("Failed to read card after format: $readResult")
+        when (val readResult = runNfcOperationWithTimeout { card.readCardData() }) {
+            is BaseCoinCard.ReadResult.Success -> {
+                // Card state/cache refreshed for the immediate post-format write.
+            }
+            is BaseCoinCard.ReadResult.AuthFailed -> {
+                error("Failed to authenticate card after format")
+            }
+            is BaseCoinCard.ReadResult.InvalidData -> {
+                error("Invalid card data after format: ${readResult.reason}")
+            }
         }
         if (pendingSingleRecharge) {
             runNfcOperationWithTimeout { card.unlockRecharge(freshCardData) }
