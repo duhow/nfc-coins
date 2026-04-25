@@ -2163,9 +2163,7 @@ class MainActivity : AppCompatActivity() {
             userBirthYear = pendingUserBirthYear
         )
         when (val readResult = runNfcOperationWithTimeout { card.readCardData() }) {
-            is BaseCoinCard.ReadResult.Success -> {
-                // Card state/cache refreshed for the immediate post-format write.
-            }
+            is BaseCoinCard.ReadResult.Success -> Unit
             is BaseCoinCard.ReadResult.AuthFailed -> {
                 error("Failed to authenticate card after format")
             }
