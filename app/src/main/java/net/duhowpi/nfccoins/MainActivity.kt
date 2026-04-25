@@ -2162,6 +2162,7 @@ class MainActivity : AppCompatActivity() {
             isSingleRecharge = pendingSingleRecharge,
             userBirthYear = pendingUserBirthYear
         )
+        // Refresh per-card internal state after format (auth/session caches) without reconnecting.
         when (val readResult = runNfcOperationWithTimeout { card.readCardData() }) {
             is BaseCoinCard.ReadResult.Success -> Unit
             is BaseCoinCard.ReadResult.AuthFailed -> {
