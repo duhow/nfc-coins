@@ -131,6 +131,7 @@ class MainActivity : AppCompatActivity() {
     // Format card dialog options
     private var pendingSingleRecharge: Boolean = false
     private var pendingUserBirthYear: Int = MifareClassicHelper.toUserBirthYear(MifareClassicHelper.DEFAULT_USER_BYTE)
+    private var pendingInitialBalance: Int = 0
 
     private val handler = Handler(Looper.getMainLooper())
     private val autoResetRunnable = Runnable { resetToWaiting() }
@@ -1789,12 +1790,26 @@ class MainActivity : AppCompatActivity() {
             })
         }
 
+        val labelInitialBalance = TextView(this).apply {
+            text = getString(R.string.format_initial_balance)
+            setPadding(0, pad / 2, 0, 0)
+        }
+
+        val isDecimalMode = AdvancedSettingsActivity.isDecimalModeEnabled(this)
+        val editInitialBalance = EditText(this).apply {
+            hint = if (isDecimalMode) "0.00" else "0"
+            inputType = if (isDecimalMode) InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+                        else InputType.TYPE_CLASS_NUMBER
+        }
+
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad / 2, pad, 0)
             addView(checkboxSingleRecharge)
             addView(labelAge)
             addView(editAge)
+            addView(labelInitialBalance)
+            addView(editInitialBalance)
         }
 
         val dialog = AlertDialog.Builder(this)
@@ -1803,6 +1818,10 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton(R.string.action_confirm) { _, _ ->
                 pendingSingleRecharge = checkboxSingleRecharge.isChecked
                 pendingUserBirthYear = parseUserBirthYear(editAge.text.toString())
+                val rawBalance = editInitialBalance.text.toString().trim()
+                pendingInitialBalance = if (rawBalance.isEmpty()) 0
+                    else if (isDecimalMode) parseDecimalInput(rawBalance.replace(',', '.'))
+                    else rawBalance.toIntOrNull()?.coerceAtLeast(0) ?: 0
                 cancelAddBalance()
                 clearCustomButtonSelection()
                 setPendingAction(PendingAction.FORMAT_CARD)
@@ -2055,10 +2074,14 @@ class MainActivity : AppCompatActivity() {
                             balanceAfter = 0
                         )
                     }
-                    setScreenStatusSuccess(
-                        message = getString(R.string.format_reset_success),
-                        background = R.color.success_purple_dark
-                    )
+                    if (pendingInitialBalance > 0) {
+                        applyInitialBalanceAfterFormat(card, result.formattedAtSeconds)
+                    } else {
+                        setScreenStatusSuccess(
+                            message = getString(R.string.format_reset_success),
+                            background = R.color.success_purple_dark
+                        )
+                    }
                 }
                 is BaseCoinCard.FormatResult.NewlyFormatted -> {
                     currentBalance = 0
@@ -2075,10 +2098,14 @@ class MainActivity : AppCompatActivity() {
                             balanceAfter = 0
                         )
                     }
-                    setScreenStatusSuccess(
-                        message = getString(R.string.format_success),
-                        background = R.color.success_purple_dark
-                    )
+                    if (pendingInitialBalance > 0) {
+                        applyInitialBalanceAfterFormat(card, result.formattedAtSeconds)
+                    } else {
+                        setScreenStatusSuccess(
+                            message = getString(R.string.format_success),
+                            background = R.color.success_purple_dark
+                        )
+                    }
 
                     if (AdvancedSettingsActivity.isDebugEnabled(this) && result.foundKeyType != null) {
                         val keyType = result.foundKeyType
@@ -2116,6 +2143,71 @@ class MainActivity : AppCompatActivity() {
     // -------------------------------------------------------------------------
     // Reset card
     // -------------------------------------------------------------------------
+
+    /**
+     * Adds [pendingInitialBalance] to the freshly formatted card.
+     * Called from [formatCard] when [pendingInitialBalance] > 0 after a successful format.
+     * Throws on NFC error; the caller's try/catch handles it.
+     */
+    private fun applyInitialBalanceAfterFormat(card: BaseCoinCard, formattedAtSeconds: Long) {
+        val amount = pendingInitialBalance.coerceAtMost(card.maxBalance)
+        val freshTxBlock = TransactionBlock(formattedAtSeconds)
+        val newBalanceData = card.encodeBalance(amount)
+        val (updatedTxBlock, newTransactions) = card.buildUpdatedTxBlocks(
+            freshTxBlock, newBalanceData, TxOperation.ADD, amount
+        )
+        val freshCardData = BaseCoinCard.CardData(
+            balance = 0,
+            transactions = freshTxBlock,
+            isSingleRecharge = pendingSingleRecharge,
+            userBirthYear = pendingUserBirthYear
+        )
+        // Refresh per-card internal state after format (auth/session caches) without reconnecting.
+        when (val readResult = runNfcOperationWithTimeout { card.readCardData() }) {
+            is BaseCoinCard.ReadResult.Success -> Unit
+            is BaseCoinCard.ReadResult.AuthFailed -> {
+                throw IllegalStateException(getString(R.string.auth_failed))
+            }
+            is BaseCoinCard.ReadResult.InvalidData -> {
+                throw IllegalStateException(invalidDataMessage(readResult.reason))
+            }
+        }
+        if (pendingSingleRecharge) {
+            runNfcOperationWithTimeout { card.unlockRecharge(freshCardData) }
+        }
+        runNfcOperationWithTimeout { card.addBalance(amount, newTransactions) }
+        if (pendingSingleRecharge) {
+            runNfcOperationWithTimeout { card.lockRecharge(freshCardData) }
+        }
+        currentBalance = amount
+        setBalanceDisplay(amount)
+        onUiThread {
+            tvBalanceBefore.text = formatBalanceDisplay(0)
+            tvBalanceAfter.text = formatBalanceDisplay(amount)
+            layoutBeforeAfter.visibility = View.VISIBLE
+        }
+        showTransactionHistory(updatedTxBlock)
+        showDebugChecksums(card, amount, newTransactions)
+        txDb.insertTransaction(
+            type = TransactionDatabase.TYPE_ADD,
+            amount = amount,
+            balanceBefore = 0,
+            balanceAfter = amount,
+            cardUid = card.uid.toHex()
+        )
+        if (!AdvancedSettingsActivity.isDistributedPosEnabled(this)) {
+            txDb.recordCardState(
+                cardUid = card.uid.toHex(),
+                checksum = newTransactions.copyOfRange(newTransactions.size - TX_CHECKSUM_SIZE, newTransactions.size).toHex(),
+                balanceBefore = 0,
+                balanceAfter = amount
+            )
+        }
+        setScreenStatusSuccess(
+            message = getString(R.string.format_success_with_balance, formatBalanceDisplay(amount)),
+            background = R.color.success_purple_dark
+        )
+    }
 
     private fun resetCard(card: BaseCoinCard) {
         try {
