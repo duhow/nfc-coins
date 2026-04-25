@@ -2165,10 +2165,10 @@ class MainActivity : AppCompatActivity() {
         when (val readResult = runNfcOperationWithTimeout { card.readCardData() }) {
             is BaseCoinCard.ReadResult.Success -> Unit
             is BaseCoinCard.ReadResult.AuthFailed -> {
-                error("Failed to authenticate card after format")
+                throw IllegalStateException(getString(R.string.auth_failed))
             }
             is BaseCoinCard.ReadResult.InvalidData -> {
-                error("Invalid card data after format: ${readResult.reason}")
+                throw IllegalStateException(invalidDataMessage(readResult.reason))
             }
         }
         if (pendingSingleRecharge) {
